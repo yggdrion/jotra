@@ -1,12 +1,17 @@
 extends Node
 ## Entry point. Picks the role from the user args (after `--`):
 ##   --server --port=N [--solo]               game server (headless); --solo: exits with its player
+##     [--world=DIR]                          world save dir, created if missing (DEFAULT_WORLD)
 ##     [--metrics-port=N]                     also serve Prometheus metrics over HTTP
+##     [--stop-file=PATH]                     save and exit once PATH exists (Docker stop)
 ##   --connect=host:port [--bot --expect=N]   client joining a running server
+##   --name=NAME                              client player name (default: a token kept in user://)
 ##   (none)                                   solo: spawns a local --solo server, then joins it
 ##   --windowed                               client starts in a window instead of fullscreen
 
 const DEFAULT_PORT := 17777
+const DEFAULT_WORLD := "user://worlds/default"
+const SOLO_WORLD := "user://worlds/solo"
 
 @onready var _net: Net = $Net
 
@@ -17,8 +22,13 @@ func _ready() -> void:
 		var server := GameServer.new()
 		server.net = _net
 		server.solo = args.has("solo")
+		server.stop_file = args.get("stop-file", "")
 		add_child(server)
-		server.start(int(args.get("port", DEFAULT_PORT)), int(args.get("metrics-port", "0")))
+		server.start(
+			int(args.get("port", DEFAULT_PORT)),
+			args.get("world", DEFAULT_WORLD),
+			int(args.get("metrics-port", "0"))
+		)
 		return
 	# Godot's own --windowed loses to the project's fullscreen setting, hence our own flag.
 	if args.has("windowed"):
@@ -29,6 +39,7 @@ func _ready() -> void:
 	client.net = _net
 	client.bot = args.has("bot")
 	client.bot_expect = int(args.get("expect", "0"))
+	client.player_name = args.get("name", "")
 	add_child(client)
 	if args.has("connect"):
 		var parts: PackedStringArray = args["connect"].rsplit(":", true, 1)
@@ -88,7 +99,7 @@ func _spawn_local_server() -> int:
 	# From source the executable is the Godot binary, which needs the project path.
 	if not OS.has_feature("template"):
 		cmd.append_array(["--path", ProjectSettings.globalize_path("res://")])
-	cmd.append_array(["--", "--server", "--solo", "--port=%d" % port])
+	cmd.append_array(["--", "--server", "--solo", "--port=%d" % port, "--world=" + SOLO_WORLD])
 	OS.create_process(OS.get_executable_path(), cmd)
 	return port
 

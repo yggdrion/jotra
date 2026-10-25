@@ -1,8 +1,8 @@
 class_name GameServer
 extends Node
 ## The game server: owns the SimWorld, ticks it at TICK_RATE and sends snapshots to every
-## client at SNAPSHOT_RATE. Runs headless, in its own process even for solo. The world pauses
-## while nobody is online.
+## client at SNAPSHOT_RATE, along with the chunks entering each player's view. Runs headless, in
+## its own process even for solo. The world pauses and is saved while nobody is online.
 
 const TICK_RATE := 30
 const SNAPSHOT_RATE := 20
@@ -12,15 +12,24 @@ const POLL_RATE := 240
 const MAX_PLAYERS := 10
 ## Solo: how long the spawning client has to join before we give up on it.
 const SOLO_JOIN_TIMEOUT := 30.0
+## Seconds between saves while players are online.
+const SAVE_INTERVAL := 60.0
 
 var net: Net
 ## Solo: the server lives only as long as the client that spawned it, so it exits when that
 ## player leaves or never joins. (OS.is_process_running only sees our own child processes, so
 ## the parent's pid can't be watched.)
 var solo := false
-var world := SimWorld.new()
+## When this file appears the server saves and exits: Godot dies on SIGTERM without running any
+## code, so the Docker entrypoint creates it on docker stop instead.
+var stop_file := ""
+var world: SimWorld
 
 var _snapshot_due := 0.0
+var _save_due := SAVE_INTERVAL
+## peer id -> {coord: true} of the chunks that client has.
+var _sent_chunks := {}
+var _name_pattern := RegEx.create_from_string("^[A-Za-z0-9_-]{1,32}$")
 var _solo_wait := SOLO_JOIN_TIMEOUT
 var _started := Time.get_unix_time_from_system()
 # Metrics counters.
@@ -28,10 +37,17 @@ var _ticks := 0
 var _tick_usec := 0
 var _sent_bytes := 0
 var _received_bytes := 0
+var _save_usec := 0
 
 
-## metrics_port > 0 also serves Prometheus metrics on that TCP port.
-func start(port: int, metrics_port := 0) -> void:
+## Serves the world saved in world_path (created if missing). metrics_port > 0 also serves
+## Prometheus metrics on that TCP port.
+func start(port: int, world_path: String, metrics_port := 0) -> void:
+	world = SimWorld.open(world_path)
+	if world == null:
+		get_tree().quit(1)
+		return
+	print("server: world %s, seed %d" % [world.store.dir, world.world_seed])
 	Engine.physics_ticks_per_second = TICK_RATE
 	# Headless has no vsync; without a cap the idle server spins a core. The cap sits well above
 	# TICK_RATE because ENet is only polled once per frame: at 30 fps every packet waited up to
@@ -47,6 +63,7 @@ func start(port: int, metrics_port := 0) -> void:
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	net.hello_received.connect(_on_hello)
 	net.moved.connect(func(id: int, position: Vector2) -> void: world.move_player(id, position))
+	net.prop_remove_requested.connect(_on_prop_remove_requested)
 	print("server: listening on %d" % port)
 	if metrics_port > 0:
 		var metrics := MetricsServer.new()
@@ -63,6 +80,13 @@ func start(port: int, metrics_port := 0) -> void:
 
 
 func _physics_process(delta: float) -> void:
+	if world == null:  # start() failed and is quitting
+		return
+	if stop_file != "" and FileAccess.file_exists(stop_file):
+		print("server: stop requested, saving")
+		set_physics_process(false)
+		get_tree().quit()  # _exit_tree saves
+		return
 	if world.players.is_empty():
 		if solo:
 			_solo_wait -= delta
@@ -75,9 +99,41 @@ func _physics_process(delta: float) -> void:
 	_snapshot_due -= delta
 	if _snapshot_due <= 0.0:
 		_snapshot_due += 1.0 / SNAPSHOT_RATE
-		net.snapshot.rpc(world.snapshot())
+		for id: int in world.players:
+			_send_chunks(id)
+			net.snapshot.rpc_id(id, world.snapshot_for(id))
+	_save_due -= delta
+	if _save_due <= 0.0:
+		_save_due = SAVE_INTERVAL
+		_save()
 	_ticks += 1
 	_tick_usec += Time.get_ticks_usec() - started
+
+
+## Sends the chunks that entered a player's view and forgets those it has left. The client
+## keeps chunks a little longer than this, so it never misses one coming back into view.
+func _send_chunks(id: int) -> void:
+	var sent: Dictionary = _sent_chunks[id]
+	var center := WorldGen.chunk_of(world.players[id].position)
+	for coord: Vector2i in sent.keys():
+		if not WorldGen.near(coord, center, SimWorld.VIEW_CHUNKS + 1):
+			sent.erase(coord)
+	for coord in world.interest(id):
+		if not sent.has(coord):
+			sent[coord] = true
+			net.chunk.rpc_id(id, coord, world.removed_props(coord))
+
+
+func _save() -> void:
+	var started := Time.get_ticks_usec()
+	world.save()
+	_save_usec = Time.get_ticks_usec() - started
+
+
+## Also covers every quit() and a clean shutdown.
+func _exit_tree() -> void:
+	if world:
+		_save()
 
 
 ## Prometheus text format. Tick counters only count ticks that ran, not paused ones.
@@ -95,6 +151,8 @@ func metrics_text() -> String:
 		],
 		["start_time_seconds", "gauge", "", _started],
 		["players", "gauge", "", world.players.size()],
+		["loaded_chunks", "gauge", "", world.chunks.size()],
+		["save_seconds", "gauge", "", _save_usec / 1e6],
 		["ticks_total", "counter", "", _ticks],
 		["tick_seconds_total", "counter", "", _tick_usec / 1e6],
 		["sent_bytes_total", "counter", "", _sent_bytes],
@@ -107,18 +165,39 @@ func metrics_text() -> String:
 	return "\n".join(lines) + "\n"
 
 
-func _on_hello(id: int, version: int) -> void:
+func _on_hello(id: int, version: int, player_name: String) -> void:
 	if version != Net.PROTOCOL_VERSION:
 		net.reject.rpc_id(id, "protocol %d, server speaks %d" % [version, Net.PROTOCOL_VERSION])
 		return
-	var player := world.add_player(id)
-	net.welcome.rpc_id(id, player.position)
-	print("server: player %d joined (%d online)" % [id, world.players.size()])
+	# The name becomes a file name in the world's save.
+	if _name_pattern.search(player_name) == null:
+		net.reject.rpc_id(id, "invalid player name")
+		return
+	if world.is_online(player_name):
+		net.reject.rpc_id(id, "%s is already online" % player_name)
+		return
+	var player := world.add_player(id, player_name)
+	_sent_chunks[id] = {}
+	net.welcome.rpc_id(id, player.position, world.world_seed)
+	print("server: %s joined as %d (%d online)" % [player_name, id, world.players.size()])
+
+
+func _on_prop_remove_requested(id: int, coord: Vector2i, prop_id: int) -> void:
+	if not world.remove_prop(id, coord, prop_id):
+		return
+	for peer: int in _sent_chunks:
+		if _sent_chunks[peer].has(coord):
+			net.prop_removed.rpc_id(peer, coord, prop_id)
 
 
 func _on_peer_disconnected(id: int) -> void:
+	if not world.players.has(id):
+		return
 	world.remove_player(id)
+	_sent_chunks.erase(id)
 	print("server: player %d left (%d online)" % [id, world.players.size()])
+	if world.players.is_empty():
+		_save()
 	if solo:
 		print("server: solo player left, exiting")
 		get_tree().quit()

@@ -1,8 +1,9 @@
 """Headless network test over ENet on localhost, in two runs:
 
   1. One server and BOTS bot clients. Each bot walks in a circle and exits 0 once the server
-     echoes its position and it has seen every other bot moving (GameClient bot mode). The
-     server's metrics endpoint must then show the ticks that ran.
+     echoes its position, it has chunks and it has seen every other bot moving (GameClient bot
+     mode). The server's metrics endpoint must then show the ticks that ran, and the world dir
+     the bots' saved positions.
   2. A --solo server and one bot: the server must exit on its own once the bot leaves, as it
      does when the solo player closes the game.
   3. A bot without --connect, which spawns its own solo server like the game does.
@@ -58,8 +59,12 @@ def wait(proc, what):
 
 
 try:
-    procs.append(start("server", "--server", f"--port={PORT}", f"--metrics-port={PORT}"))
-    bots = [start(f"bot{i}", f"--connect=127.0.0.1:{PORT}", "--bot", f"--expect={BOTS - 1}") for i in range(BOTS)]
+    world = logs / "world"
+    procs.append(start("server", "--server", f"--port={PORT}", f"--metrics-port={PORT}", f"--world={world}"))
+    bots = [
+        start(f"bot{i}", f"--connect=127.0.0.1:{PORT}", "--bot", f"--expect={BOTS - 1}", f"--name=bot{i}")
+        for i in range(BOTS)
+    ]
     procs += bots
     for i, bot in enumerate(bots):
         wait(bot, f"bot{i}")
@@ -69,8 +74,12 @@ try:
     if int(ticks) == 0:
         dump()
         fail(f"metrics show no ticks:\n{metrics}")
-    procs.append(solo := start("solo", "--server", "--solo", f"--port={PORT + 1}"))
-    procs.append(bot := start("solo-bot", f"--connect=127.0.0.1:{PORT + 1}", "--bot"))
+    missing = [i for i in range(BOTS) if not (world / "players" / f"bot{i}.json").exists()]
+    if missing:
+        dump()
+        fail(f"no saved player for bot(s) {missing} in {world}")
+    procs.append(solo := start("solo", "--server", "--solo", f"--port={PORT + 1}", f"--world={logs / 'solo'}"))
+    procs.append(bot := start("solo-bot", f"--connect=127.0.0.1:{PORT + 1}", "--bot", "--name=solo"))
     wait(bot, "solo bot")
     wait(solo, "solo server")
     procs.append(spawner := start("spawn-bot", "--bot"))
@@ -78,4 +87,4 @@ try:
 finally:
     for p in procs:
         p.kill()
-print(f"Network test passed: {BOTS} bots saw each other, metrics served, solo server exited with its player, solo spawn works.")
+print(f"Network test passed: {BOTS} bots saw each other and got chunks, metrics served, players saved, solo server exited with its player, solo spawn works.")

@@ -2,11 +2,12 @@ class_name GameClient
 extends Node2D
 ## The client: moves its own player at once (client-authoritative), sends the position to the
 ## server at SEND_RATE and draws everyone else INTERP_DELAY_MS in the past, blended from the
-## server's snapshots.
+## server's snapshots. Builds the chunks the server streams from the world seed; E removes the
+## nearest prop.
 ##
 ## Bot mode (run headless by the network test) walks in a circle instead of reading the
-## keyboard and exits 0 once the server echoes its own position and bot_expect other players
-## have been seen moving; 1 on timeout or a lost server, 2 if it never connects.
+## keyboard and exits 0 once it has chunks, the server echoes its own position and bot_expect
+## other players have been seen moving; 1 on timeout or a lost server, 2 if it never connects.
 
 const SEND_RATE := 20
 const INTERP_DELAY_MS := 100
@@ -20,12 +21,17 @@ const BOT_TIMEOUT_MS := 20000
 const BOT_MOVE_PX := 20.0
 ## How close the server's copy of a bot's position must be to its own.
 const BOT_ECHO_PX := 40.0
-const GRID := 32
-const GRID_EXTENT := 1024
+## Where the name of a player who passes no --name is kept.
+const NAME_FILE := "user://player.txt"
+## Chunks are freed this far out, one further than the server forgets them, so a chunk the
+## server sends again is never one the client already dropped.
+const KEEP_CHUNKS := SimWorld.VIEW_CHUNKS + 2
 
 var net: Net
 var bot := false
 var bot_expect := 0
+## Empty: use the one in NAME_FILE.
+var player_name := ""
 
 var _address := ""
 var _port := 0
@@ -36,17 +42,28 @@ var _snapshots: Array[Dictionary] = []
 var _send_due := 0.0
 var _bot_start := {}  # peer id -> first seen position
 var _bot_echoed := false
+var _world_seed := 0
+var _chunks := {}  # Vector2i -> ChunkView
 
 
 func _ready() -> void:
+	y_sort_enabled = true
+	if player_name == "":
+		player_name = _stored_name()
 	multiplayer.connected_to_server.connect(
-		func() -> void: net.hello.rpc_id(1, Net.PROTOCOL_VERSION)
+		func() -> void: net.hello.rpc_id(1, Net.PROTOCOL_VERSION, player_name)
 	)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 	net.welcomed.connect(_on_welcomed)
 	net.rejected.connect(_on_rejected)
 	net.snapshot_received.connect(_on_snapshot)
+	net.chunk_received.connect(_on_chunk)
+	net.prop_removed_received.connect(
+		func(coord: Vector2i, id: int) -> void:
+			if _chunks.has(coord):
+				_chunks[coord].remove_prop(id)
+	)
 	var overlay := DebugOverlay.new()
 	overlay.client = self
 	add_child(overlay)
@@ -60,7 +77,9 @@ func debug_lines() -> PackedStringArray:
 	if _me == null or server == null:
 		lines.append("Net  connecting to %s:%d (try %d)" % [_address, _port, _attempts])
 		return lines
-	lines.append("Net  %s:%d  id %d" % [_address, _port, multiplayer.get_unique_id()])
+	lines.append(
+		"Net  %s:%d  id %d  %s" % [_address, _port, multiplayer.get_unique_id(), player_name]
+	)
 	lines.append(
 		(
 			"Ping %d ms  snapshots %d/s"
@@ -70,7 +89,23 @@ func debug_lines() -> PackedStringArray:
 	var players: Dictionary = _snapshots[-1].players if not _snapshots.is_empty() else {}
 	lines.append("Players %d" % players.size())
 	lines.append("Pos  %d, %d" % [_me.position.x, _me.position.y])
+	var chunk := WorldGen.chunk_of(_me.position)
+	lines.append(
+		"World seed %d  chunk %d, %d  %d loaded" % [_world_seed, chunk.x, chunk.y, _chunks.size()]
+	)
 	return lines
+
+
+## A random name made once per install, so a player comes back as themselves.
+static func _stored_name() -> String:
+	var stored := FileAccess.get_file_as_string(NAME_FILE).strip_edges()
+	if stored != "":
+		return stored
+	var made := "%08x%08x" % [randi(), randi()]
+	var file := FileAccess.open(NAME_FILE, FileAccess.WRITE)
+	if file:
+		file.store_string(made)
+	return made
 
 
 ## The commit tools/export.py baked into this build, or "dev" when run from source.
@@ -114,13 +149,46 @@ func _on_rejected(reason: String) -> void:
 	get_tree().quit(1)
 
 
-func _on_welcomed(spawn: Vector2) -> void:
-	print("client: joined as %d" % multiplayer.get_unique_id())
+func _on_welcomed(spawn: Vector2, world_seed: int) -> void:
+	print("client: joined as %s (%d)" % [player_name, multiplayer.get_unique_id()])
+	_world_seed = world_seed
 	_me = PlayerView.new()
 	_me.own = true
 	_me.position = spawn
 	_me.add_child(Camera2D.new())
 	add_child(_me)
+
+
+func _on_chunk(coord: Vector2i, removed: PackedInt32Array) -> void:
+	if _chunks.has(coord):
+		_chunks[coord].queue_free()
+	_chunks[coord] = ChunkView.new(_world_seed, coord, removed)
+	add_child(_chunks[coord])
+
+
+func _drop_far_chunks() -> void:
+	var center := WorldGen.chunk_of(_me.position)
+	for coord: Vector2i in _chunks.keys():
+		if not WorldGen.near(coord, center, KEEP_CHUNKS):
+			_chunks[coord].queue_free()
+			_chunks.erase(coord)
+
+
+## E: asks the server to remove the nearest prop in reach.
+func _unhandled_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if _me == null or key == null or not key.pressed or key.echo or key.keycode != KEY_E:
+		return
+	var best := []
+	var best_coord := Vector2i.ZERO
+	for coord: Vector2i in _chunks:
+		var found: Array = _chunks[coord].nearest_prop(_me.position, SimWorld.REACH)
+		if not found.is_empty() and (best.is_empty() or found[1] < best[1]):
+			best = found
+			best_coord = coord
+	if not best.is_empty():
+		net.remove_prop.rpc_id(1, best_coord, best[0])
+	get_viewport().set_input_as_handled()
 
 
 func _on_snapshot(players: Dictionary) -> void:
@@ -142,6 +210,7 @@ func _process(delta: float) -> void:
 	if _send_due <= 0.0:
 		_send_due += 1.0 / SEND_RATE
 		net.move.rpc_id(1, _me.position)
+		_drop_far_chunks()
 	_show_remote_players(Interpolation.sample(_snapshots, Time.get_ticks_msec() - INTERP_DELAY_MS))
 
 
@@ -184,15 +253,8 @@ func _bot_check(positions: Dictionary) -> void:
 			_bot_start[id] = positions[id]
 		if positions[id].distance_to(_bot_start[id]) > BOT_MOVE_PX:
 			moving += 1
-	if _bot_echoed and moving >= bot_expect:
-		print("client: bot ok, saw %d moving player(s)" % moving)
+	if _bot_echoed and moving >= bot_expect and not _chunks.is_empty():
+		print("client: bot ok, %d chunks, saw %d moving player(s)" % [_chunks.size(), moving])
 		# Disconnect now, so the server sees us leave instead of timing us out.
 		multiplayer.multiplayer_peer.close()
 		get_tree().quit(0)
-
-
-func _draw() -> void:
-	var color := Color("262b44")
-	for i in range(-GRID_EXTENT, GRID_EXTENT + 1, GRID):
-		draw_line(Vector2(i, -GRID_EXTENT), Vector2(i, GRID_EXTENT), color)
-		draw_line(Vector2(-GRID_EXTENT, i), Vector2(GRID_EXTENT, i), color)

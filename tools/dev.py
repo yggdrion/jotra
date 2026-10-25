@@ -1,6 +1,7 @@
 """Dev launcher: one headless server plus N windowed clients joining it on localhost.
 
 Usage: python tools/dev.py [clients, default 2]
+Clients join as dev1..devN; the server keeps its world in user://worlds/default.
 Closing every client window (or Ctrl+C) stops the server too. For plain solo, run the game
 without arguments instead: python tools/godot.py --path game
 """
@@ -25,7 +26,7 @@ def start(*args):
 
 server = start("--headless", "--", "--server", f"--port={PORT}")
 # The game starts fullscreen; windowed, several clients fit on one screen.
-clients = [start("--", "--windowed", f"--connect=127.0.0.1:{PORT}") for _ in range(count)]
+clients = [start("--", "--windowed", f"--connect=127.0.0.1:{PORT}", f"--name=dev{i + 1}") for i in range(count)]
 try:
     for client in clients:
         client.wait()
