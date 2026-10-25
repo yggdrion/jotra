@@ -1,6 +1,6 @@
 # The dedicated server: the same Linux export players run, started headless as a server.
-# Build context is the export dir (python tools/export.py linux → build/linux/); CI builds and
-# pushes it to ghcr.io/yggdrion/jotra-server on every push to main and every v* tag.
+# Build context is the export dir (python tools/export.py linux → build/linux/); see
+# deploy/docker-compose.yml.
 FROM debian:13-slim
 
 RUN useradd --create-home jotra

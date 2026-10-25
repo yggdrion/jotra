@@ -25,15 +25,15 @@ player count, position); release builds have it too. Command line roles (after `
 
 ## Dedicated server
 
-CI builds `ghcr.io/yggdrion/jotra-server` (`deploy/Dockerfile`) from the Linux export on every
-push to `main` (`:main`) and every `v*` tag. On the vServer:
+A local Docker image (`deploy/Dockerfile`) built from the Linux export:
 
-    docker compose -f deploy/docker-compose.yml up -d
+    python tools/export.py linux
+    docker compose -f deploy/docker-compose.yml up -d --build
 
 Players join with `jotra -- --connect=<host>:17777`. The server pauses its world while nobody
 is online. Prometheus metrics (`jotra_*`: players, tick time, bandwidth, build) are on
-`127.0.0.1:9310/metrics` for vector in the infra stack; the Grafana dashboard is
-`deploy/grafana/jotra.json`.
+`127.0.0.1:9310/metrics`; a Grafana dashboard for them is `deploy/grafana/jotra.json`.
+Deploying to the vServer is the last milestone (`docs/PLAN.md` §8).
 
 ## Check
 

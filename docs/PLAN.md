@@ -248,7 +248,7 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M0 | **Skeleton + solo** | Tooling installs pinned Godot; client spawns a local headless server, connects via ENet localhost; capsule players move with client-authoritative movement and interpolation; server exits when the client closes; `tools/dev.py` starts server + N clients; headless net test (server + 2 bots) passes in CI | Done | v0.1.0 |
 | M0a | **Debug overlay** | F3 overlay in every build: fps, build commit, server address, player id and count, ping, snapshot rate, position. Server polls the network well above its 30 Hz tick, so localhost ping stays ~10 ms | Done | v0.2.0 |
 | M0b | **Fullscreen + any resolution** | Starts borderless fullscreen, F11 / Alt+Enter toggles a window; any window size or aspect works with crisp integer pixel scaling, wider/taller screens see more world instead of black bars (see 6) | Done | v0.2.0 |
-| M1 | **Dedicated mode** | Same server in Docker on the vServer; friends connect by address; pause when empty; protocol version check; metrics in Grafana | In progress: image + compose, pause when empty, metrics endpoint and dashboard JSON in; left: deploy on the vServer, vector scrape + dashboard import in infra, playtest with friends | |
+| M1 | **Dedicated mode (local)** | Same server as a locally built Docker image via compose; clients connect by address; pause when empty; protocol version check; Prometheus metrics endpoint and a Grafana dashboard JSON (vServer deploy is M10) | In progress: image + compose, pause when empty, metrics endpoint and dashboard JSON in; left: build and run the image locally, playtest | |
 | M2 | **World + persistence** | Seeded chunk generation with placeholder biomes; chunk streaming with interest management; deltas, players and world meta survive a server restart | | |
 | M3 | **Combat** | Enemies spawn and use simple AI; light/heavy/dash with stamina; damage, death, respawn; self-scaling by nearby player count | | |
 | M4 | **Loot + inventory** | Drop tables, pickup, inventory, equipment changes stats, crafting at a station | | |
@@ -257,8 +257,9 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M7 | **Dungeon v1** | Entrance in the world; generated instance; ~15 buffs; inventory snapshot rule; end chest; time/depth scaling | | |
 | M8 | **Building v1** | Grid placement of a few pieces, persisted and replicated | | |
 | M9 | **10-player test** | 10 headless bot clients for 30 min on the dedicated server: tick time and bandwidth within budget, no errors | | |
+| M10 | **vServer deploy** | CI builds the server image and pushes it to GHCR; it runs on the vServer, friends connect over the internet; vector scrapes its metrics and the dashboard is in the infra Grafana (TLS/metrics stack lives in the separate `infra` repo) | | |
 
-Dedicated (M1) comes before player host (M6) because it is almost free once solo works and gives an always-on server to playtest with friends early.
+Dedicated (M1) comes before player host (M6) because it is almost free once solo works. It runs locally first; putting it on the vServer waits until the end (M10).
 
 **First prototype scope (after M9):** one biome, one dungeon type, ~15 buffs, one boss, basic building, all placeholders, 1–10 player co-op in all three modes.
 

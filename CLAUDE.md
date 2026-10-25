@@ -10,7 +10,7 @@ Keep this section current: update it in the same push that finishes a milestone 
 
 - **Done:** M0 skeleton + solo (`v0.1.0`), M0a F3 debug overlay and M0b fullscreen + any resolution (`v0.2.0`). Status per milestone: `docs/PLAN.md` §8.
 - **Screen rules** (`docs/PLAN.md` §6): the visible world area differs per player (aspect `expand`), so UI uses anchors and gameplay never depends on what is on someone's screen.
-- **Now: M1 dedicated mode.** In: server mode + protocol check (M0), `deploy/Dockerfile` + `deploy/docker-compose.yml` (CI pushes `ghcr.io/yggdrion/jotra-server` on main/tags), world pauses while empty, `--metrics-port` Prometheus endpoint, `deploy/grafana/jotra.json`. Left: run it on the vServer, add the vector scrape (`host.docker.internal:9310`) and the dashboard in the separate `infra` repo, playtest, then tag. Saving on pause comes with persistence in M2.
+- **Now: M1 dedicated mode (local).** In: server mode + protocol check (M0), `deploy/Dockerfile` + `deploy/docker-compose.yml` (image built locally from the Linux export, no registry), world pauses while empty, `--metrics-port` Prometheus endpoint, `deploy/grafana/jotra.json`. Left: build and run the image locally, playtest, then tag. Saving on pause comes with persistence in M2. vServer, GHCR and the `infra` wiring are the last milestone, M10.
 - **Known gotchas:** `OS.is_process_running` only sees processes the same Godot instance spawned, so a solo server can't watch its parent; it exits when its player disconnects instead. Run the game through `python tools/godot.py` (it imports first), or new `class_name` scripts fail to resolve.
 
 ## Git workflow (early phase)
