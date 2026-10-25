@@ -112,14 +112,15 @@ The server's simulation (world, entities, combat, loot, survival) is plain objec
 ### 4.6 World and chunks
 
 - World generated from a seed: noise → biome map → tiles → props (trees, rocks, ore) → dungeon entrance placement.
-- Fixed-size chunks (e.g. 32×32 tiles, 16 px tiles — to be confirmed with art). Server loads chunks around players, unloads idle ones.
+- Fixed-size chunks: 32×32 tiles of 16 px (512 px). Server loads chunks around players, unloads idle ones. Each player sees the chunks within 2 of its own (5×5, at least 1024 px each way, wider than half the widest view in §6); generation runs on both sides from the seed, so the server only streams each chunk's delta.
 - Persistence stores **deltas against the seed** (felled trees, mined rocks, buildings, dropped items), not whole chunks.
-- Godot `TileMapLayer` with y-sort on the client. Objects in front of the player (trees, roofs) fade out.
+- Godot `TileMapLayer` with y-sort on the client once there is tile art (M2 draws flat placeholder rects). Objects in front of the player (trees, roofs) fade out.
+- Players are identified by name (sent in hello; a random per-install token by default), so a reconnect finds its save.
 
 ### 4.7 Persistence
 
 - Behind a `WorldStore` interface: world meta (seed, version, time of day, boss kills), chunk deltas, players (stats, inventory, equipment, position), buildings.
-- First implementation: plain files per world (meta JSON + one file per changed chunk + one per player), no GDExtension dependency. Switch to SQLite if it becomes a problem.
+- First implementation (M2, `world/world_store.gd`): plain files per world (`world.json` + `chunks/<x>_<y>.json` per changed chunk + `players/<name>.json`), no GDExtension dependency. Switch to SQLite if it becomes a problem.
 - Save periodically (e.g. every 60 s), on last disconnect, and on shutdown. Atomic writes (write temp file, rename).
 - Save format has a version field with migrations from day one.
 
@@ -249,8 +250,8 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M0a | **Debug overlay** | F3 overlay in every build: fps, build commit, server address, player id and count, ping, snapshot rate, position. Server polls the network well above its 30 Hz tick, so localhost ping stays ~10 ms | Done | v0.2.0 |
 | M0b | **Fullscreen + any resolution** | Starts borderless fullscreen, F11 / Alt+Enter toggles a window; any window size or aspect works with crisp integer pixel scaling, wider/taller screens see more world instead of black bars (see 6) | Done | v0.2.0 |
 | M1 | **Dedicated mode (local)** | Same server as a locally built Docker image via compose; clients connect by address; pause when empty; protocol version check; Prometheus metrics endpoint and a Grafana dashboard JSON (vServer deploy is M10) | Done | v0.3.0 |
-| M2 | **World + persistence** | Seeded chunk generation with placeholder biomes; chunk streaming with interest management; deltas, players and world meta survive a server restart | Next | |
-| M3 | **Combat** | Enemies spawn and use simple AI; light/heavy/dash with stamina; damage, death, respawn; self-scaling by nearby player count | | |
+| M2 | **World + persistence** | Seeded chunk generation with placeholder biomes; chunk streaming with interest management; deltas, players and world meta survive a server restart | Done | |
+| M3 | **Combat** | Enemies spawn and use simple AI; light/heavy/dash with stamina; damage, death, respawn; self-scaling by nearby player count | Next | |
 | M4 | **Loot + inventory** | Drop tables, pickup, inventory, equipment changes stats, crafting at a station | | |
 | M5 | **Survival** | Hunger, eating, day/night with stronger nights; penalties at zero | | |
 | M6 | **Player host** | Bun lobby + coturn deployed; server opens a room; host and friends join by code via WebRTC on different networks; rooms stay open while the server runs | | |

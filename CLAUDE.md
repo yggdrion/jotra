@@ -8,10 +8,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Keep this section current: update it in the same push that finishes a milestone or changes what's next, so a new session can pick up from here.
 
-- **Done:** M0 skeleton + solo (`v0.1.0`), M0a F3 debug overlay and M0b fullscreen + any resolution (`v0.2.0`), M1 dedicated mode, local (`v0.3.0`). Status per milestone: `docs/PLAN.md` §8.
+- **Done:** M0 skeleton + solo (`v0.1.0`), M0a F3 debug overlay and M0b fullscreen + any resolution (`v0.2.0`), M1 dedicated mode, local (`v0.3.0`), M2 world + persistence (release tag after playtest). Status per milestone: `docs/PLAN.md` §8.
 - **Screen rules** (`docs/PLAN.md` §6): the visible world area differs per player (aspect `expand`), so UI uses anchors and gameplay never depends on what is on someone's screen.
 - **Dedicated server:** a local Docker image via `deploy/docker-compose.yml` (built from the Linux export, no registry); `--metrics-port` serves Prometheus metrics, dashboard in `deploy/grafana/jotra.json`. The world pauses while nobody is online. vServer, GHCR and the `infra` wiring are the last milestone, M10.
-- **Next: M2 world + persistence** (`docs/PLAN.md` §4.6, §4.7): seeded chunk generation with placeholder biomes, chunk streaming with interest management (covering the widest view, §6), a file-based `WorldStore` for chunk deltas, players and world meta. Also save on pause when empty (§4.3), which M1 left out because there was nothing to save yet.
+- **World:** `world/world_gen.gd` generates chunks from the seed on both sides; `SimWorld` loads the chunks around players and streams each one's delta (removed props, E in game); `world/world_store.gd` saves meta, chunk deltas and players (by name) as JSON in `--world=DIR`.
+- **Next: M3 combat** (`docs/PLAN.md` §5.2, §5.6): enemies with simple AI, light/heavy/dash with stamina, damage, death, respawn, self-scaling by nearby player count.
 - **Known gotchas:** `OS.is_process_running` only sees processes the same Godot instance spawned, so a solo server can't watch its parent; it exits when its player disconnects instead. Run the game through `python tools/godot.py` (it imports first), or new `class_name` scripts fail to resolve.
 
 ## Git workflow (early phase)
