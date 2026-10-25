@@ -1,0 +1,12 @@
+# Installed by tools/setup.py (pre-commit install --hook-type pre-push).
+repos:
+  - repo: local
+    hooks:
+      # The full local check before every push (skip once with: git push --no-verify).
+      - id: check
+        name: Local check (tools/check.py)
+        entry: python tools/check.py
+        language: system
+        always_run: true
+        pass_filenames: false
+        stages: [pre-push]

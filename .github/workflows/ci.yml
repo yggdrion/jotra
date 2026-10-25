@@ -1,0 +1,92 @@
+name: CI
+
+# Every job runs the same tools/*.py scripts as the local check (python tools/check.py):
+#   1. Lint GDScript   2. gdUnit4 tests (Linux + Windows)   3. Headless network test
+#   4. Linux + Windows exports, uploaded as artifacts on every push
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: pip install -r tools/requirements.txt
+      - run: gdlint game/scripts game/tests
+      - run: gdformat --check game/scripts game/tests
+
+  test:
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Cache Godot
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tools/godot
+          key: godot-${{ runner.os }}-${{ hashFiles('.godot-version', 'tools/godot-*.sha512') }}
+      - name: Run gdUnit4 tests
+        run: python tools/run_tests.py
+      - name: Upload test report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gdunit4-report-${{ matrix.os }}
+          path: game/reports/
+          if-no-files-found: ignore
+      # A headless server plus bot clients over ENet on localhost.
+      - name: Run network test
+        run: python tools/run_network_test.py
+
+  # Every push gets a downloadable playtest build. Each platform exports on its own OS.
+  export:
+    name: export (${{ matrix.platform }})
+    needs: [lint, test]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: linux
+            os: ubuntu-latest
+            templates: ~/.local/share/godot/export_templates
+          - platform: windows
+            os: windows-latest
+            templates: ~\AppData\Roaming\Godot\export_templates
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Cache Godot
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: .tools/godot
+          key: godot-${{ runner.os }}-${{ hashFiles('.godot-version', 'tools/godot-*.sha512') }}
+      - name: Cache export templates
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ matrix.templates }}
+          # install.py holds the list of templates we extract.
+          key: godot-templates-${{ runner.os }}-${{ hashFiles('.godot-version', 'tools/godot-*.sha512', 'tools/install.py') }}
+      - name: Export
+        run: python tools/export.py ${{ matrix.platform }}
+      - name: Upload build
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: jotra-${{ matrix.platform }}-${{ github.sha }}
+          path: build/${{ matrix.platform }}/
+          if-no-files-found: error

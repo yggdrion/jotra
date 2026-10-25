@@ -1,0 +1,22 @@
+# Godot
+game/.godot/
+game/addons/gdUnit4/
+*.translation
+export_presets.cfg.local
+
+# Test output
+game/reports/
+game/gdunit4_testadapter/
+
+# Pinned tool downloads (tools/install.py)
+.tools/
+
+# Tooling
+__pycache__/
+.venv/
+
+# Exports (tools/export.py)
+build/
+
+# Commit baked into exports, removed after export (tools/export.py)
+game/build_id.txt

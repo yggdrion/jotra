@@ -74,7 +74,7 @@ PLAYER HOST   host client ─┐                    ┌─ friend (WebRTC via lo
 DEDICATED     server process on vServer ◀──ENet UDP, public port── everyone
 ```
 
-- **Solo:** client spawns the server with `OS.create_process(OS.get_executable_path(), ["--headless", "--server", "--mode=solo", "--world=<name>", "--parent-pid=<pid>", "--port=<free port>"])` and connects via ENet to localhost.
+- **Solo:** client spawns the server with `OS.create_process(OS.get_executable_path(), ["--headless", "--", "--server", "--solo", "--port=<free port>"])` (plus `--path <project>` when run from source; `--world=<name>` from M2) and connects via ENet to localhost.
 - **Player host:** client spawns the server the same way with `--mode=host`. **The server process itself connects to the lobby**, opens a room, gets the code and accepts WebRTC peers. The server reports the room code to the host client (e.g. via a server→client RPC after connect).
   - A Godot `MultiplayerAPI` takes one peer type, so in this mode **everyone uses WebRTC, including the host's own client over loopback**. The host joins its own room by code like everyone else. (Alternative rejected: a custom `MultiplayerPeerExtension` merging ENet and WebRTC.)
 - **Dedicated:** the same executable runs headless in a Docker container on the vServer, `--mode=dedicated`, public UDP port, plain ENet. No lobby needed (optional later: register for a server list).
@@ -83,7 +83,7 @@ DEDICATED     server process on vServer ◀──ENet UDP, public port── eve
 ### 4.3 Lifecycle rules (all modes)
 
 - **Pause when empty:** when the last player disconnects, the world tick stops and the world is saved. First join resumes it.
-- **Local server dies with the client:** in solo and player host, the server polls `OS.is_process_running(parent_pid)` about once per second (and treats a lost host connection the same way), then saves and exits.
+- **Local server dies with the client:** in solo and player host, the server saves and exits when the host's connection drops, or when the host never joins within 30 s. (Polling the parent's pid does not work: `OS.is_process_running` only sees processes the same Godot instance spawned.)
 - **Host leaves in player host:** the session ends for everyone. No host migration; the dedicated mode covers always-on play.
 - **One world format everywhere:** worlds live on the host's machine (solo / player host) or on the vServer (dedicated) in the same format, so a world can move between modes unchanged.
 - **Reconnect:** a player can leave and rejoin a running world at any time; their character, inventory and position are restored from the save.
