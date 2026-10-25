@@ -1,1 +1,3 @@
+# LF everywhere, on Windows too, so checkouts on Windows and Linux match.
+* text=auto eol=lf
 *.png binary
