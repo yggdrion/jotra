@@ -27,7 +27,10 @@ var time := 0.0
 var players := {}  # id -> SimPlayer
 
 
+## Paused while nobody is online: time stands still.
 func tick(delta: float) -> void:
+	if players.is_empty():
+		return
 	time += delta
 
 

@@ -1,6 +1,7 @@
 extends Node
 ## Entry point. Picks the role from the user args (after `--`):
 ##   --server --port=N [--solo]               game server (headless); --solo: exits with its player
+##     [--metrics-port=N]                     also serve Prometheus metrics over HTTP
 ##   --connect=host:port [--bot --expect=N]   client joining a running server
 ##   (none)                                   solo: spawns a local --solo server, then joins it
 ##   --windowed                               client starts in a window instead of fullscreen
@@ -17,7 +18,7 @@ func _ready() -> void:
 		server.net = _net
 		server.solo = args.has("solo")
 		add_child(server)
-		server.start(int(args.get("port", DEFAULT_PORT)))
+		server.start(int(args.get("port", DEFAULT_PORT)), int(args.get("metrics-port", "0")))
 		return
 	# Godot's own --windowed loses to the project's fullscreen setting, hence our own flag.
 	if args.has("windowed"):

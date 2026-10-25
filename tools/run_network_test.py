@@ -1,7 +1,8 @@
 """Headless network test over ENet on localhost, in two runs:
 
   1. One server and BOTS bot clients. Each bot walks in a circle and exits 0 once the server
-     echoes its position and it has seen every other bot moving (GameClient bot mode).
+     echoes its position and it has seen every other bot moving (GameClient bot mode). The
+     server's metrics endpoint must then show the ticks that ran.
   2. A --solo server and one bot: the server must exit on its own once the bot leaves, as it
      does when the solo player closes the game.
   3. A bot without --connect, which spawns its own solo server like the game does.
@@ -12,6 +13,7 @@ Set GODOT_BIN to use your own binary; it must match .godot-version.
 
 import subprocess
 import tempfile
+import urllib.request
 from pathlib import Path
 
 from _common import GAME, fail, godot, godot_import
@@ -56,11 +58,17 @@ def wait(proc, what):
 
 
 try:
-    procs.append(start("server", "--server", f"--port={PORT}"))
+    procs.append(start("server", "--server", f"--port={PORT}", f"--metrics-port={PORT}"))
     bots = [start(f"bot{i}", f"--connect=127.0.0.1:{PORT}", "--bot", f"--expect={BOTS - 1}") for i in range(BOTS)]
     procs += bots
     for i, bot in enumerate(bots):
         wait(bot, f"bot{i}")
+    # ENet is UDP, so the metrics endpoint can share the port number over TCP.
+    metrics = urllib.request.urlopen(f"http://127.0.0.1:{PORT}/metrics", timeout=5).read().decode()
+    ticks = next((line.split()[1] for line in metrics.splitlines() if line.startswith("jotra_ticks_total ")), "0")
+    if int(ticks) == 0:
+        dump()
+        fail(f"metrics show no ticks:\n{metrics}")
     procs.append(solo := start("solo", "--server", "--solo", f"--port={PORT + 1}"))
     procs.append(bot := start("solo-bot", f"--connect=127.0.0.1:{PORT + 1}", "--bot"))
     wait(bot, "solo bot")
@@ -70,4 +78,4 @@ try:
 finally:
     for p in procs:
         p.kill()
-print(f"Network test passed: {BOTS} bots saw each other, solo server exited with its player, solo spawn works.")
+print(f"Network test passed: {BOTS} bots saw each other, metrics served, solo server exited with its player, solo spawn works.")

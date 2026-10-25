@@ -1,5 +1,5 @@
 extends GdUnitTestSuite
-## SimWorld: joining, the movement sanity check and snapshots.
+## SimWorld: joining, the movement sanity check, pausing and snapshots.
 
 
 func test_players_spawn_apart() -> void:
@@ -36,3 +36,14 @@ func test_snapshot_lists_current_players() -> void:
 	world.add_player(2)
 	world.remove_player(1)
 	assert_dict(world.snapshot()).is_equal({2: world.players[2].position})
+
+
+func test_time_stands_still_while_empty() -> void:
+	var world := SimWorld.new()
+	world.tick(1.0)
+	assert_float(world.time).is_equal(0.0)
+	world.add_player(1)
+	world.tick(1.0)
+	world.remove_player(1)
+	world.tick(1.0)
+	assert_float(world.time).is_equal(1.0)
