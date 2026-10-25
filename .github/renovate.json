@@ -1,0 +1,49 @@
+{
+    "extends": [
+        "config:recommended",
+        ":dependencyDashboard",
+        "helpers:pinGitHubActionDigests",
+        ":semanticCommits"
+    ],
+    "labels": [
+        "dependencies"
+    ],
+    "semanticCommits": "enabled",
+    "recreateWhen": "always",
+    "separateMajorMinor": false,
+    "packageRules": [
+        {
+            "matchManagers": [
+                "github-actions"
+            ],
+            "groupName": "github-actions",
+            "commitMessagePrefix": "chore(github-actions): ",
+            "pinDigests": true,
+            "labels": [
+                "dependencies",
+                "github-actions"
+            ]
+        },
+        {
+            "matchManagers": [
+                "pip_requirements"
+            ],
+            "groupName": "python",
+            "commitMessagePrefix": "chore(python): ",
+            "labels": [
+                "dependencies",
+                "python"
+            ]
+        },
+        {
+            "description": "Non-major updates merge on their own once the CI checks pass",
+            "matchUpdateTypes": [
+                "minor",
+                "patch",
+                "pin",
+                "digest"
+            ],
+            "automerge": true
+        }
+    ]
+}

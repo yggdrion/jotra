@@ -3,6 +3,7 @@ name: CI
 # Every job runs the same tools/*.py scripts as the local check (python tools/check.py):
 #   1. Lint GDScript   2. gdUnit4 tests (Linux + Windows)   3. Headless network test
 #   4. Linux + Windows exports, uploaded as artifacts on every push
+#   5. GitHub Release with both zips on `v*` tags
 
 on:
   push:
@@ -90,3 +91,29 @@ jobs:
           name: jotra-${{ matrix.platform }}-${{ github.sha }}
           path: build/${{ matrix.platform }}/
           if-no-files-found: error
+
+  # A pushed `v*` tag runs the whole pipeline above, then publishes both builds.
+  release:
+    needs: export
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          pattern: jotra-*-${{ github.sha }}
+      - name: Package
+        run: |
+          tag="${{ github.ref_name }}"
+          # Artifacts drop the exec bit; zip keeps it once restored.
+          chmod +x "jotra-linux-${{ github.sha }}/jotra.x86_64"
+          for p in linux windows; do
+            mv "jotra-$p-${{ github.sha }}" "jotra-$p"
+            zip -r "jotra-$p-$tag.zip" "jotra-$p"
+          done
+      - run: >-
+          gh release create "${{ github.ref_name }}" jotra-*-"${{ github.ref_name }}".zip
+          --repo "${{ github.repository }}" --generate-notes
+        env:
+          GH_TOKEN: ${{ github.token }}
