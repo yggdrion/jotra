@@ -8,9 +8,10 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Keep this section current: update it in the same push that finishes a milestone or changes what's next, so a new session can pick up from here.
 
-- **Done:** M0 skeleton + solo (`v0.1.0`), M0a F3 debug overlay and M0b fullscreen + any resolution (`v0.2.0`). Status per milestone: `docs/PLAN.md` §8.
+- **Done:** M0 skeleton + solo (`v0.1.0`), M0a F3 debug overlay and M0b fullscreen + any resolution (`v0.2.0`), M1 dedicated mode, local (`v0.3.0`). Status per milestone: `docs/PLAN.md` §8.
 - **Screen rules** (`docs/PLAN.md` §6): the visible world area differs per player (aspect `expand`), so UI uses anchors and gameplay never depends on what is on someone's screen.
-- **Now: M1 dedicated mode (local).** In: server mode + protocol check (M0), `deploy/Dockerfile` + `deploy/docker-compose.yml` (image built locally from the Linux export, no registry), world pauses while empty, `--metrics-port` Prometheus endpoint, `deploy/grafana/jotra.json`. Left: build and run the image locally, playtest, then tag. Saving on pause comes with persistence in M2. vServer, GHCR and the `infra` wiring are the last milestone, M10.
+- **Dedicated server:** a local Docker image via `deploy/docker-compose.yml` (built from the Linux export, no registry); `--metrics-port` serves Prometheus metrics, dashboard in `deploy/grafana/jotra.json`. The world pauses while nobody is online. vServer, GHCR and the `infra` wiring are the last milestone, M10.
+- **Next: M2 world + persistence** (`docs/PLAN.md` §4.6, §4.7): seeded chunk generation with placeholder biomes, chunk streaming with interest management (covering the widest view, §6), a file-based `WorldStore` for chunk deltas, players and world meta. Also save on pause when empty (§4.3), which M1 left out because there was nothing to save yet.
 - **Known gotchas:** `OS.is_process_running` only sees processes the same Godot instance spawned, so a solo server can't watch its parent; it exits when its player disconnects instead. Run the game through `python tools/godot.py` (it imports first), or new `class_name` scripts fail to resolve.
 
 ## Git workflow (early phase)
