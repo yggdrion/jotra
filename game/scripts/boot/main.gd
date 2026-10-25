@@ -22,6 +22,8 @@ func _ready() -> void:
 	# Godot's own --windowed loses to the project's fullscreen setting, hence our own flag.
 	if args.has("windowed"):
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
+	get_window().size_changed.connect(_fit_viewport)
+	_fit_viewport()
 	var client := GameClient.new()
 	client.net = _net
 	client.bot = args.has("bot")
@@ -32,6 +34,24 @@ func _ready() -> void:
 		client.join(parts[0], int(parts[1]) if parts.size() > 1 else DEFAULT_PORT)
 	else:
 		client.join("127.0.0.1", _spawn_local_server())
+
+
+## Zooms all 2D by the largest whole number at which the project's 640×360 still fits the
+## window. The game draws at the window's real size (stretch mode disabled), so any size or
+## aspect is filled edge to edge with crisp pixels and bigger windows see more world.
+## Godot's integer stretch modes can't do this: they letterbox whatever a whole-number scale of
+## the base aspect leaves (1264×680 showed a 668×360 picture), and after leaving fullscreen
+## their output got resampled to the wrong size.
+func _fit_viewport() -> void:
+	var window := get_window()
+	var size := Vector2(window.size)
+	if size.x < 1 or size.y < 1:  # minimized
+		return
+	var base := Vector2(
+		ProjectSettings.get_setting("display/window/size/viewport_width"),
+		ProjectSettings.get_setting("display/window/size/viewport_height")
+	)
+	window.content_scale_factor = maxf(1.0, floorf(minf(size.x / base.x, size.y / base.y)))
 
 
 ## F11 or Alt+Enter switches between borderless fullscreen and a window.

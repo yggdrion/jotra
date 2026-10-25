@@ -195,7 +195,7 @@ One formula in one place:
 ## 6. Art and assets
 
 - 2D pixel art, top-down 3/4 view, 4-direction animations, y-sorting, fade-out for occluding objects. Godot 2D lights for night and fire.
-- **Screen:** base resolution 640×360, stretch mode `viewport`, aspect `expand`, integer scale. The scale is the largest whole number that fits (3× at 1080p, 4× at 1440p); the rest of the screen shows more world, so the visible area varies per player: 640×360 at 16:9, 860×360 at 21:9 (3440×1440), wider still on 32:9. Sizes that aren't a multiple get a thin border (e.g. 43×24 px at 1366×768). Consequences:
+- **Screen:** base resolution 640×360. The game draws at the window's real size (stretch mode `disabled`) and zooms all 2D by the largest whole number at which 640×360 still fits (`content_scale_factor`, set on every resize in `boot/main.gd`): 3× at 1080p, 4× at 1440p, 1× below 1280×720. Every window size and aspect is filled edge to edge and the rest of the screen shows more world, so the visible area varies per player: 640×360 at 16:9, 860×360 at 21:9 (3440×1440), wider still on 32:9. Godot's integer stretch modes were tried and dropped: they letterbox the remainder (1264×680 showed a 668×360 picture) and got resampled wrongly after leaving fullscreen. Sprites can sit between art pixels (at screen resolution), which reads as smooth movement. Consequences:
   - Interest management (4.4, M2) must cover the widest view, plus a margin, not just 640×360.
   - UI is anchored to screen edges/center (Control anchors), never placed at fixed 640×360 positions.
   - Spawns, enemy aggro and "off-screen" logic use world distances, never "is it on my screen".
