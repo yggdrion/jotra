@@ -82,7 +82,7 @@ DEDICATED     server process on vServer ◀──ENet UDP, public port── eve
 
 ### 4.3 Lifecycle rules (all modes)
 
-- **Pause when empty:** when the last player disconnects, the world tick stops and the world is saved. First join resumes it.
+- **Pause when empty:** when the last player disconnects, the world tick stops and the world is saved (saving from M2). First join resumes it.
 - **Local server dies with the client:** in solo and player host, the server saves and exits when the host's connection drops, or when the host never joins within 30 s. (Polling the parent's pid does not work: `OS.is_process_running` only sees processes the same Godot instance spawned.)
 - **Host leaves in player host:** the session ends for everyone. No host migration; the dedicated mode covers always-on play.
 - **One world format everywhere:** worlds live on the host's machine (solo / player host) or on the vServer (dedicated) in the same format, so a world can move between modes unchanged.
@@ -248,7 +248,7 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M0 | **Skeleton + solo** | Tooling installs pinned Godot; client spawns a local headless server, connects via ENet localhost; capsule players move with client-authoritative movement and interpolation; server exits when the client closes; `tools/dev.py` starts server + N clients; headless net test (server + 2 bots) passes in CI | Done | v0.1.0 |
 | M0a | **Debug overlay** | F3 overlay in every build: fps, build commit, server address, player id and count, ping, snapshot rate, position. Server polls the network well above its 30 Hz tick, so localhost ping stays ~10 ms | Done | v0.2.0 |
 | M0b | **Fullscreen + any resolution** | Starts borderless fullscreen, F11 / Alt+Enter toggles a window; any window size or aspect works with crisp integer pixel scaling, wider/taller screens see more world instead of black bars (see 6) | Done | v0.2.0 |
-| M1 | **Dedicated mode** | Same server in Docker on the vServer; friends connect by address; pause when empty; protocol version check; metrics in Grafana | Next (server mode and protocol version check already in from M0) | |
+| M1 | **Dedicated mode** | Same server in Docker on the vServer; friends connect by address; pause when empty; protocol version check; metrics in Grafana | In progress: image + compose, pause when empty, metrics endpoint and dashboard JSON in; left: deploy on the vServer, vector scrape + dashboard import in infra, playtest with friends | |
 | M2 | **World + persistence** | Seeded chunk generation with placeholder biomes; chunk streaming with interest management; deltas, players and world meta survive a server restart | | |
 | M3 | **Combat** | Enemies spawn and use simple AI; light/heavy/dash with stamina; damage, death, respawn; self-scaling by nearby player count | | |
 | M4 | **Loot + inventory** | Drop tables, pickup, inventory, equipment changes stats, crafting at a station | | |

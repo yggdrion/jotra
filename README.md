@@ -20,8 +20,20 @@ Installs gdtoolkit and pre-commit, the pinned Godot (`.godot-version`, checked a
 
 Move with WASD. The game starts fullscreen; F11 or Alt+Enter toggles a window (or start with
 `-- --windowed`). F3 toggles the debug overlay (fps, build, server, ping, snapshot rate,
-player count, position); release builds have it too. Command line roles (after `--`): `--server --port=N [--solo]`,
+player count, position); release builds have it too. Command line roles (after `--`): `--server --port=N [--solo] [--metrics-port=N]`,
 `--connect=host:port`, `--bot --expect=N` (headless test client).
+
+## Dedicated server
+
+CI builds `ghcr.io/yggdrion/jotra-server` (`deploy/Dockerfile`) from the Linux export on every
+push to `main` (`:main`) and every `v*` tag. On the vServer:
+
+    docker compose -f deploy/docker-compose.yml up -d
+
+Players join with `jotra -- --connect=<host>:17777`. The server pauses its world while nobody
+is online. Prometheus metrics (`jotra_*`: players, tick time, bandwidth, build) are on
+`127.0.0.1:9310/metrics` for vector in the infra stack; the Grafana dashboard is
+`deploy/grafana/jotra.json`.
 
 ## Check
 

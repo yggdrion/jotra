@@ -1,0 +1,12 @@
+# Dedicated server on the vServer. TLS, vector, VictoriaMetrics and Grafana live in the
+# separate infra repo; vector scrapes the metrics at http://host.docker.internal:9310/metrics.
+#
+#   docker compose -f deploy/docker-compose.yml pull && docker compose -f deploy/docker-compose.yml up -d
+services:
+  jotra:
+    # :main follows main; pin a release tag (e.g. :v0.3.0) for a stable server.
+    image: ghcr.io/yggdrion/jotra-server:main
+    restart: unless-stopped
+    ports:
+      - "17777:17777/udp"
+      - "127.0.0.1:9310:9310"
