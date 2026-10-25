@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Keep this section current: update it in the same push that finishes a milestone or changes what's next, so a new session can pick up from here.
 
-- **Done:** M0 skeleton + solo (`v0.1.0`), M0a F3 debug overlay and M0b fullscreen + any resolution (both untagged). Status per milestone: `docs/PLAN.md` §8.
+- **Done:** M0 skeleton + solo (`v0.1.0`), M0a F3 debug overlay and M0b fullscreen + any resolution (`v0.2.0`). Status per milestone: `docs/PLAN.md` §8.
 - **Screen rules** (`docs/PLAN.md` §6): the visible world area differs per player (aspect `expand`), so UI uses anchors and gameplay never depends on what is on someone's screen.
 - **Next: M1 dedicated mode.** Already in place from M0: the same executable runs as a server with `-- --server --port=N`, and the protocol version check on hello. Still to do: Dockerfile + compose service for the vServer (TLS/metrics stack lives in the separate `infra` repo), pause the world tick when empty, Prometheus metrics endpoint, Grafana dashboard.
 - **Known gotchas:** `OS.is_process_running` only sees processes the same Godot instance spawned, so a solo server can't watch its parent; it exits when its player disconnects instead. Run the game through `python tools/godot.py` (it imports first), or new `class_name` scripts fail to resolve.
