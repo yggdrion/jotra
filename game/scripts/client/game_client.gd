@@ -21,6 +21,8 @@ const BOT_TIMEOUT_MS := 20000
 const BOT_MOVE_PX := 20.0
 ## How close the server's copy of a bot's position must be to its own.
 const BOT_ECHO_PX := 40.0
+## How long a bot that passed keeps walking before it leaves, so slower bots still see it move.
+const BOT_LINGER := 2.0
 ## Where the name of a player who passes no --name is kept.
 const NAME_FILE := "user://player.txt"
 ## Chunks are freed this far out, one further than the server forgets them, so a chunk the
@@ -42,6 +44,7 @@ var _snapshots: Array[Dictionary] = []
 var _send_due := 0.0
 var _bot_start := {}  # peer id -> first seen position
 var _bot_echoed := false
+var _bot_done := false
 var _world_seed := 0
 var _chunks := {}  # Vector2i -> ChunkView
 
@@ -199,7 +202,7 @@ func _on_snapshot(players: Dictionary) -> void:
 
 
 func _process(delta: float) -> void:
-	if bot and Time.get_ticks_msec() > BOT_TIMEOUT_MS:
+	if bot and not _bot_done and Time.get_ticks_msec() > BOT_TIMEOUT_MS:
 		push_error("client: bot timed out (echoed %s, saw %s)" % [_bot_echoed, _bot_start])
 		get_tree().quit(1)
 		return
@@ -253,8 +256,10 @@ func _bot_check(positions: Dictionary) -> void:
 			_bot_start[id] = positions[id]
 		if positions[id].distance_to(_bot_start[id]) > BOT_MOVE_PX:
 			moving += 1
-	if _bot_echoed and moving >= bot_expect and not _chunks.is_empty():
+	if _bot_echoed and moving >= bot_expect and not _chunks.is_empty() and not _bot_done:
+		_bot_done = true
 		print("client: bot ok, %d chunks, saw %d moving player(s)" % [_chunks.size(), moving])
+		await get_tree().create_timer(BOT_LINGER).timeout
 		# Disconnect now, so the server sees us leave instead of timing us out.
 		multiplayer.multiplayer_peer.close()
 		get_tree().quit(0)
