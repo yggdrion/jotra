@@ -3,10 +3,27 @@
 # deploy/docker-compose.yml.
 FROM debian:13-slim
 
-RUN useradd --create-home jotra
+RUN useradd --create-home jotra && mkdir /data && chown jotra /data
 COPY --chmod=755 jotra.x86_64 /opt/jotra/jotra.x86_64
+# Godot dies on SIGTERM without running any code, so on docker stop this asks the server to
+# save and exit through its stop file instead.
+COPY --chmod=755 <<'EOF' /opt/jotra/entrypoint.sh
+#!/bin/sh
+rm -f /tmp/jotra.stop
+/opt/jotra/jotra.x86_64 --headless -- "$@" --stop-file=/tmp/jotra.stop &
+pid=$!
+trap 'touch /tmp/jotra.stop' TERM INT
+# wait returns early on a trapped signal, so keep waiting until the server is gone.
+while kill -0 "$pid" 2>/dev/null; do
+	wait "$pid"
+	code=$?
+done
+exit "$code"
+EOF
 USER jotra
 
+# The world save; keep it in a volume.
+VOLUME /data
 # Game (ENet, UDP) and Prometheus metrics (HTTP, TCP).
 EXPOSE 17777/udp 9310/tcp
-ENTRYPOINT ["/opt/jotra/jotra.x86_64", "--headless", "--", "--server", "--port=17777", "--metrics-port=9310"]
+ENTRYPOINT ["/opt/jotra/entrypoint.sh", "--server", "--port=17777", "--metrics-port=9310", "--world=/data/world"]
