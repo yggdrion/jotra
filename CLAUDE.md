@@ -10,11 +10,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **Semantic commits:** `type(scope): summary` (`feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `ci`), imperative, lowercase, no trailing period. Commits are authored as **r4b2**, with no AI co-author or attribution trailers.
 - **Run the local check before every push:** `python tools/check.py` must end with "All checks passed" (it is also the pre-push hook; never skip it with `--no-verify`).
 - **Watch `main`'s CI now and then**, at least after each push: `gh run list --branch main --limit 5`, and `gh run view <id> --log-failed` when one is red. A red `main` gets fixed before new work.
-- **Milestone releases:** when a milestone from `docs/PLAN.md` §8 is done (its checks green in CI on `main`, short playtest done), bump the minor version and push the tag. The tag runs CI, which publishes a GitHub Release with the Linux and Windows zips:
+- **Milestones are tracked in `docs/PLAN.md` §8.** When work finishes a milestone, set its Status to Done (and the next one to Next) in the same push. Work that doesn't fit a planned milestone gets a lettered one inserted after the current one (M0a, M0b, …) with its own "done when", rather than renumbering.
+- **Milestone releases:** when a milestone is done (its checks green in CI on `main`, short playtest done), bump the minor version over the latest tag, push the tag and write it into the Release column. The tag runs CI, which publishes a GitHub Release with the Linux and Windows zips:
 
-      git tag v0.<n>.0 && git push origin v0.<n>.0
+      git tag -a v0.<n>.0 -m "M<x>: <name>" && git push origin v0.<n>.0
 
-  M0 → `v0.1.0`, M1 → `v0.2.0`, and so on; patch tags (`v0.<n>.1`) for fixes between milestones.
+  Lettered milestones count too, so version numbers don't map 1:1 to milestone numbers. Patch tags (`v0.<n>.1`) for fixes between milestones.
 - Renovate (`.github/renovate.json`) opens dependency PRs and automerges non-major updates once CI passes; those are the exception to "no PRs".
 
 ## Code conventions
