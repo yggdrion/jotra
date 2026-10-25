@@ -47,6 +47,36 @@ func _ready() -> void:
 	net.welcomed.connect(_on_welcomed)
 	net.rejected.connect(_on_rejected)
 	net.snapshot_received.connect(_on_snapshot)
+	var overlay := DebugOverlay.new()
+	overlay.client = self
+	add_child(overlay)
+
+
+## The F3 overlay's connection readout.
+func debug_lines() -> PackedStringArray:
+	var lines := PackedStringArray(["Build " + build_id()])
+	var peer := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	var server := peer.get_peer(1) if peer != null else null
+	if _me == null or server == null:
+		lines.append("Net  connecting to %s:%d (try %d)" % [_address, _port, _attempts])
+		return lines
+	lines.append("Net  %s:%d  id %d" % [_address, _port, multiplayer.get_unique_id()])
+	lines.append(
+		(
+			"Ping %d ms  snapshots %d/s"
+			% [server.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME), _snapshots.size()]
+		)
+	)
+	var players: Dictionary = _snapshots[-1].players if not _snapshots.is_empty() else {}
+	lines.append("Players %d" % players.size())
+	lines.append("Pos  %d, %d" % [_me.position.x, _me.position.y])
+	return lines
+
+
+## The commit tools/export.py baked into this build, or "dev" when run from source.
+static func build_id() -> String:
+	var text := FileAccess.get_file_as_string("res://build_id.txt").strip_edges()
+	return text if text != "" else "dev"
 
 
 func join(address: String, port: int) -> void:

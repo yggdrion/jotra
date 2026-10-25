@@ -5,6 +5,9 @@ extends Node
 
 const TICK_RATE := 30
 const SNAPSHOT_RATE := 20
+## Frames per second, i.e. how often incoming packets are handled. The sim still ticks at
+## TICK_RATE.
+const POLL_RATE := 240
 const MAX_PLAYERS := 10
 ## Solo: how long the spawning client has to join before we give up on it.
 const SOLO_JOIN_TIMEOUT := 30.0
@@ -22,8 +25,10 @@ var _solo_wait := SOLO_JOIN_TIMEOUT
 
 func start(port: int) -> void:
 	Engine.physics_ticks_per_second = TICK_RATE
-	# Headless has no vsync; without a cap the idle server spins a core.
-	Engine.max_fps = TICK_RATE
+	# Headless has no vsync; without a cap the idle server spins a core. The cap sits well above
+	# TICK_RATE because ENet is only polled once per frame: at 30 fps every packet waited up to
+	# 33 ms, which showed as ~35 ms ping on localhost.
+	Engine.max_fps = POLL_RATE
 	var peer := ENetMultiplayerPeer.new()
 	var err := peer.create_server(port, MAX_PLAYERS)
 	if err != OK:
