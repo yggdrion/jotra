@@ -3,6 +3,7 @@ extends Node
 ##   --server --port=N [--solo]               game server (headless); --solo: exits with its player
 ##   --connect=host:port [--bot --expect=N]   client joining a running server
 ##   (none)                                   solo: spawns a local --solo server, then joins it
+##   --windowed                               client starts in a window instead of fullscreen
 
 const DEFAULT_PORT := 17777
 
@@ -18,6 +19,9 @@ func _ready() -> void:
 		add_child(server)
 		server.start(int(args.get("port", DEFAULT_PORT)))
 		return
+	# Godot's own --windowed loses to the project's fullscreen setting, hence our own flag.
+	if args.has("windowed"):
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	var client := GameClient.new()
 	client.net = _net
 	client.bot = args.has("bot")
@@ -28,6 +32,23 @@ func _ready() -> void:
 		client.join(parts[0], int(parts[1]) if parts.size() > 1 else DEFAULT_PORT)
 	else:
 		client.join("127.0.0.1", _spawn_local_server())
+
+
+## F11 or Alt+Enter switches between borderless fullscreen and a window.
+func _unhandled_input(event: InputEvent) -> void:
+	var key := event as InputEventKey
+	if key == null or not key.pressed or key.echo:
+		return
+	if key.keycode == KEY_F11 or (key.keycode == KEY_ENTER and key.alt_pressed):
+		var fullscreen := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+		DisplayServer.window_set_mode(
+			(
+				DisplayServer.WINDOW_MODE_WINDOWED
+				if fullscreen
+				else DisplayServer.WINDOW_MODE_FULLSCREEN
+			)
+		)
+		get_viewport().set_input_as_handled()
 
 
 ## "--key=value" → {key: value}, "--flag" → {flag: ""}.

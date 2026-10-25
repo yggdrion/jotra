@@ -195,6 +195,10 @@ One formula in one place:
 ## 6. Art and assets
 
 - 2D pixel art, top-down 3/4 view, 4-direction animations, y-sorting, fade-out for occluding objects. Godot 2D lights for night and fire.
+- **Screen:** base resolution 640×360, stretch mode `viewport`, aspect `expand`, integer scale. The scale is the largest whole number that fits (3× at 1080p, 4× at 1440p); the rest of the screen shows more world, so the visible area varies per player: 640×360 at 16:9, 860×360 at 21:9 (3440×1440), wider still on 32:9. Sizes that aren't a multiple get a thin border (e.g. 43×24 px at 1366×768). Consequences:
+  - Interest management (4.4, M2) must cover the widest view, plus a margin, not just 640×360.
+  - UI is anchored to screen edges/center (Control anchors), never placed at fixed 640×360 positions.
+  - Spawns, enemy aggro and "off-screen" logic use world distances, never "is it on my screen".
 - **Placeholders first:** colored shapes/capsules for players and enemies, spheres for loot, flat colored tiles per biome.
 - **Free interim assets** (check each license): Kenney (CC0), Quaternius (CC0), KayKit (CC0), OpenGameArt, itch.io free packs.
 - AI-generated final art; pipeline decided later (open question 6). Consistent style guide and palette before mass generation.
@@ -243,6 +247,7 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 |---|---|---|---|---|
 | M0 | **Skeleton + solo** | Tooling installs pinned Godot; client spawns a local headless server, connects via ENet localhost; capsule players move with client-authoritative movement and interpolation; server exits when the client closes; `tools/dev.py` starts server + N clients; headless net test (server + 2 bots) passes in CI | Done | v0.1.0 |
 | M0a | **Debug overlay** | F3 overlay in every build: fps, build commit, server address, player id and count, ping, snapshot rate, position. Server polls the network well above its 30 Hz tick, so localhost ping stays ~10 ms | Done | — |
+| M0b | **Fullscreen + any resolution** | Starts borderless fullscreen, F11 / Alt+Enter toggles a window; any window size or aspect works with crisp integer pixel scaling, wider/taller screens see more world instead of black bars (see 6) | Done | — |
 | M1 | **Dedicated mode** | Same server in Docker on the vServer; friends connect by address; pause when empty; protocol version check; metrics in Grafana | Next (server mode and protocol version check already in from M0) | |
 | M2 | **World + persistence** | Seeded chunk generation with placeholder biomes; chunk streaming with interest management; deltas, players and world meta survive a server restart | | |
 | M3 | **Combat** | Enemies spawn and use simple AI; light/heavy/dash with stamina; damage, death, respawn; self-scaling by nearby player count | | |

@@ -18,7 +18,8 @@ Installs gdtoolkit and pre-commit, the pinned Godot (`.godot-version`, checked a
     python tools/godot.py --path game -e     # editor
     python tools/dev.py 3                    # headless server + 3 windowed clients on localhost
 
-Move with WASD. F3 toggles the debug overlay (fps, build, server, ping, snapshot rate,
+Move with WASD. The game starts fullscreen; F11 or Alt+Enter toggles a window (or start with
+`-- --windowed`). F3 toggles the debug overlay (fps, build, server, ping, snapshot rate,
 player count, position); release builds have it too. Command line roles (after `--`): `--server --port=N [--solo]`,
 `--connect=host:port`, `--bot --expect=N` (headless test client).
 

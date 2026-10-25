@@ -24,7 +24,8 @@ def start(*args):
 
 
 server = start("--headless", "--", "--server", f"--port={PORT}")
-clients = [start("--", f"--connect=127.0.0.1:{PORT}") for _ in range(count)]
+# The game starts fullscreen; windowed, several clients fit on one screen.
+clients = [start("--", "--windowed", f"--connect=127.0.0.1:{PORT}") for _ in range(count)]
 try:
     for client in clients:
         client.wait()
