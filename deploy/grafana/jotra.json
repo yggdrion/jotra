@@ -42,7 +42,7 @@
     },
     {
       "type": "timeseries",
-      "title": "Tick time (budget: mean 5 ms, max 33 ms; paused ticks not counted)",
+      "title": "Tick time (budget: mean 5 ms, max 100 ms; paused ticks not counted)",
       "gridPos": { "x": 12, "y": 5, "w": 12, "h": 8 },
       "datasource": { "type": "prometheus", "uid": "victoriametrics" },
       "fieldConfig": { "defaults": { "unit": "s", "min": 0 } },
