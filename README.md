@@ -26,7 +26,7 @@ your world over WebRTC from their own networks (through a TURN relay when a dire
 fails). Friends can join and leave any time; the game ends for everyone when the host leaves.
 If a game can't be reached or ends, you are back in the menu with the reason.
 
-**Not live yet:** the built-in lobby (`wss://jotra.r4b2.de/ws`) is deployed with milestone M9a.
+**Not live yet:** the built-in lobby (`wss://lobby.r4b2.de/ws`) is deployed with milestone M9a.
 Until then Host and Join only work through a lobby you run yourself, started from the command
 line with `--lobby=URL` (see [Lobby](#lobby-player-host) below); solo is unaffected.
 
@@ -59,7 +59,7 @@ player count, position, world seed, chunk; in a room also the ICE candidates the
 release builds have it too. Command line roles (after `--`, all in `game/scripts/boot/main.gd`):
 `--server --port=N [--solo] [--world=DIR] [--metrics-port=N]`, `--server --lobby=URL
 [--room-file=PATH] [--owner=NAME]` (a server in a lobby room), `--connect=host:port`,
-`--join=CODE`, `--host`, `--lobby=URL` (default `wss://jotra.r4b2.de/ws`), `--name=NAME`,
+`--join=CODE`, `--host`, `--lobby=URL` (default `wss://lobby.r4b2.de/ws`), `--name=NAME`,
 `--bot --expect=N` (headless test client).
 
 Worlds are saved in `user://worlds/` (`default` for servers, `solo` for solo games; on Windows

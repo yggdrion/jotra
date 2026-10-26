@@ -21,7 +21,7 @@ signal room_opened(code: String)
 signal failed(reason: String)
 
 ## The game's default lobby; --lobby=URL picks another.
-const DEFAULT_URL := "wss://jotra.r4b2.de/ws"
+const DEFAULT_URL := "wss://lobby.r4b2.de/ws"
 ## The lobby message format (lobby/src/server.ts PROTOCOL), apart from Net.PROTOCOL_VERSION
 ## so game-only changes need no lobby redeploy.
 const PROTOCOL := 1

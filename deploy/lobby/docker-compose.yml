@@ -1,6 +1,6 @@
 # Player host (PLAN §4.9): the lobby that hands out room codes and relays WebRTC signaling,
 # and coturn for STUN plus a TURN relay. Runs from a clone of this repo on the gvm host, in
-# place of the retired Two Wards stack. gvm's Caddy terminates TLS for jotra.r4b2.de and reaches
+# place of the retired Two Wards stack. gvm's Caddy terminates TLS for lobby.r4b2.de and reaches
 # the lobby over gvm's network. Setup: README.md.
 name: jotra-lobby
 
@@ -8,12 +8,12 @@ services:
   lobby:
     build: ../../lobby
     environment:
-      TURN_HOST: jotra.r4b2.de
+      TURN_HOST: lobby.r4b2.de
       TURN_SECRET: ${TURN_SECRET:?set TURN_SECRET in .env}
     restart: unless-stopped
     networks:
       default:
-      # gvm's Caddy proxies wss://jotra.r4b2.de/ws to jotra-lobby:8080.
+      # gvm's Caddy proxies wss://lobby.r4b2.de/ws to jotra-lobby:8080.
       gvm:
         aliases: [jotra-lobby]
 
