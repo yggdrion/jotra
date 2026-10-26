@@ -18,7 +18,10 @@ Installs gdtoolkit and pre-commit, the pinned Godot (`.godot-version`, checked a
     python tools/godot.py --path game -e     # editor
     python tools/dev.py 3                    # headless server + 3 windowed clients on localhost
 
-Move with WASD, E removes the nearest tree or rock. The game starts fullscreen; F11 or Alt+Enter toggles a window (or start with
+Move with WASD, E removes the nearest tree or rock. Left mouse is a light attack, right mouse a
+heavy one (both toward the mouse), Space dashes through hits; attacks and dashes cost stamina.
+Enemies (red; orange while winding up a hit) spawn around players, more and tougher when players
+stand together. On death you respawn at the world spawn after 3 s. The game starts fullscreen; F11 or Alt+Enter toggles a window (or start with
 `-- --windowed`). F3 toggles the debug overlay (fps, build, server, ping, snapshot rate,
 player count, position, world seed, chunk); release builds have it too. Command line roles (after `--`):
 `--server --port=N [--solo] [--world=DIR] [--metrics-port=N]`, `--connect=host:port [--name=NAME]`,
@@ -38,7 +41,7 @@ A local Docker image (`deploy/Dockerfile`) built from the Linux export:
 Players join with `jotra -- --connect=<host>:17777`. The server pauses its world while nobody
 is online. The world lives in the `world` volume (`/data/world`), so it survives rebuilds;
 `docker compose stop` has the server save before it exits.
-Prometheus metrics (`jotra_*`: players, tick time, bandwidth, loaded chunks, save time, build) are on
+Prometheus metrics (`jotra_*`: players, enemies, tick time, bandwidth, loaded chunks, save time, build) are on
 `127.0.0.1:9310/metrics`; a Grafana dashboard for them is `deploy/grafana/jotra.json`.
 Deploying to the vServer is the last milestone (`docs/PLAN.md` §8).
 
