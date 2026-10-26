@@ -102,11 +102,14 @@ extends Resource
 @export var rock_drops: Array
 
 @export_group("Crafting")
-## {station id: position} of the fixed crafting stations.
-# ponytail: one workbench at the spawn until M8 lets players build their own.
-@export var stations: Dictionary
-## How close to a station a player must stand to craft there.
+## How close to a station (a PieceDef with station) a player must stand to craft there.
 @export var station_reach := 40.0
+
+@export_group("Building")
+## How far from a tile's center a player can build or remove a piece there.
+@export var build_reach := 64.0
+## Damaged pieces can't be repaired while an enemy is this close.
+@export var repair_lock_radius := 160.0
 
 @export_group("Dungeon")
 ## Where the barrow's entrance stands in the overworld; players respawn here after dying inside.

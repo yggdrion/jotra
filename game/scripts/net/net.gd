@@ -17,6 +17,10 @@ signal unequip_requested(peer_id: int, kind: int, to: int)
 signal craft_requested(peer_id: int, recipe: StringName)
 signal eat_requested(peer_id: int, index: int)
 signal interact_requested(peer_id: int)
+signal build_requested(peer_id: int, tile: Vector2i, piece: StringName)
+signal unbuild_requested(peer_id: int, tile: Vector2i)
+signal use_requested(peer_id: int, tile: Vector2i)
+signal chest_move_requested(peer_id: int, from_chest: bool, index: int)
 signal pinged(peer_id: int, sent_ms: int)
 # Client side.
 signal welcomed(spawn: Vector2, world_seed: int)
@@ -24,7 +28,9 @@ signal rejected(reason: String)
 signal snapshot_received(
 	players: Dictionary, enemies: Dictionary, drops: Dictionary, me: Vector4, time: float
 )
-signal chunk_received(coord: Vector2i, removed: PackedInt32Array)
+signal chunk_received(coord: Vector2i, removed: PackedInt32Array, pieces: Array)
+signal piece_received(coord: Vector2i, index: int, data: Array)
+signal storage_received(data: Dictionary)
 signal prop_removed_received(coord: Vector2i, prop_id: int)
 signal hit_received(enemy: bool, id: int, amount: int)
 signal windup_received(enemy_id: int, seconds: float)
@@ -41,7 +47,7 @@ signal ponged(sent_ms: int)
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 11
+const PROTOCOL_VERSION := 12
 
 @rpc("any_peer", "reliable")
 func hello(version: int, player_name: String) -> void:
@@ -104,6 +110,29 @@ func interact() -> void:
 	interact_requested.emit(multiplayer.get_remote_sender_id())
 
 
+## Build a piece on a tile (global tile coordinates), or repair the damaged one there.
+@rpc("any_peer", "reliable")
+func build(tile: Vector2i, piece: StringName) -> void:
+	build_requested.emit(multiplayer.get_remote_sender_id(), tile, piece)
+
+
+@rpc("any_peer", "reliable")
+func unbuild(tile: Vector2i) -> void:
+	unbuild_requested.emit(multiplayer.get_remote_sender_id(), tile)
+
+
+## E on a door or chest.
+@rpc("any_peer", "reliable")
+func use_piece(tile: Vector2i) -> void:
+	use_requested.emit(multiplayer.get_remote_sender_id(), tile)
+
+
+## Move a whole stack between the open chest and the inventory, from_chest says which way.
+@rpc("any_peer", "reliable")
+func chest_move(from_chest: bool, index: int) -> void:
+	chest_move_requested.emit(multiplayer.get_remote_sender_id(), from_chest, index)
+
+
 ## The client's own clock, echoed back by pong: the round trip for the debug overlay where the
 ## transport has no ping of its own (WebRTC).
 @rpc("any_peer", "unreliable")
@@ -137,11 +166,23 @@ func snapshot(
 	snapshot_received.emit(players, enemies, drops, me, time)
 
 
-## A chunk entered the player's view: the client generates it from the seed and leaves out
-## the removed props.
+## A chunk entered the player's view: the client generates it from the seed, leaves out the
+## removed props and adds the pieces built ([index in chunk, Building.to_net...] each).
 @rpc("authority", "reliable")
-func chunk(coord: Vector2i, removed: PackedInt32Array) -> void:
-	chunk_received.emit(coord, removed)
+func chunk(coord: Vector2i, removed: PackedInt32Array, pieces: Array) -> void:
+	chunk_received.emit(coord, removed, pieces)
+
+
+## A piece in a chunk the client has changed: Building.to_net, or [] when it is gone.
+@rpc("authority", "reliable")
+func piece(coord: Vector2i, index: int, data: Array) -> void:
+	piece_received.emit(coord, index, data)
+
+
+## The receiving player's open chest (Inventory.to_data) whenever it changes, {} once closed.
+@rpc("authority", "reliable")
+func storage(data: Dictionary) -> void:
+	storage_received.emit(data)
 
 
 @rpc("authority", "reliable")

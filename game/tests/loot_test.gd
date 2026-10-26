@@ -92,9 +92,9 @@ func test_craft_status_says_why_not() -> void:
 	var recipe: RecipeDef = Content.recipes[&"stone_axe"]  # wood and stone
 	var wood: int = recipe.inputs[&"wood"]
 	var stone: int = recipe.inputs[&"stone"]
-	var bench: Vector2 = Content.tuning.stations[recipe.station]
+	var bench := {recipe.station: true}
 	var inventory := Inventory.new(2)
-	var away := bench + Vector2(500, 0)
+	var away := {}
 	assert_int(Crafting.status(inventory, recipe, away)).is_equal(Crafting.Status.AWAY_FROM_STATION)
 	assert_int(Crafting.status(inventory, recipe, bench)).is_equal(Crafting.Status.MISSING_ITEMS)
 	# Using up all the stone frees its slot for the axe.
@@ -154,14 +154,15 @@ func test_craft_by_hand_uses_the_inputs() -> void:
 
 
 func test_station_recipes_need_the_station() -> void:
-	var player := _world().players[1] as SimWorld.SimPlayer
+	var world := _world()
+	var player := world.players[1] as SimWorld.SimPlayer
 	var recipe: RecipeDef = Content.recipes[&"stone_axe"]
 	for item: StringName in recipe.inputs:
 		player.inventory.add(item, recipe.inputs[item])
-	player.position = Content.tuning.stations[recipe.station] + Vector2(500, 0)
-	assert_bool(Crafting.craft(player, &"stone_axe")).is_false()
-	player.position = Content.tuning.stations[recipe.station]
-	assert_bool(Crafting.craft(player, &"stone_axe")).is_true()
+	assert_bool(world.craft(1, &"stone_axe")).is_false()
+	var tile := Building.tile_of(player.position) + Vector2i(1, 0)
+	world.pieces[tile] = Building.Piece.new(recipe.station)
+	assert_bool(world.craft(1, &"stone_axe")).is_true()
 	assert_int(player.inventory.count_of(&"stone_axe")).is_equal(1)
 
 

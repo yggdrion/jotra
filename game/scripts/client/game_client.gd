@@ -12,7 +12,9 @@ extends Node2D
 ## by the server's clock, which the HUD shows and announces. E at the barrow near the spawn
 ## goes into a dungeon run, whose rooms and corridors the player can't walk out of; E at its
 ## way out comes back. Buffs picked up inside are listed in the HUD and speed up walking and
-## swinging here as on the server.
+## swinging here as on the server. B toggles build mode (BuildMode) in the overworld: clicks
+## build and remove pieces, which block walking here as on the server; E opens doors and chests,
+## and crafting needs a station piece nearby.
 ##
 ## Reaches the server over ENet by address (join) or over WebRTC by lobby room code
 ## (join_room). A player who can't get in, is rejected or loses the server gets `left` with the
@@ -87,6 +89,11 @@ var _enemy_views := {}  # enemy id -> EnemyView
 var _drop_views := {}  # drop id -> DropView
 ## [chunk coord, prop id] of the prop E acts on, [] if none is in reach.
 var _target := []
+## The tile of the door or chest E acts on instead, null if none.
+var _use_tile: Variant = null
+## {global tile: Building.Piece} of the chunks we have, from the server.
+var _pieces := {}
+var _build := BuildMode.new()
 var _hud := Hud.new()
 var _inventory_ui := InventoryUi.new()
 ## The server's copy of our inventory, for finding food to eat.
@@ -135,6 +142,8 @@ func _ready() -> void:
 	net.rejected.connect(_on_rejected)
 	net.snapshot_received.connect(_on_snapshot)
 	net.chunk_received.connect(_on_chunk)
+	net.piece_received.connect(_on_piece)
+	net.storage_received.connect(_inventory_ui.show_storage)
 	net.prop_removed_received.connect(
 		func(coord: Vector2i, id: int) -> void:
 			if _chunks.has(coord):
@@ -189,7 +198,11 @@ func _ready() -> void:
 		func(recipe: StringName) -> void: net.craft.rpc_id(1, recipe)
 	)
 	_inventory_ui.eat_requested.connect(func(index: int) -> void: net.eat.rpc_id(1, index))
+	_inventory_ui.chest_move_requested.connect(
+		func(from_chest: bool, index: int) -> void: net.chest_move.rpc_id(1, from_chest, index)
+	)
 	add_child(_tint)
+	add_child(_build)
 	add_child(_hud)
 	add_child(_inventory_ui)
 	var overlay := DebugOverlay.new()
@@ -320,11 +333,6 @@ func _on_welcomed(spawn: Vector2, world_seed: int) -> void:
 	_me.position = spawn
 	_me.add_child(Camera2D.new())
 	add_child(_me)
-	for station: StringName in Content.tuning.stations:
-		var view := StationView.new()
-		view.station = station
-		view.position = Content.tuning.stations[station]
-		add_child(view)
 	var entrance := PortalView.new()
 	entrance.label = "Barrow"
 	entrance.position = Content.tuning.dungeon_entrance
@@ -335,6 +343,7 @@ func _on_welcomed(spawn: Vector2, world_seed: int) -> void:
 ## out.
 func _on_dungeon(area: Array, exit: Vector2, chest: Vector2, at: Vector2) -> void:
 	_area.assign(area)
+	_build.visible = false
 	_exit = exit
 	_chest = chest
 	_chest_opened = false
@@ -398,11 +407,34 @@ func _interaction() -> String:
 	return "[E] Leave with your loot" if _me.position.distance_to(_exit) <= reach else ""
 
 
-func _on_chunk(coord: Vector2i, removed: PackedInt32Array) -> void:
+## pieces: [index in chunk, Building.to_net...] each.
+func _on_chunk(coord: Vector2i, removed: PackedInt32Array, pieces: Array) -> void:
 	if _chunks.has(coord):
 		_chunks[coord].queue_free()
+		_forget_pieces(coord)
 	_chunks[coord] = ChunkView.new(_world_seed, coord, removed)
 	add_child(_chunks[coord])
+	for entry: Array in pieces:
+		_on_piece(coord, entry[0], entry.slice(1))
+
+
+## data: Building.to_net, [] when the piece is gone.
+func _on_piece(coord: Vector2i, index: int, data: Array) -> void:
+	if not _chunks.has(coord):
+		return
+	var tile := Building.tile_at(coord, index)
+	var piece: Building.Piece = null if data.is_empty() else Building.from_net(data)
+	if piece:
+		_pieces[tile] = piece
+	else:
+		_pieces.erase(tile)
+	_chunks[coord].set_piece(index, piece)
+
+
+func _forget_pieces(coord: Vector2i) -> void:
+	for tile: Vector2i in _pieces.keys():
+		if Building.chunk_of_tile(tile) == coord:
+			_pieces.erase(tile)
 
 
 func _drop_far_chunks() -> void:
@@ -411,6 +443,7 @@ func _drop_far_chunks() -> void:
 		if not WorldGen.near(coord, center, KEEP_CHUNKS):
 			_chunks[coord].queue_free()
 			_chunks.erase(coord)
+			_forget_pieces(coord)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -419,6 +452,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	var mouse := event as InputEventMouseButton
 	if mouse and _inventory_ui.visible:
 		return
+	if mouse and mouse.pressed and _build.visible:
+		_build_click(mouse.button_index)
+		get_viewport().set_input_as_handled()
+		return
 	if mouse and mouse.pressed and mouse.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
 		_attack(mouse.button_index == MOUSE_BUTTON_RIGHT)
 		get_viewport().set_input_as_handled()
@@ -426,12 +463,21 @@ func _unhandled_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
+	var digit := key.keycode - KEY_1
 	if key.keycode in [KEY_TAB, KEY_I]:
 		_inventory_ui.toggle()
 	elif key.keycode == KEY_ESCAPE and _inventory_ui.visible:
 		_inventory_ui.toggle()
+	elif key.keycode == KEY_B and _area.is_empty():
+		_build.visible = not _build.visible
+	elif key.keycode == KEY_ESCAPE and _build.visible:
+		_build.visible = false
+	elif _build.visible and digit >= 0 and digit < Content.piece_ids.size():
+		_build.select(digit)
 	elif key.keycode == KEY_E:
-		if not _target.is_empty():
+		if _use_tile != null:
+			net.use_piece.rpc_id(1, _use_tile)
+		elif not _target.is_empty():
 			net.remove_prop.rpc_id(1, _target[0], _target[1])
 		elif _interaction().begins_with("[E]"):
 			net.interact.rpc_id(1)
@@ -442,6 +488,32 @@ func _unhandled_input(event: InputEvent) -> void:
 	else:
 		return
 	get_viewport().set_input_as_handled()
+
+
+## In build mode: left builds (or repairs) the chosen piece where the ghost is green, right
+## takes down the piece under the mouse, the wheel picks another piece.
+func _build_click(button: MouseButton) -> void:
+	match button:
+		MOUSE_BUTTON_LEFT:
+			if _build.status in [Building.Status.OK, Building.Status.REPAIR]:
+				net.build.rpc_id(1, _build.tile, _build.piece_id())
+		MOUSE_BUTTON_RIGHT:
+			if _pieces.has(_build.tile):
+				net.unbuild.rpc_id(1, _build.tile)
+		MOUSE_BUTTON_WHEEL_UP:
+			_build.select(_build.selected - 1)
+		MOUSE_BUTTON_WHEEL_DOWN:
+			_build.select(_build.selected + 1)
+
+
+## Moves our player by step unless a piece blocks it, sliding along the piece if only one axis
+## is blocked.
+func _walk(step: Vector2) -> void:
+	var from := _me.position
+	for to: Vector2 in [from + step, from + Vector2(step.x, 0), from + Vector2(0, step.y)]:
+		if Building.can_walk(_pieces, from, to):
+			_me.position = to
+			return
 
 
 ## Swings at once and tells the server which enemies, as drawn here, the swing hit.
@@ -480,8 +552,8 @@ func _aim() -> Vector2:
 	return aim if aim != Vector2.ZERO else Vector2.RIGHT
 
 
-## Picks the prop in reach that E acts on, outlines it, and prompts for it or, failing that,
-## for a station nearby.
+## Picks the prop, door or chest in reach that E acts on, outlines it, and prompts for it or,
+## failing that, for a station nearby; in build mode the prompt is the build mode's.
 func _update_target() -> void:
 	var best := []
 	var best_distance := INF
@@ -493,6 +565,19 @@ func _update_target() -> void:
 		if not found.is_empty() and found[1] < best_distance:
 			best = [coord, found[0]]
 			best_distance = found[1]
+	var usable := Building.nearest_usable(_pieces, _me.position, SimWorld.REACH)
+	var use_tile: Variant = null
+	if not usable.is_empty() and usable[1] < best_distance:
+		use_tile = usable[0]
+		best = []
+	if use_tile != _use_tile:
+		for tile: Variant in [_use_tile, use_tile]:
+			var chunk: ChunkView = (
+				_chunks.get(Building.chunk_of_tile(tile)) if tile != null else null
+			)
+			if chunk:
+				chunk.highlight_piece(Building.index_in_chunk(tile), tile == use_tile)
+		_use_tile = use_tile
 	if best != _target:
 		if not _target.is_empty() and _chunks.has(_target[0]):
 			_chunks[_target[0]].highlight(_target[1], false)
@@ -509,15 +594,22 @@ func _update_target() -> void:
 		prompt = "%s: [F] Eat %s" % ["Starving" if _hunger <= 0 else "Hungry", meal.to_lower()]
 	elif _hunger <= 0:
 		prompt = "Starving: fell trees for berries"
+	elif _build.visible:
+		prompt = _build.prompt(_inventory)
+	elif _use_tile != null:
+		var piece: Building.Piece = _pieces[_use_tile]
+		var verb := "Open"
+		if piece.def().door and piece.open:
+			verb = "Close"
+		prompt = "[E] %s %s" % [verb, piece.def().display_name.to_lower()]
 	elif not _target.is_empty():
 		var tree: bool = _chunks[_target[0]].kind_of(_target[1]) == WorldGen.Prop.TREE
 		prompt = "[E] Fell tree" if tree else "[E] Break rock"
 	elif _interaction() != "":
 		prompt = _interaction()
-	else:
-		var station := Crafting.nearest_station(_me.position)
-		if not station.is_empty() and Crafting.at_station(_me.position, station[0]):
-			prompt = "[Tab] Craft at the %s" % str(station[0]).capitalize().to_lower()
+	elif not _inventory_ui.stations.is_empty():
+		var station: StringName = _inventory_ui.stations.keys()[0]
+		prompt = "[Tab] Craft at the %s" % Content.piece(station).display_name.to_lower()
 	_hud.show_prompt(prompt)
 
 
@@ -620,10 +712,10 @@ func _process(delta: float) -> void:
 		var step := minf(delta, _dash_left)
 		_dash_left -= step
 		var t := Content.tuning
-		_me.position += _dash_dir * t.dash_distance / t.dash_time * step
+		_walk(_dash_dir * t.dash_distance / t.dash_time * step)
 	elif _health > 0:
 		var speed := Content.tuning.walk_speed * (1.0 + _buffs.stat("move_speed"))
-		_me.position += _input_direction() * speed * delta
+		_walk(_input_direction() * speed * delta)
 	if not _area.is_empty():
 		_me.position = Dungeon.clamp_to(_area, _me.position)
 	_send_due -= delta
@@ -638,8 +730,15 @@ func _process(delta: float) -> void:
 	var at := Time.get_ticks_msec() - INTERP_DELAY_MS
 	_show_enemies(Interpolation.sample(_snapshots, at, "enemies"))
 	_show_remote_players(Interpolation.sample(_snapshots, at))
+	_inventory_ui.stations = Building.stations_near(_pieces, _me.position)
+	if _build.visible:
+		var bodies: Array[Vector2] = [_me.position]
+		for view: Node2D in _views.values() + _enemy_views.values():
+			bodies.append(view.position)
+		_build.update(
+			get_global_mouse_position(), _pieces, _chunks, _inventory, _me.position, bodies
+		)
 	_update_target()
-	_inventory_ui.player_at = _me.position
 	if _time >= 0:
 		_time += delta
 		_show_clock()

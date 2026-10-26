@@ -4,14 +4,16 @@ extends CanvasLayer
 ## backpack grid; an info panel on whatever the mouse is over; and the recipes, each with what
 ## it needs against what the player has and, if it can't be crafted, why. Items are dragged to
 ## move, stack, wear or take off; right click wears, takes off or eats at once. A line at the bottom
-## says so. Everything is only a request: the server's inventory comes back through
-## show_inventory.
+## says so. With a chest open (show_storage) a fourth column shows it: right click moves a stack
+## from the backpack into it, a click on the chest takes one out. Everything is only a request:
+## the server's inventory comes back through show_inventory, the chest's through show_storage.
 
 signal move_requested(from: int, to: int)
 signal equip_requested(index: int)
 signal unequip_requested(kind: int, to: int)
 signal craft_requested(recipe: StringName)
 signal eat_requested(index: int)
+signal chest_move_requested(from_chest: bool, index: int)
 
 const SLOT := 20
 const COLUMNS := 6
@@ -22,6 +24,7 @@ const OK := Color("63c74d")
 const BAD := Color("e43b44")
 const INFO_WIDTH := 120
 const CONTROLS := "Drag: move, stack, wear   Right click: wear, take off, eat   Tab: close"
+const CHEST_CONTROLS := "Right click: put in the chest   Click the chest: take out   Tab: close"
 const STATUS_TEXT := {
 	Crafting.Status.READY: "",
 	Crafting.Status.MISSING_ITEMS: "Missing items",
@@ -101,14 +104,17 @@ class SlotView:
 			draw_string(font, at, str(count), right, size.x - 1, font_size)
 
 
-## The player's position, set by GameClient every frame, for the station checks.
-var player_at := Vector2.ZERO
+## The station pieces near the player ({piece id: true}), set by GameClient every frame.
+var stations := {}
 
 var _inventory := Inventory.new(Content.tuning.inventory_size)
 var _panel := PanelContainer.new()
 var _slots: Array[SlotView] = []
 var _worn := {}  # ItemDef.Slot -> SlotView
 var _stats := Label.new()
+var _controls: Label
+var _chest_column := VBoxContainer.new()
+var _chest_slots: Array[SlotView] = []
 var _info_title := Label.new()
 var _info_body := Label.new()
 ## recipe id -> {inputs: {item id: Label}, status: Label, button: Button}
@@ -187,9 +193,12 @@ func _ready() -> void:
 	columns.add_child(_build_inventory())
 	columns.add_child(_build_info())
 	columns.add_child(_build_crafting())
-	var controls := _label(CONTROLS, DIM)
-	controls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	rows.add_child(controls)
+	columns.add_child(_chest_column)
+	_chest_column.visible = false
+	_chest_column.add_child(_label("Chest", HEADING))
+	_controls = _label(CONTROLS, DIM)
+	_controls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	rows.add_child(_controls)
 	_show_info(&"")
 	_refresh()
 
@@ -275,6 +284,36 @@ func _build_crafting() -> Control:
 	return column
 
 
+## data: the open chest's Inventory.to_data from the server, {} once it is closed. Opening one
+## opens this screen.
+func show_storage(data: Dictionary) -> void:
+	var slots: Array = data.get("slots", [])
+	_chest_column.visible = not slots.is_empty()
+	_controls.text = CONTROLS if slots.is_empty() else CHEST_CONTROLS
+	if slots.is_empty():
+		return
+	if _chest_slots.size() != slots.size():
+		for view in _chest_slots:
+			view.get_parent().queue_free()
+		_chest_slots.clear()
+		var grid := GridContainer.new()
+		grid.columns = COLUMNS / 2
+		_chest_column.add_child(grid)
+		for i in slots.size():
+			var view := SlotView.new()
+			view.index = i
+			view.mouse_entered.connect(func() -> void: _show_info(view.item))
+			view.gui_input.connect(_on_chest_slot_input.bind(view))
+			grid.add_child(view)
+			_chest_slots.append(view)
+	for i in slots.size():
+		var entry: Array = slots[i]
+		_chest_slots[i].show_item(
+			StringName(entry[0]) if entry.size() == 2 else &"", entry[1] if entry.size() == 2 else 0
+		)
+	visible = true
+
+
 func toggle() -> void:
 	visible = not visible
 	_show_info(&"")
@@ -313,7 +352,7 @@ func _process(_delta: float) -> void:
 func _refresh() -> void:
 	for id: StringName in _recipes:
 		var recipe: RecipeDef = Content.recipes[id]
-		var status := Crafting.status(_inventory, recipe, player_at)
+		var status := Crafting.status(_inventory, recipe, stations)
 		if _statuses.get(id) == status:
 			continue
 		_statuses[id] = status
@@ -325,21 +364,12 @@ func _refresh() -> void:
 			label.text = "%s %d/%d" % [Content.item(item).display_name, have, need]
 			label.add_theme_color_override("font_color", OK if have >= need else BAD)
 		if status == Crafting.Status.AWAY_FROM_STATION:
-			row.status.text = "Go to the %s" % _station_place(recipe.station)
+			var station := Content.piece(recipe.station).display_name.to_lower()
+			row.status.text = "Build a %s nearby (B)" % station
 		else:
 			row.status.text = STATUS_TEXT[status]
 		row.status.visible = row.status.text != ""
 		row.button.disabled = status != Crafting.Status.READY
-
-
-## "workbench at the spawn" for a station near the respawn point, else just its name.
-# ponytail: one fixed workbench until M8 lets players build their own.
-static func _station_place(station: StringName) -> String:
-	var name := str(station).capitalize().to_lower()
-	var at: Vector2 = Content.tuning.stations.get(station, Vector2.INF)
-	if at.distance_to(Content.tuning.respawn_at) <= Content.tuning.station_reach * 3:
-		return name + " at the spawn"
-	return name
 
 
 ## Whether data dragged from one slot may drop on another: backpack to backpack, gear to its
@@ -379,17 +409,27 @@ func _slot_view() -> SlotView:
 	return view
 
 
-## Right click wears or eats what is in the backpack, or takes off what is worn.
+## Right click wears or eats what is in the backpack, or takes off what is worn; with a chest
+## open it puts what is in the backpack into the chest instead.
 func _on_slot_input(event: InputEvent, view: SlotView) -> void:
 	var click := event as InputEventMouseButton
 	if click == null or not click.pressed or click.button_index != MOUSE_BUTTON_RIGHT:
 		return
-	if view.worn != -1:
+	if _chest_column.visible and view.worn == -1:
+		chest_move_requested.emit(false, view.index)
+	elif view.worn != -1:
 		unequip_requested.emit(view.worn, -1)
 	elif Content.item(view.item) and Content.item(view.item).slot != ItemDef.Slot.NONE:
 		equip_requested.emit(view.index)
 	elif Content.item(view.item) and Content.item(view.item).food > 0:
 		eat_requested.emit(view.index)
+
+
+## A click on a chest slot takes it out.
+func _on_chest_slot_input(event: InputEvent, view: SlotView) -> void:
+	var click := event as InputEventMouseButton
+	if click and click.pressed and click.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
+		chest_move_requested.emit(true, view.index)
 
 
 ## The info panel on an item, with what can be done with it; a hint while on none.

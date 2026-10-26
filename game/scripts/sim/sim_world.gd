@@ -1,11 +1,13 @@
+# gdlint: disable=max-public-methods
+# Every request a client can make lands on the world, so it outgrows the public method limit.
 class_name SimWorld
 extends RefCounted
 ## The server's simulation. Plain objects, no scene tree: tests build one directly and step it
 ## with tick(delta); GameServer drives the same path. Keeps the chunks around players loaded,
 ## runs combat and enemies, drops loot that players walk over to pick up, handles inventories,
-## crafting, hunger and eating, spawns more and stronger enemies at night, runs dungeon
-## instances (Dungeon) with their buffs (Buffs) and, with a store, saves what changed against
-## the seed and the players.
+## crafting, building (Building), hunger and eating, spawns more and stronger enemies at night,
+## runs dungeon instances (Dungeon) with their buffs (Buffs) and, with a store, saves what
+## changed against the seed and the players.
 
 
 class SimPlayer:
@@ -32,6 +34,8 @@ class SimPlayer:
 	var snapshot := {}
 	## Dungeon buffs, held only inside a run.
 	var buffs := Buffs.new()
+	## The tile of the chest the player has open, null if none.
+	var open_chest: Variant = null
 
 	func _init(player_id: int, player_name: String, spawn: Vector2, now: float) -> void:
 		id = player_id
@@ -96,6 +100,8 @@ class SimChunk:
 	var props: Dictionary
 	## {id: true} of props removed since.
 	var removed := {}
+	## {global tile: Building.Piece} built in it.
+	var pieces := {}
 	var dirty := false
 
 
@@ -121,6 +127,8 @@ var chunks := {}  # Vector2i -> SimChunk
 var enemies := {}  # id -> SimEnemy
 var drops := {}  # id -> SimDrop
 var dungeons := {}  # slot -> Dungeon
+## {global tile: Building.Piece} of every loaded chunk.
+var pieces := {}
 ## Off in tests that place their own enemies.
 var spawn_enemies := true
 ## What happened this tick for clients to show, drained by GameServer: ["hit", enemy: bool,
@@ -128,7 +136,9 @@ var spawn_enemies := true
 ## position], ["swing", player id, heavy, aim, position, weapon], ["loot", player id, item,
 ## count] for a pickup, ["full", player id] when loot didn't fit, ["dungeon", player id, area,
 ## exit, chest, position] when a player entered a run or (area empty) is back in the
-## overworld, ["chest", player id] when one opened its run's end chest.
+## overworld, ["chest", player id] when one opened its run's end chest, ["piece", tile] when a
+## piece was built, changed (damage, door) or is gone, ["storage", player id, Inventory.to_data
+## of its open chest, {} once closed].
 var events: Array[Array] = []
 ## Seeded by the balance sim for repeatable runs.
 var rng := RandomNumberGenerator.new()
@@ -251,6 +261,8 @@ func _tick_player(player: SimPlayer, delta: float) -> void:
 			events.append(["respawn", player.id, player.position])
 		return
 	var t := Content.tuning
+	if player.open_chest != null and not _chest_in_reach(player, player.open_chest):
+		_close_chest(player)
 	player.hunger = maxf(player.hunger - t.hunger_drain * delta, 0.0)
 	var regen := t.stamina_regen * (1.0 + player.buffs.stat("stamina_regen"))
 	if player.hunger > 0:
@@ -290,6 +302,8 @@ func _spawn(delta: float) -> void:
 			continue
 		var distance := rng.randf_range(t.spawn_ring_min, t.spawn_ring_max)
 		var at := player.position + Vector2.from_angle(rng.randf() * TAU) * distance
+		if Building.blocker(pieces, at) != null:
+			continue
 		var enemy := add_enemy(
 			at,
 			t.enemy.health * scale.health * night.health,
@@ -345,23 +359,49 @@ func _stream_chunks() -> void:
 	for coord: Vector2i in chunks.keys():
 		if not keep.has(coord):
 			_save_chunk(coord)
+			for tile: Vector2i in chunks[coord].pieces:
+				pieces.erase(tile)
 			chunks.erase(coord)
 
 
 func _load_chunk(coord: Vector2i) -> void:
 	var chunk := SimChunk.new()
 	chunk.props = WorldGen.chunk(world_seed, coord).props
-	if store:
-		for id in store.load_chunk(coord):
-			chunk.removed[id] = true
 	chunks[coord] = chunk
+	if store == null:
+		return
+	var saved := store.load_chunk(coord)
+	for id in saved.removed:
+		chunk.removed[id] = true
+	for entry: Dictionary in saved.pieces:
+		var id := StringName(entry.get("id", ""))
+		if Content.piece(id) == null:
+			continue  # a piece this build doesn't know any more
+		var piece := Building.Piece.new(id)
+		piece.health = minf(float(entry.get("hp", piece.health)), piece.health)
+		piece.open = bool(entry.get("open", false))
+		if piece.items:
+			piece.items.load_data(entry.get("items", {}))
+		var tile := Building.tile_at(coord, int(entry.get("t", 0)))
+		chunk.pieces[tile] = piece
+		pieces[tile] = piece
 
 
 func _save_chunk(coord: Vector2i) -> void:
 	var chunk: SimChunk = chunks[coord]
-	if store and chunk.dirty:
-		store.save_chunk(coord, removed_props(coord))
-		chunk.dirty = false
+	if store == null or not chunk.dirty:
+		return
+	var saved := []
+	for tile: Vector2i in chunk.pieces:
+		var piece: Building.Piece = chunk.pieces[tile]
+		var entry := {t = Building.index_in_chunk(tile), id = str(piece.id), hp = piece.health}
+		if piece.open:
+			entry.open = true
+		if piece.items:
+			entry.items = piece.items.to_data()
+		saved.append(entry)
+	store.save_chunk(coord, removed_props(coord), saved)
+	chunk.dirty = false
 
 
 ## Meta, changed chunks and everyone online.
@@ -433,7 +473,7 @@ func is_online(player_name: String) -> bool:
 
 ## Client-authoritative movement with a basic sanity check: a move further than the walk speed
 ## allows (plus slack, plus a dash's distance right after one) is a teleport and is dropped, as
-## are moves of the dead. Returns whether it was accepted.
+## are moves of the dead and moves into a blocking piece. Returns whether it was accepted.
 # ponytail: no correction sent back; a dropped move only holds the server copy until the next one.
 func move_player(id: int, position: Vector2) -> bool:
 	var player: SimPlayer = players.get(id)
@@ -447,6 +487,8 @@ func move_player(id: int, position: Vector2) -> bool:
 	if player.position.distance_to(position) > allowed:
 		return false
 	if player.run and Dungeon.clamp_to(player.run.area, position) != position:
+		return false
+	if not Building.can_walk(pieces, player.position, position):
 		return false
 	player.position = position
 	player.moved_at = time
@@ -492,6 +534,16 @@ func interact(id: int) -> bool:
 	player.moved_at = time
 	events.append(["dungeon", id, run.area, run.exit, run.chest, player.position])
 	return true
+
+
+## The closest enemy within radius of a position, null if none.
+func nearest_enemy(at: Vector2, radius: float) -> SimEnemy:
+	var best: SimEnemy = null
+	for enemy: SimEnemy in enemies.values():
+		var distance := enemy.position.distance_to(at)
+		if distance <= radius and (best == null or distance < best.position.distance_to(at)):
+			best = enemy
+	return best
 
 
 func _enemy_positions() -> Array[Vector2]:
@@ -610,6 +662,165 @@ func remove_prop(id: int, coord: Vector2i, prop_id: int) -> bool:
 	return true
 
 
+## Crafts a recipe with the station pieces near the player.
+func craft(id: int, recipe: StringName) -> bool:
+	var player: SimPlayer = players.get(id)
+	if player == null:
+		return false
+	return Crafting.craft(player, recipe, Building.stations_near(pieces, player.position))
+
+
+## Builds a piece on a tile in a loaded chunk, paid from the player's inventory (see
+## Building.can_build), or repairs the same piece there if it is damaged and no enemy is within
+## repair_lock_radius. Nothing is built inside a run. Returns whether it did either.
+func build(id: int, tile: Vector2i, piece_id: StringName) -> bool:
+	var player: SimPlayer = players.get(id)
+	var chunk: SimChunk = chunks.get(Building.chunk_of_tile(tile))
+	var def := Content.piece(piece_id)
+	if player == null or chunk == null or def == null or player.dead_until > 0 or player.run:
+		return false
+	var index := Building.index_in_chunk(tile)
+	var prop: bool = chunk.props.has(index) and not chunk.removed.has(index)
+	var bodies := _enemy_positions()
+	for other: SimPlayer in players.values():
+		if other.dead_until == 0:
+			bodies.append(other.position)
+	match Building.can_build(
+		pieces, tile, piece_id, player.inventory, player.position, prop, bodies, REACH_SLACK
+	):
+		Building.Status.REPAIR:
+			var radius := Content.tuning.repair_lock_radius
+			if nearest_enemy(Building.tile_center(tile), radius) != null:
+				return false
+			pieces[tile].health = def.health
+		Building.Status.OK:
+			player.inventory.take(def.cost)
+			var piece := Building.Piece.new(piece_id)
+			chunk.pieces[tile] = piece
+			pieces[tile] = piece
+		_:
+			return false
+	chunk.dirty = true
+	events.append(["piece", tile])
+	return true
+
+
+## Takes down a piece in reach and gives its cost back (what doesn't fit drops on the ground,
+## as does a chest's contents). Returns whether it did.
+# ponytail: the whole cost back even when damaged; scale it by health if that gets abused.
+func unbuild(id: int, tile: Vector2i) -> bool:
+	var player: SimPlayer = players.get(id)
+	var piece: Building.Piece = pieces.get(tile)
+	if player == null or piece == null or player.dead_until > 0:
+		return false
+	var reach := Content.tuning.build_reach + REACH_SLACK
+	if player.position.distance_to(Building.tile_center(tile)) > reach:
+		return false
+	var cost := piece.def().cost
+	for item: StringName in cost:
+		var left := player.inventory.add(item, cost[item])
+		if left > 0:
+			add_drop(item, left, Building.tile_center(tile))
+	_remove_piece(tile)
+	return true
+
+
+## E on a door opens or shuts it (not shut on someone standing in it), on a chest opens it for
+## the player. Returns whether it did.
+func use_piece(id: int, tile: Vector2i) -> bool:
+	var player: SimPlayer = players.get(id)
+	var piece: Building.Piece = pieces.get(tile)
+	if player == null or piece == null or player.dead_until > 0:
+		return false
+	if player.position.distance_to(Building.tile_center(tile)) > REACH + REACH_SLACK:
+		return false
+	if piece.def().door:
+		if piece.open:
+			var bodies := _enemy_positions()
+			for other: SimPlayer in players.values():
+				bodies.append(other.position)
+			if bodies.any(func(at: Vector2) -> bool: return Building.overlaps(tile, at)):
+				return false
+		piece.open = not piece.open
+		chunks[Building.chunk_of_tile(tile)].dirty = true
+		events.append(["piece", tile])
+		return true
+	if piece.items:
+		player.open_chest = tile
+		events.append(["storage", id, piece.items.to_data()])
+		return true
+	return false
+
+
+## Moves a whole stack between the player's inventory and its open chest, from_chest says
+## which way, as much of it as fits. Returns whether anything moved.
+# ponytail: whole stacks by click; drag and drop between the two comes when it is missed.
+func chest_move(id: int, from_chest: bool, index: int) -> bool:
+	var player: SimPlayer = players.get(id)
+	if player == null or player.open_chest == null or player.dead_until > 0:
+		return false
+	var tile: Vector2i = player.open_chest
+	var chest: Inventory = pieces[tile].items
+	var from := chest if from_chest else player.inventory
+	var to := player.inventory if from_chest else chest
+	if index < 0 or index >= from.slots.size() or from.slots[index].is_empty():
+		return false
+	var slot := from.slots[index]
+	var moved: int = slot.count - to.add(slot.item, slot.count)
+	if moved == 0:
+		return false
+	from.take_at(index, moved)
+	chunks[Building.chunk_of_tile(tile)].dirty = true
+	for other: SimPlayer in players.values():
+		if other.open_chest == tile:
+			events.append(["storage", other.id, chest.to_data()])
+	return true
+
+
+## An enemy hit on a piece; at 0 health it is gone and a chest's contents spill out.
+func damage_piece(tile: Vector2i, amount: float) -> void:
+	var piece: Building.Piece = pieces.get(tile)
+	if piece == null:
+		return
+	piece.health -= amount
+	if piece.health <= 0:
+		_remove_piece(tile)
+		return
+	chunks[Building.chunk_of_tile(tile)].dirty = true
+	events.append(["piece", tile])
+
+
+## The tile of a piece blocking a body at at, null if none does.
+func blocker(at: Vector2) -> Variant:
+	return Building.blocker(pieces, at)
+
+
+func _remove_piece(tile: Vector2i) -> void:
+	var piece: Building.Piece = pieces[tile]
+	if piece.items:
+		for slot in piece.items.slots:
+			if not slot.is_empty():
+				add_drop(slot.item, slot.count, Building.tile_center(tile))
+		for player: SimPlayer in players.values():
+			if player.open_chest == tile:
+				_close_chest(player)
+	var chunk: SimChunk = chunks[Building.chunk_of_tile(tile)]
+	chunk.pieces.erase(tile)
+	chunk.dirty = true
+	pieces.erase(tile)
+	events.append(["piece", tile])
+
+
+func _chest_in_reach(player: SimPlayer, tile: Vector2i) -> bool:
+	var reach := Content.tuning.build_reach + REACH_SLACK
+	return pieces.has(tile) and player.position.distance_to(Building.tile_center(tile)) <= reach
+
+
+func _close_chest(player: SimPlayer) -> void:
+	player.open_chest = null
+	events.append(["storage", player.id, {}])
+
+
 ## A light or heavy swing toward aim. The client reports the enemies it saw hit (PLAN §4.4); the
 ## server checks them against its own copy with some slack. The equipped weapon decides the
 ## swing, buffs make it stronger, faster, critical, bleeding or healing. Returns the enemies
@@ -718,6 +929,14 @@ func damage_player(id: int, amount: float, from: SimEnemy = null) -> bool:
 	if player.health == 0:
 		_die(player)
 	return true
+
+
+## The pieces of a loaded chunk as sent to clients: [index in chunk, Building.to_net...] each.
+func chunk_pieces(coord: Vector2i) -> Array:
+	var out := []
+	for tile: Vector2i in chunks[coord].pieces:
+		out.append([Building.index_in_chunk(tile)] + Building.to_net(pieces[tile]))
+	return out
 
 
 ## Ids of the props removed from a loaded chunk, as sent to clients and saved.

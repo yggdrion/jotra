@@ -1,7 +1,7 @@
 class_name Content
 ## All game data, loaded once from res://data/ on both sides: Tuning, and items, recipes,
-## enemies, dungeon rooms, buffs and synergies by id (their file name). Gameplay numbers live
-## there, not in code (PLAN §10).
+## enemies, dungeon rooms, buffs, synergies and building pieces by id (their file name).
+## Gameplay numbers live there, not in code (PLAN §10).
 
 static var tuning: Tuning = load("res://data/tuning.tres")
 static var items := _load("res://data/items/")
@@ -10,10 +10,13 @@ static var enemies := _load("res://data/enemies/")
 static var rooms := _load("res://data/rooms/")
 static var buffs := _load("res://data/buffs/")
 static var synergies := _load("res://data/synergies/")
+static var pieces := _load("res://data/pieces/")
 ## Item ids in a fixed order, so snapshots can send an item as its index.
 static var item_ids: Array[StringName] = _sorted_ids(items)
 ## Buff ids the same way, for buff orbs in snapshots.
 static var buff_ids: Array[StringName] = _sorted_ids(buffs)
+## Building pieces the same way, also the order of the build menu.
+static var piece_ids: Array[StringName] = _sorted_ids(pieces)
 
 
 static func item(id: StringName) -> ItemDef:
@@ -22,6 +25,10 @@ static func item(id: StringName) -> ItemDef:
 
 static func item_index(id: StringName) -> int:
 	return item_ids.find(id)
+
+
+static func piece(id: StringName) -> PieceDef:
+	return pieces.get(id)
 
 
 ## The light or heavy swing of a weapon, or bare-handed for "".

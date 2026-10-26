@@ -2,10 +2,10 @@ class_name SurvivalBot
 extends RefCounted
 ## Plays one player of a SimWorld the way a person roughly would, for the balance sim: eats
 ## when hungry, forages trees when low on food, gathers what the next piece of gear needs,
-## crafts it (walking to the workbench if needed) and wears it, fights what comes near and
-## otherwise wanders. Skill decides how often it dashes out of a telegraphed hit and whether
-## it backs off when low on health. It drives the sim through the same calls the server makes
-## for a client, so it gets no more than a player could do. It records what happened to it.
+## crafts it (walking to a workbench, or building one first) and wears it, fights what comes
+## near and otherwise wanders. Skill decides how often it dashes out of a telegraphed hit and
+## whether it backs off when low on health. It drives the sim through the same calls the server
+## makes for a client, so it gets no more than a player could do. It records what happened to it.
 
 ## Gear it works toward, in order; it skips what isn't better than what it wears.
 const GEAR: Array[StringName] = [
@@ -223,7 +223,8 @@ func _fight(enemy: SimEnemy, delta: float) -> void:
 
 
 ## Crafts the next gear upgrade (or a ration from spare berries) it has the items for,
-## walking to the station first. Returns whether that is what it is doing.
+## walking to the station first, or building one next to it if there is none in view. Returns
+## whether that is what it is doing.
 func _craft(delta: float) -> bool:
 	var me := player()
 	var wanted := _wanted_gear()
@@ -231,17 +232,45 @@ func _craft(delta: float) -> bool:
 		wanted.append(&"trail_ration")
 	for item in wanted:
 		var recipe: RecipeDef = Content.recipes[item]
-		match Crafting.status(me.inventory, recipe, me.position):
+		match Crafting.status(
+			me.inventory, recipe, Building.stations_near(world.pieces, me.position)
+		):
 			Crafting.Status.READY:
-				Crafting.craft(me, item)
+				world.craft(id, item)
 				if not crafted_at.has(item):
 					crafted_at[item] = world.time
 				_wear(item)
 				return true
 			Crafting.Status.AWAY_FROM_STATION:
-				if me.inventory.has_all(recipe.inputs):
-					_walk_to(Content.tuning.stations[recipe.station], delta)
+				if not me.inventory.has_all(recipe.inputs):
+					continue
+				var station := _nearest_piece(recipe.station)
+				if not station.is_empty():
+					_walk_to(Building.tile_center(station[0]), delta)
 					return true
+				if _build_near(recipe.station):
+					return true
+	return false
+
+
+## [tile, distance] of the nearest loaded piece of a kind, [] if there is none.
+func _nearest_piece(piece_id: StringName) -> Array:
+	var best := []
+	for tile: Vector2i in world.pieces:
+		if world.pieces[tile].id != piece_id:
+			continue
+		var distance := Building.tile_center(tile).distance_to(player().position)
+		if best.is_empty() or distance < best[1]:
+			best = [tile, distance]
+	return best
+
+
+## Builds a piece on the first free tile a step away. Returns whether it did.
+func _build_near(piece_id: StringName) -> bool:
+	var center := Building.tile_of(player().position)
+	for offset: Vector2i in [Vector2i(2, 0), Vector2i(-2, 0), Vector2i(0, 2), Vector2i(0, -2)]:
+		if world.build(id, center + offset, piece_id):
+			return true
 	return false
 
 
@@ -285,7 +314,13 @@ func _food_carried() -> float:
 func _needed_prop() -> int:
 	var inventory := player().inventory
 	for item in _wanted_gear():
-		var inputs: Dictionary = Content.recipes[item].inputs
+		var recipe: RecipeDef = Content.recipes[item]
+		var inputs := recipe.inputs.duplicate()
+		# With no station in view, also what building one takes.
+		if recipe.station != &"" and _nearest_piece(recipe.station).is_empty():
+			var cost := Content.piece(recipe.station).cost
+			for input: StringName in cost:
+				inputs[input] = inputs.get(input, 0) + cost[input]
 		for input: StringName in inputs:
 			if inventory.count_of(input) >= inputs[input]:
 				continue
@@ -343,6 +378,10 @@ func _nearest_enemy() -> SimEnemy:
 	return best
 
 
+## Walks toward target, sliding along a piece in the way like a player would.
 func _walk_to(target: Vector2, delta: float) -> void:
 	var me := player()
-	world.move_player(id, me.position.move_toward(target, Content.tuning.walk_speed * delta))
+	var step := me.position.move_toward(target, Content.tuning.walk_speed * delta) - me.position
+	for to: Vector2 in [step, Vector2(step.x, 0), Vector2(0, step.y)]:
+		if world.move_player(id, me.position + to):
+			return

@@ -7,5 +7,5 @@ extends Resource
 @export var count := 1
 ## {item id: count} used up.
 @export var inputs: Dictionary
-## Empty: by hand anywhere. Otherwise the station (Tuning.stations) the player must stand at.
+## Empty: by hand anywhere. Otherwise the station piece (PieceDef.station) the player must stand at.
 @export var station: StringName

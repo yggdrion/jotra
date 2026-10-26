@@ -107,15 +107,20 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 		func(id: int, kind: int, to: int) -> void:
 			_act(id, func(p: SimWorld.SimPlayer) -> void: p.unequip(kind, to))
 	)
-	net.craft_requested.connect(
-		func(id: int, recipe: StringName) -> void:
-			_act(id, func(p: SimWorld.SimPlayer) -> void: Crafting.craft(p, recipe))
-	)
+	net.craft_requested.connect(func(id: int, recipe: StringName) -> void: world.craft(id, recipe))
 	net.eat_requested.connect(
 		func(id: int, index: int) -> void:
 			_act(id, func(p: SimWorld.SimPlayer) -> void: p.eat(index))
 	)
 	net.interact_requested.connect(func(id: int) -> void: world.interact(id))
+	net.build_requested.connect(
+		func(id: int, tile: Vector2i, piece: StringName) -> void: world.build(id, tile, piece)
+	)
+	net.unbuild_requested.connect(func(id: int, tile: Vector2i) -> void: world.unbuild(id, tile))
+	net.use_requested.connect(func(id: int, tile: Vector2i) -> void: world.use_piece(id, tile))
+	net.chest_move_requested.connect(
+		func(id: int, from_chest: bool, index: int) -> void: world.chest_move(id, from_chest, index)
+	)
 	net.pinged.connect(func(id: int, sent_ms: int) -> void: net.pong.rpc_id(id, sent_ms))
 	if lobby_url == "":
 		print("server: listening on %d" % port)
@@ -225,7 +230,7 @@ func _send_chunks(id: int) -> void:
 	for coord in world.interest(id):
 		if not sent.has(coord):
 			sent[coord] = true
-			net.chunk.rpc_id(id, coord, world.removed_props(coord))
+			net.chunk.rpc_id(id, coord, world.removed_props(coord), world.chunk_pieces(coord))
 
 
 ## Forwards what happened in the sim, including attacks handled between ticks, to the clients
@@ -267,6 +272,16 @@ func _send_events() -> void:
 					net.dungeon.rpc_id(event[1], event[2], event[3], event[4], event[5])
 			"chest":
 				net.chest_opened.rpc_id(event[1])
+			"piece":
+				var coord := Building.chunk_of_tile(event[1])
+				var piece: Building.Piece = world.pieces.get(event[1])
+				var data := Building.to_net(piece) if piece else []
+				for id: int in _sent_chunks:
+					if _sent_chunks[id].has(coord):
+						net.piece.rpc_id(id, coord, Building.index_in_chunk(event[1]), data)
+			"storage":
+				if world.players.has(event[1]):
+					net.storage.rpc_id(event[1], event[2])
 	world.events.clear()
 
 

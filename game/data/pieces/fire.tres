@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="PieceDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/piece_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Fire"
+color = Color(0.95, 0.55, 0.15, 1)
+cost = {&"wood": 4, &"stone": 4}
+health = 100.0
+light = 96.0

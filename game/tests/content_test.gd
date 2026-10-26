@@ -38,7 +38,26 @@ func test_recipes_and_drop_tables_name_real_items() -> void:
 		for item: StringName in recipe.inputs:
 			assert_object(Content.item(item)).override_failure_message(str(id)).is_not_null()
 		if recipe.station != &"":
-			assert_bool(Content.tuning.stations.has(recipe.station)).is_true()
+			var station := Content.piece(recipe.station)
+			(
+				assert_bool(station != null and station.station)
+				. override_failure_message(str(id))
+				. is_true()
+			)
+
+
+func test_pieces_are_complete() -> void:
+	assert_int(Content.piece_ids.size()).is_equal(Content.pieces.size())
+	for id: StringName in Content.pieces:
+		var piece := Content.piece(id)
+		assert_str(piece.display_name).override_failure_message(str(id)).is_not_empty()
+		assert_float(piece.health).override_failure_message(str(id)).is_greater(0)
+		assert_bool(piece.cost.is_empty()).override_failure_message(str(id)).is_false()
+		for item: StringName in piece.cost:
+			assert_object(Content.item(item)).override_failure_message(str(id)).is_not_null()
+		# Nothing stands between a new player and a workbench but wood.
+		if piece.station:
+			assert_array(piece.cost.keys()).is_equal([&"wood"])
 
 
 func test_bare_hands_without_a_weapon() -> void:
