@@ -78,8 +78,8 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 			_act(id, func(p: SimWorld.SimPlayer) -> void: p.equip(index))
 	)
 	net.unequip_requested.connect(
-		func(id: int, kind: int) -> void:
-			_act(id, func(p: SimWorld.SimPlayer) -> void: p.unequip(kind))
+		func(id: int, kind: int, to: int) -> void:
+			_act(id, func(p: SimWorld.SimPlayer) -> void: p.unequip(kind, to))
 	)
 	net.craft_requested.connect(
 		func(id: int, recipe: StringName) -> void:
@@ -180,6 +180,8 @@ func _send_events() -> void:
 						net.swing.rpc_id(id, event[1], event[2], event[3], event[5])
 			"loot":
 				net.looted.rpc_id(event[1], event[2], event[3])
+			"full":
+				net.inventory_full.rpc_id(event[1])
 	world.events.clear()
 
 

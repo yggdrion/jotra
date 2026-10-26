@@ -3,10 +3,12 @@ extends Node2D
 ## The client: moves its own player at once (client-authoritative), sends the position to the
 ## server at SEND_RATE and draws everyone else INTERP_DELAY_MS in the past, blended from the
 ## server's snapshots, enemies the same way. Builds the chunks the server streams from the world
-## seed; E removes the nearest prop. Left/right mouse swing the equipped weapon light/heavy
-## toward the mouse and report what they hit; Space dashes. Stamina and cooldowns are checked
+## seed; E fells or breaks the prop in reach, which is outlined and named in a prompt.
+## Left/right mouse swing the equipped weapon light/heavy toward the mouse and report what they
+## hit; Space dashes. Stamina and cooldowns are checked
 ## here first, the server has the last word. Tab or I opens the inventory and crafting screen;
-## items on the ground are picked up by walking over them (server side).
+## while it is open the mouse is for the screen, not for swinging. Items on the ground slide
+## to a player walking near and are picked up (server side).
 ##
 ## Bot mode (run headless by the network test) walks in a circle instead of reading the
 ## keyboard and exits 0 once it has chunks and its inventory, has seen an enemy, the server
@@ -55,6 +57,8 @@ var _world_seed := 0
 var _chunks := {}  # Vector2i -> ChunkView
 var _enemy_views := {}  # enemy id -> EnemyView
 var _drop_views := {}  # drop id -> DropView
+## [chunk coord, prop id] of the prop E acts on, [] if none is in reach.
+var _target := []
 var _hud := Hud.new()
 var _inventory_ui := InventoryUi.new()
 ## From the server's snapshots, spent ahead of them here.
@@ -111,11 +115,18 @@ func _ready() -> void:
 			_inventory_ui.show_inventory(data)
 	)
 	net.looted_received.connect(_on_looted)
+	net.inventory_full_received.connect(
+		func() -> void:
+			if _me:
+				_float_text("Inventory full", Color("e43b44"), _me.position)
+	)
 	_inventory_ui.move_requested.connect(
 		func(from: int, to: int) -> void: net.move_item.rpc_id(1, from, to)
 	)
 	_inventory_ui.equip_requested.connect(func(index: int) -> void: net.equip.rpc_id(1, index))
-	_inventory_ui.unequip_requested.connect(func(kind: int) -> void: net.unequip.rpc_id(1, kind))
+	_inventory_ui.unequip_requested.connect(
+		func(kind: int, to: int) -> void: net.unequip.rpc_id(1, kind, to)
+	)
 	_inventory_ui.craft_requested.connect(
 		func(recipe: StringName) -> void: net.craft.rpc_id(1, recipe)
 	)
@@ -221,6 +232,7 @@ func _on_welcomed(spawn: Vector2, world_seed: int) -> void:
 	add_child(_me)
 	for station: StringName in Content.tuning.stations:
 		var view := StationView.new()
+		view.station = station
 		view.position = Content.tuning.stations[station]
 		add_child(view)
 
@@ -244,6 +256,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _me == null or _health <= 0:
 		return
 	var mouse := event as InputEventMouseButton
+	if mouse and _inventory_ui.visible:
+		return
 	if mouse and mouse.pressed and mouse.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
 		_attack(mouse.button_index == MOUSE_BUTTON_RIGHT)
 		get_viewport().set_input_as_handled()
@@ -256,7 +270,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif key.keycode == KEY_ESCAPE and _inventory_ui.visible:
 		_inventory_ui.toggle()
 	elif key.keycode == KEY_E:
-		_remove_nearest_prop()
+		if not _target.is_empty():
+			net.remove_prop.rpc_id(1, _target[0], _target[1])
 	elif key.keycode == KEY_SPACE:
 		_dash()
 	else:
@@ -300,17 +315,36 @@ func _aim() -> Vector2:
 	return aim if aim != Vector2.ZERO else Vector2.RIGHT
 
 
-## Asks the server to remove the nearest prop in reach.
-func _remove_nearest_prop() -> void:
+## Picks the prop in reach that E acts on, outlines it, and prompts for it or, failing that,
+## for a station nearby.
+func _update_target() -> void:
 	var best := []
-	var best_coord := Vector2i.ZERO
-	for coord: Vector2i in _chunks:
+	var best_distance := INF
+	var center := WorldGen.chunk_of(_me.position)
+	for coord in WorldGen.around(center, 1):
+		if not _chunks.has(coord):
+			continue
 		var found: Array = _chunks[coord].nearest_prop(_me.position, SimWorld.REACH)
-		if not found.is_empty() and (best.is_empty() or found[1] < best[1]):
-			best = found
-			best_coord = coord
-	if not best.is_empty():
-		net.remove_prop.rpc_id(1, best_coord, best[0])
+		if not found.is_empty() and found[1] < best_distance:
+			best = [coord, found[0]]
+			best_distance = found[1]
+	if best != _target:
+		if not _target.is_empty() and _chunks.has(_target[0]):
+			_chunks[_target[0]].highlight(_target[1], false)
+		_target = best
+		if not best.is_empty():
+			_chunks[best[0]].highlight(best[1], true)
+	var prompt := ""
+	if _health <= 0:
+		prompt = ""
+	elif not _target.is_empty():
+		var tree: bool = _chunks[_target[0]].kind_of(_target[1]) == WorldGen.Prop.TREE
+		prompt = "[E] Fell tree" if tree else "[E] Break rock"
+	else:
+		var station := Crafting.nearest_station(_me.position)
+		if not station.is_empty() and Crafting.at_station(_me.position, station[0]):
+			prompt = "[Tab] Craft at the %s" % str(station[0]).capitalize().to_lower()
+	_hud.show_prompt(prompt)
 
 
 func _on_snapshot(players: Dictionary, enemies: Dictionary, drops: Dictionary, me: Vector3) -> void:
@@ -327,19 +361,23 @@ func _on_snapshot(players: Dictionary, enemies: Dictionary, drops: Dictionary, m
 	_show_drops(drops)
 
 
-## drops: {id: Vector3(x, y, item index)}. They lie still, so no interpolation.
+## drops: {id: Vector3(x, y, item index)}. Most lie still; those sliding to a player glide
+## toward their newest position instead of being interpolated.
 func _show_drops(drops: Dictionary) -> void:
 	for id: int in _drop_views.keys():
 		if not drops.has(id):
 			_drop_views[id].queue_free()
 			_drop_views.erase(id)
 	for id: int in drops:
-		if _drop_views.has(id):
-			continue
 		var drop: Vector3 = drops[id]
+		var at := Vector2(drop.x, drop.y)
+		if _drop_views.has(id):
+			_drop_views[id].target = at
+			continue
 		var view := DropView.new()
 		view.item = Content.item(Content.item_ids[int(drop.z)])
-		view.position = Vector2(drop.x, drop.y)
+		view.position = at
+		view.target = at
 		add_child(view)
 		_drop_views[id] = view
 
@@ -406,12 +444,8 @@ func _process(delta: float) -> void:
 	var at := Time.get_ticks_msec() - INTERP_DELAY_MS
 	_show_enemies(Interpolation.sample(_snapshots, at, "enemies"))
 	_show_remote_players(Interpolation.sample(_snapshots, at))
-	if _inventory_ui.visible:
-		var here := {}
-		for station: StringName in Content.tuning.stations:
-			if Crafting.at_station(_me.position, station):
-				here[station] = true
-		_inventory_ui.stations = here
+	_update_target()
+	_inventory_ui.player_at = _me.position
 
 
 func _input_direction() -> Vector2:

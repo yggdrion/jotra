@@ -109,15 +109,25 @@ func equip(index: int) -> bool:
 	return true
 
 
-## Takes off what is worn in an ItemDef.Slot, if there is room for it.
-func unequip(kind: int) -> bool:
+## Takes off what is worn in an ItemDef.Slot into slot to if that is empty, else into the
+## first empty one. Returns false if there is no room.
+func unequip(kind: int, to := -1) -> bool:
 	if equipment.get(kind, &"") == &"":
 		return false
-	if add(equipment[kind], 1) > 0:
+	if _valid(to) and slots[to].is_empty():
+		slots[to] = {item = equipment[kind], count = 1}
+	elif add(equipment[kind], 1) > 0:
 		return false
 	equipment[kind] = &""
 	changed = true
 	return true
+
+
+## A separate inventory with the same contents, to try changes on.
+func copy() -> Inventory:
+	var out := Inventory.new(slots.size())
+	out.load_data(to_data())
+	return out
 
 
 func weapon() -> StringName:

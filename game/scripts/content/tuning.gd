@@ -61,6 +61,9 @@ extends Resource
 @export var inventory_size := 24
 ## Items on the ground within this of a living player go into their inventory.
 @export var pickup_radius := 16.0
+## Items within this of a living player slide toward them at magnet_speed.
+@export var magnet_radius := 40.0
+@export var magnet_speed := 180.0
 ## Items left on the ground vanish after this long.
 @export var drop_lifetime := 300.0
 ## Spread of a drop's items around where it fell.

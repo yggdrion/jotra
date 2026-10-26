@@ -9,13 +9,26 @@ extends Node2D
 class PropView:
 	extends Node2D
 
+	const OUTLINE := Color(1, 1, 1, 0.8)
+
 	var kind: WorldGen.Prop
+	## Outlined: the prop E acts on.
+	var highlighted := false:
+		set(value):
+			if value != highlighted:
+				highlighted = value
+				queue_redraw()
 
 	func _draw() -> void:
 		if kind == WorldGen.Prop.TREE:
+			if highlighted:
+				draw_rect(Rect2(-3, -11, 6, 12), OUTLINE)
+				draw_circle(Vector2(0, -16), 9, OUTLINE)
 			draw_rect(Rect2(-2, -10, 4, 10), Color("733e39"))
 			draw_circle(Vector2(0, -16), 8, Color("193c3e"))
 		else:
+			if highlighted:
+				draw_circle(Vector2(0, -4), 7, OUTLINE)
 			draw_circle(Vector2(0, -4), 6, Color("5a6988"))
 
 
@@ -47,6 +60,15 @@ func remove_prop(id: int) -> void:
 	if _props.has(id):
 		_props[id].queue_free()
 		_props.erase(id)
+
+
+func kind_of(id: int) -> WorldGen.Prop:
+	return _props[id].kind
+
+
+func highlight(id: int, on: bool) -> void:
+	if _props.has(id):
+		_props[id].highlighted = on
 
 
 ## [prop id, distance] of the prop closest to a world position, or [] if none is within reach.

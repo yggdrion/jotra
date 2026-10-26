@@ -1,7 +1,9 @@
 class_name Hud
 extends CanvasLayer
-## Health and stamina bars in the bottom-left corner, and "You died" in the middle while dead.
-## Anchored to the screen, as the visible area differs per player (PLAN §6).
+## Health and stamina bars in the bottom-left corner, "You died" in the middle while dead, a
+## prompt for what the player can do right here above the bottom edge, and the inventory key in
+## the bottom-right corner. Anchored to the screen, as the visible area differs per player
+## (PLAN §6).
 
 const BAR := Vector2(80, 5)
 const MARGIN := 6
@@ -10,6 +12,8 @@ const STAMINA_COLOR := Color("feae34")
 
 var _bars := Control.new()
 var _died := Label.new()
+var _prompt := Label.new()
+var _keys := Label.new()
 var _health := 1.0
 var _stamina := 1.0
 
@@ -29,6 +33,25 @@ func _ready() -> void:
 	_died.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_died.visible = false
 	add_child(_died)
+	for label: Label in [_prompt, _keys]:
+		label.add_theme_font_size_override("font_size", 8)
+		label.add_theme_constant_override("outline_size", 2)
+		label.add_theme_color_override("font_outline_color", Color.BLACK)
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(label)
+	_prompt.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_prompt.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_prompt.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_prompt.offset_top = -40
+	_prompt.offset_bottom = -28
+	_keys.text = "[Tab] Inventory and crafting"
+	_keys.modulate = Color(1, 1, 1, 0.6)
+	_keys.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_keys.set_anchors_and_offsets_preset(
+		Control.PRESET_BOTTOM_RIGHT, Control.PRESET_MODE_MINSIZE, MARGIN
+	)
+	_keys.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_keys.grow_vertical = Control.GROW_DIRECTION_BEGIN
 
 
 ## Both 0..1.
@@ -37,6 +60,12 @@ func show_stats(health: float, stamina: float) -> void:
 	_stamina = stamina
 	_died.visible = health <= 0.0
 	_bars.queue_redraw()
+
+
+## What the player can do here, e.g. "[E] Fell tree"; "" hides it.
+func show_prompt(text: String) -> void:
+	_prompt.text = text
+	_prompt.visible = text != ""
 
 
 func _draw_bars() -> void:

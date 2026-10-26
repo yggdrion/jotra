@@ -59,6 +59,51 @@ func test_full_inventory_leaves_the_rest_lying() -> void:
 	assert_int(world.drops.values()[0].count).is_equal(1)
 
 
+func test_full_inventory_gets_a_notice_now_and_then() -> void:
+	var world := _world()
+	var inventory: Inventory = world.players[1].inventory
+	for i in inventory.slots.size():
+		inventory.slots[i] = {item = &"club", count = 1}
+	world.add_drop(&"bone", 1, Vector2.ZERO)
+	world.events.clear()
+	for i in 5:
+		world.tick(TICK)
+	assert_array(world.events).is_equal([["full", 1]])
+	world.tick(SimWorld.FULL_NOTICE_INTERVAL)
+	assert_array(world.events).contains([["full", 1]])
+	assert_int(world.events.size()).is_equal(2)
+
+
+func test_drops_slide_to_a_player_walking_near() -> void:
+	var world := _world()
+	var t := Content.tuning
+	var near := world.add_drop(&"bone", 1, Vector2(t.magnet_radius - 2, 0))
+	var far := world.add_drop(&"stone", 1, Vector2(t.magnet_radius + 30, 0))
+	world.tick(TICK)
+	assert_float(near.position.x).is_less(t.magnet_radius - 2)
+	assert_float(far.position.x).is_equal(t.magnet_radius + 30)
+	for i in 10:
+		world.tick(TICK)
+	assert_int(world.players[1].inventory.count_of(&"bone")).is_equal(1)
+	assert_bool(world.drops.has(far.id)).is_true()
+
+
+func test_craft_status_says_why_not() -> void:
+	var recipe: RecipeDef = Content.recipes[&"stone_axe"]  # 3 wood, 5 stone
+	var bench: Vector2 = Content.tuning.stations[recipe.station]
+	var inventory := Inventory.new(2)
+	var away := bench + Vector2(500, 0)
+	assert_int(Crafting.status(inventory, recipe, away)).is_equal(Crafting.Status.AWAY_FROM_STATION)
+	assert_int(Crafting.status(inventory, recipe, bench)).is_equal(Crafting.Status.MISSING_ITEMS)
+	# Using up all the stone frees its slot for the axe.
+	inventory.slots[0] = {item = &"wood", count = 4}
+	inventory.slots[1] = {item = &"stone", count = 5}
+	assert_int(Crafting.status(inventory, recipe, bench)).is_equal(Crafting.Status.READY)
+	# With some of each left over, both slots stay taken.
+	inventory.slots[1] = {item = &"stone", count = 6}
+	assert_int(Crafting.status(inventory, recipe, bench)).is_equal(Crafting.Status.NO_ROOM)
+
+
 func test_drops_vanish_after_their_lifetime() -> void:
 	var world := _world()
 	world.add_drop(&"bone", 1, Vector2(200, 0))

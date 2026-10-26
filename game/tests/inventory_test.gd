@@ -60,6 +60,27 @@ func test_equip_swaps_with_what_is_worn() -> void:
 	assert_str(inventory.weapon()).is_empty()
 
 
+func test_unequip_into_a_chosen_slot() -> void:
+	var inventory := Inventory.new(3)
+	inventory.add(&"club", 1)
+	inventory.equip(0)
+	inventory.add(&"wood", 1)  # lands in slot 0
+	assert_bool(inventory.unequip(ItemDef.Slot.WEAPON, 2)).is_true()
+	assert_dict(inventory.slots[2]).is_equal({item = &"club", count = 1})
+	inventory.equip(2)
+	assert_bool(inventory.unequip(ItemDef.Slot.WEAPON, 0)).is_true()  # taken: first free
+	assert_dict(inventory.slots[1]).is_equal({item = &"club", count = 1})
+
+
+func test_copy_is_separate() -> void:
+	var inventory := Inventory.new(2)
+	inventory.add(&"wood", 3)
+	var other := inventory.copy()
+	other.take({&"wood": 3})
+	assert_int(inventory.count_of(&"wood")).is_equal(3)
+	assert_int(other.count_of(&"wood")).is_equal(0)
+
+
 func test_worn_sums_armor_stats() -> void:
 	var inventory := Inventory.new(1)
 	inventory.add(&"bone_armor", 1)

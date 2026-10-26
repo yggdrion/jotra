@@ -1,3 +1,5 @@
+# gdlint: disable=max-public-methods
+# Every RPC has to live on this one node, so it outgrows the public method limit by design.
 class_name Net
 extends Node
 ## The one node both sides talk through, at /root/Main/Net on server and client so the RPCs
@@ -11,7 +13,7 @@ signal attacked(peer_id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array)
 signal dashed(peer_id: int)
 signal item_moved(peer_id: int, from: int, to: int)
 signal equip_requested(peer_id: int, index: int)
-signal unequip_requested(peer_id: int, kind: int)
+signal unequip_requested(peer_id: int, kind: int, to: int)
 signal craft_requested(peer_id: int, recipe: StringName)
 # Client side.
 signal welcomed(spawn: Vector2, world_seed: int)
@@ -25,10 +27,11 @@ signal respawned_received(position: Vector2)
 signal swing_received(player_id: int, heavy: bool, aim: Vector2, weapon: StringName)
 signal inventory_received(data: Dictionary)
 signal looted_received(item: StringName, count: int)
+signal inventory_full_received
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 5
+const PROTOCOL_VERSION := 6
 
 @rpc("any_peer", "reliable")
 func hello(version: int, player_name: String) -> void:
@@ -68,10 +71,10 @@ func equip(index: int) -> void:
 	equip_requested.emit(multiplayer.get_remote_sender_id(), index)
 
 
-## Take off what is worn in an ItemDef.Slot.
+## Take off what is worn in an ItemDef.Slot, into inventory slot to if it is free (-1: any).
 @rpc("any_peer", "reliable")
-func unequip(kind: int) -> void:
-	unequip_requested.emit(multiplayer.get_remote_sender_id(), kind)
+func unequip(kind: int, to: int) -> void:
+	unequip_requested.emit(multiplayer.get_remote_sender_id(), kind, to)
 
 
 @rpc("any_peer", "reliable")
@@ -143,3 +146,9 @@ func inventory(data: Dictionary) -> void:
 @rpc("authority", "reliable")
 func looted(item: StringName, count: int) -> void:
 	looted_received.emit(item, count)
+
+
+## The receiving player stands on loot that doesn't fit.
+@rpc("authority", "reliable")
+func inventory_full() -> void:
+	inventory_full_received.emit()

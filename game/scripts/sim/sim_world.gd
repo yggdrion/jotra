@@ -12,6 +12,8 @@ class SimPlayer:
 	var position: Vector2
 	## Sim time of the last accepted move, for the speed check.
 	var moved_at: float
+	## Sim time of the last "inventory full" notice, so standing on loot doesn't spam it.
+	var full_noticed_at := -INF
 	var health := Content.tuning.max_health
 	var stamina := Content.tuning.max_stamina
 	var inventory := Inventory.new(Content.tuning.inventory_size)
@@ -38,9 +40,9 @@ class SimPlayer:
 		health = minf(health, max_health())
 		return true
 
-	## Takes off what is worn in an ItemDef.Slot.
-	func unequip(kind: int) -> bool:
-		if not inventory.unequip(kind):
+	## Takes off what is worn in an ItemDef.Slot, into inventory slot to if that is free.
+	func unequip(kind: int, to := -1) -> bool:
+		if not inventory.unequip(kind, to):
 			return false
 		health = minf(health, max_health())
 		return true
@@ -74,6 +76,8 @@ const VIEW_CHUNKS := 2
 const REACH := 32.0
 ## Extra reach the server allows, as its copy of the player lags the client's.
 const REACH_SLACK := 16.0
+## Seconds between two "inventory full" notices to one player.
+const FULL_NOTICE_INTERVAL := 3.0
 
 var world_seed := 0
 ## Null in tests: nothing is saved.
@@ -88,7 +92,7 @@ var spawn_enemies := true
 ## What happened this tick for clients to show, drained by GameServer: ["hit", enemy: bool,
 ## id, amount, position], ["windup", enemy id, position, seconds], ["respawn", player id,
 ## position], ["swing", player id, heavy, aim, position, weapon], ["loot", player id, item,
-## count] for a pickup.
+## count] for a pickup, ["full", player id] when loot didn't fit.
 var events: Array[Array] = []
 var _next_enemy_id := 1
 var _next_drop_id := 1
@@ -127,26 +131,32 @@ func tick(delta: float) -> void:
 	for id: int in enemies.keys():
 		if nearest_player(enemies[id].position, Content.tuning.despawn_radius, false) == 0:
 			enemies.erase(id)
-	_tick_drops()
+	_tick_drops(delta)
 
 
-## Living players pick up what they walk over, as much as fits. Drops vanish when their time is
-## up or their chunk unloads.
+## Drops slide toward the closest living player within magnet_radius, who picks them up
+## within pickup_radius, as much as fits; a full inventory gets a notice every
+## FULL_NOTICE_INTERVAL. Drops vanish when their time is up or their chunk unloads.
 # ponytail: drops are not saved; a restart or an unloaded chunk loses them.
-func _tick_drops() -> void:
+func _tick_drops(delta: float) -> void:
+	var t := Content.tuning
 	for id: int in drops.keys():
 		var drop: SimDrop = drops[id]
 		if time >= drop.until or not chunks.has(WorldGen.chunk_of(drop.position)):
 			drops.erase(id)
 			continue
-		var player: SimPlayer = players.get(
-			nearest_player(drop.position, Content.tuning.pickup_radius)
-		)
+		var player: SimPlayer = players.get(nearest_player(drop.position, t.magnet_radius))
 		if player == null:
+			continue
+		drop.position = drop.position.move_toward(player.position, t.magnet_speed * delta)
+		if drop.position.distance_to(player.position) > t.pickup_radius:
 			continue
 		var left := player.inventory.add(drop.item, drop.count)
 		if left < drop.count:
 			events.append(["loot", player.id, drop.item, drop.count - left])
+		elif time - player.full_noticed_at >= FULL_NOTICE_INTERVAL:
+			player.full_noticed_at = time
+			events.append(["full", player.id])
 		drop.count = left
 		if left == 0:
 			drops.erase(id)
