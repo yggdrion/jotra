@@ -12,6 +12,7 @@ extends Node
 ##   --host                                   spawns a local server with a lobby room, joins it
 ##   --lobby=URL                              lobby for --join and --host (LobbyClient.DEFAULT_URL)
 ##   --bot [--expect=N]                       headless test client (solo unless joining or hosting)
+##     [--duration=SECS]                      roam this long instead of leaving once it passed
 ##   --name=NAME                              client player name (default: a token kept in user://)
 ##   (none)                                   start menu: solo (a local --solo server), host, join
 ##   --windowed                               client starts in a window instead of fullscreen
@@ -87,6 +88,7 @@ func _new_client() -> GameClient:
 	_client.net = _net
 	_client.bot = _args.has("bot")
 	_client.bot_expect = int(_args.get("expect", "0"))
+	_client.bot_duration = float(_args.get("duration", "0"))
 	_client.player_name = _args.get("name", "")
 	add_child(_client)
 	_client.joined.connect(

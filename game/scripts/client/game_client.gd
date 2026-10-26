@@ -24,7 +24,9 @@ extends Node2D
 ## Bot mode (run headless by the network test) walks in a circle instead of reading the
 ## keyboard and exits 0 once it has chunks and its inventory, has seen an enemy, the server
 ## echoes its own position and bot_expect other players have been seen moving; 1 on timeout
-## or a lost server, 2 if it never connects.
+## or a lost server, 2 if it never connects. With bot_duration (the load test) it instead roams
+## a wide circle on its own bearing, swinging as it goes, and exits 0 once bot_duration is up if
+## it passed by then.
 
 ## In the world: the server welcomed us.
 signal joined
@@ -46,6 +48,10 @@ const BOT_MOVE_PX := 20.0
 const BOT_ECHO_PX := 40.0
 ## How long a bot that passed keeps walking before it leaves, so slower bots still see it move.
 const BOT_LINGER := 2.0
+## A roaming bot turns this slowly (seconds per radian), so it circles walk_speed * this out.
+const BOT_ROAM_TURN := 60.0
+## Seconds between a roaming bot's swings.
+const BOT_SWING_EVERY := 2.0
 ## Where the name of a player who passes no --name is kept.
 const NAME_FILE := "user://player.txt"
 ## Hunger below this share of the max prompts to eat.
@@ -63,6 +69,8 @@ const PING_INTERVAL := 1.0
 var net: Net
 var bot := false
 var bot_expect := 0
+## Seconds a bot stays in the game (roaming) before it leaves; 0: leave once it passed.
+var bot_duration := 0.0
 ## Empty: use the one in NAME_FILE.
 var player_name := ""
 
@@ -84,6 +92,8 @@ var _bot_echoed := false
 var _bot_saw_enemy := false
 var _bot_inventory := false
 var _bot_done := false
+var _bot_bearing := randf() * TAU
+var _bot_swing_at := 0.0
 var _world_seed := 0
 var _chunks := {}  # Vector2i -> ChunkView
 var _enemy_views := {}  # enemy id -> EnemyView
@@ -558,6 +568,8 @@ func _dash() -> void:
 
 
 func _aim() -> Vector2:
+	if bot:
+		return _input_direction()
 	var aim := get_global_mouse_position() - _me.position
 	return aim if aim != Vector2.ZERO else Vector2.RIGHT
 
@@ -716,8 +728,18 @@ func _process(delta: float) -> void:
 		)
 		get_tree().quit(1)
 		return
+	if bot_duration > 0.0 and Time.get_ticks_msec() > bot_duration * 1000:
+		if not _bot_done:
+			push_error("client: bot never passed its check")
+		_bot_leave(0 if _bot_done else 1)
+		return
 	if _me == null:
 		return
+	if bot_duration > 0.0 and _health > 0:
+		_bot_swing_at -= delta
+		if _bot_swing_at <= 0.0:
+			_bot_swing_at = BOT_SWING_EVERY
+			_attack(false)
 	if _dash_left > 0.0:
 		var step := minf(delta, _dash_left)
 		_dash_left -= step
@@ -782,6 +804,8 @@ func _show_clock() -> void:
 
 
 func _input_direction() -> Vector2:
+	if bot and bot_duration > 0.0:
+		return Vector2.from_angle(_bot_bearing + Time.get_ticks_msec() / 1000.0 / BOT_ROAM_TURN)
 	if bot:
 		return Vector2.from_angle(Time.get_ticks_msec() / 500.0)
 	var dir := Vector2(
@@ -850,7 +874,14 @@ func _bot_check(positions: Dictionary) -> void:
 				% [_chunks.size(), moving]
 			)
 		)
+		if bot_duration > 0.0:
+			return
 		await get_tree().create_timer(BOT_LINGER).timeout
-		# Disconnect now, so the server sees us leave instead of timing us out.
-		multiplayer.multiplayer_peer.close()
-		get_tree().quit(0)
+		_bot_leave(0)
+
+
+func _bot_leave(code: int) -> void:
+	set_process(false)
+	# Disconnect now, so the server sees us leave instead of timing us out.
+	multiplayer.multiplayer_peer.close()
+	get_tree().quit(code)

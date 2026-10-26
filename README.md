@@ -99,6 +99,7 @@ Its deployment with coturn (STUN + TURN) is `deploy/lobby/` (see its README).
     python tools/run_tests.py -a res://tests/sim_world_test.gd
     python tools/run_lobby_tests.py  # bun test in lobby/
     python tools/run_network_test.py # headless server + bots over ENet, then over WebRTC via a local lobby
+    python tools/run_load_test.py --bots=10 --minutes=30   # M9 load test with budgets (opt-in, not in check.py)
     python tools/export.py windows   # release build to build/windows/
     python tools/balance_sim.py --quick --players 1   # bots play the sim headless: deaths, damage, gear times
     python tools/balance_sim.py --dungeon --quick     # bots take dungeon runs: clears, deaths, depth, buffs

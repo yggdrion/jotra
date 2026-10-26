@@ -51,6 +51,9 @@ var _started := Time.get_unix_time_from_system()
 # Metrics counters.
 var _ticks := 0
 var _tick_usec := 0
+var _tick_max_usec := 0
+## Ticks that took longer than one tick (1 / TICK_RATE).
+var _slow_ticks := 0
 var _sent_bytes := 0
 var _received_bytes := 0
 var _save_usec := 0
@@ -203,6 +206,7 @@ func _physics_process(delta: float) -> void:
 		return
 	var started := Time.get_ticks_usec()
 	world.tick(delta)
+	var simmed := Time.get_ticks_usec()
 	_send_events()
 	_snapshot_due -= delta
 	if _snapshot_due <= 0.0:
@@ -215,8 +219,18 @@ func _physics_process(delta: float) -> void:
 	if _save_due <= 0.0:
 		_save_due = SAVE_INTERVAL
 		_save()
+	var took := Time.get_ticks_usec() - started
 	_ticks += 1
-	_tick_usec += Time.get_ticks_usec() - started
+	_tick_usec += took
+	_tick_max_usec = maxi(_tick_max_usec, took)
+	if took > 1e6 / TICK_RATE:
+		_slow_ticks += 1
+		print(
+			(
+				"server: slow tick %.1f ms (sim %.1f ms, %d chunks, %d enemies)"
+				% [took / 1e3, (simmed - started) / 1e3, world.chunks.size(), world.enemies.size()]
+			)
+		)
 
 
 ## Sends the chunks that entered a player's view and forgets those it has left. The client
@@ -324,6 +338,8 @@ func metrics_text() -> String:
 		["save_seconds", "gauge", "", _save_usec / 1e6],
 		["ticks_total", "counter", "", _ticks],
 		["tick_seconds_total", "counter", "", _tick_usec / 1e6],
+		["tick_seconds_max", "gauge", "", _tick_max_usec / 1e6],
+		["slow_ticks_total", "counter", "", _slow_ticks],
 		["sent_bytes_total", "counter", "", _sent_bytes],
 		["received_bytes_total", "counter", "", _received_bytes],
 	]:
