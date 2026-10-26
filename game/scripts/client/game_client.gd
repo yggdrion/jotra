@@ -109,6 +109,8 @@ var _hud := Hud.new()
 var _inventory_ui := InventoryUi.new()
 var _craft_menu := CraftMenu.new()
 var _map := MapView.new()
+var _pause := PauseMenu.new()
+var _character := CharacterUi.new()
 ## The server's copy of our inventory, for finding food to eat.
 var _inventory := Inventory.new(Content.tuning.inventory_size)
 var _tint := CanvasModulate.new()
@@ -223,6 +225,10 @@ func _ready() -> void:
 	add_child(_map)
 	add_child(_inventory_ui)
 	add_child(_craft_menu)
+	add_child(_character)
+	add_child(_pause)
+	_pause.menu_chosen.connect(func() -> void: _leave("", 0))
+	_pause.quit_chosen.connect(get_tree().quit)
 	var overlay := DebugOverlay.new()
 	overlay.client = self
 	add_child(overlay)
@@ -482,7 +488,13 @@ func _drop_far_chunks() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	if _me == null or _health <= 0:
+	var key := event as InputEventKey
+	var escape := key != null and key.pressed and not key.echo and key.keycode == KEY_ESCAPE
+	if _me == null or _pause.visible or _health <= 0:
+		# Dead or paused, only Escape counts.
+		if escape and _me != null:
+			_pause.escape()
+			get_viewport().set_input_as_handled()
 		return
 	var mouse := event as InputEventMouseButton
 	if mouse and (_inventory_ui.visible or _craft_menu.visible):
@@ -495,27 +507,32 @@ func _unhandled_input(event: InputEvent) -> void:
 		_attack(mouse.button_index == MOUSE_BUTTON_RIGHT)
 		get_viewport().set_input_as_handled()
 		return
-	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
 	var digit := key.keycode - KEY_1
-	if key.keycode in [KEY_TAB, KEY_I]:
+	if event.is_action_pressed(&"inventory"):
 		_inventory_ui.toggle()
-	elif key.keycode == KEY_ESCAPE and _inventory_ui.visible:
+	elif event.is_action_pressed(&"character"):
+		_character.toggle(_inventory, _buffs, player_name)
+	elif escape and _inventory_ui.visible:
 		_inventory_ui.toggle()
-	elif key.keycode in [KEY_ESCAPE, KEY_E] and _craft_menu.visible:
+	elif (escape or event.is_action_pressed(&"interact")) and _craft_menu.visible:
 		_craft_menu.toggle()
-	elif key.keycode == KEY_B and _area.is_empty():
+	elif escape and _character.visible:
+		_character.visible = false
+	elif event.is_action_pressed(&"build") and _area.is_empty():
 		_build.visible = not _build.visible
-	elif key.keycode == KEY_ESCAPE and _build.visible:
+	elif escape and _build.visible:
 		_build.visible = false
-	elif key.keycode == KEY_M and _area.is_empty():
+	elif event.is_action_pressed(&"map") and _area.is_empty():
 		_map.toggle_big()
-	elif key.keycode == KEY_ESCAPE and _map.is_big():
+	elif escape and _map.is_big():
 		_map.toggle_big()
+	elif escape:
+		_pause.escape()
 	elif _build.visible and digit >= 0 and digit < BuildMenu.HOTBAR:
 		_build.select_slot(digit)
-	elif key.keycode == KEY_E:
+	elif event.is_action_pressed(&"interact"):
 		if _use_tile != null:
 			net.use_piece.rpc_id(1, _use_tile)
 		elif not _target.is_empty():
@@ -524,9 +541,9 @@ func _unhandled_input(event: InputEvent) -> void:
 			net.interact.rpc_id(1)
 		elif not _inventory_ui.stations.is_empty():
 			_craft_menu.toggle()
-	elif key.keycode == KEY_SPACE:
+	elif event.is_action_pressed(&"dash"):
 		_dash()
-	elif key.keycode == KEY_F:
+	elif event.is_action_pressed(&"eat"):
 		net.eat.rpc_id(1, -1)
 	else:
 		return
@@ -835,13 +852,9 @@ func _input_direction() -> Vector2:
 		return Vector2.from_angle(_bot_bearing + Time.get_ticks_msec() / 1000.0 / BOT_ROAM_TURN)
 	if bot:
 		return Vector2.from_angle(Time.get_ticks_msec() / 500.0)
-	if _craft_menu.typing():
+	if _pause.visible or _craft_menu.typing():
 		return Vector2.ZERO
-	var dir := Vector2(
-		int(Input.is_physical_key_pressed(KEY_D)) - int(Input.is_physical_key_pressed(KEY_A)),
-		int(Input.is_physical_key_pressed(KEY_S)) - int(Input.is_physical_key_pressed(KEY_W))
-	)
-	return dir.normalized()
+	return Input.get_vector(&"move_left", &"move_right", &"move_up", &"move_down")
 
 
 ## players: {id: Vector3(x, y, health)}.

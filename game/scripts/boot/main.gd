@@ -19,7 +19,7 @@ extends Node
 
 const DEFAULT_PORT := 17777
 const DEFAULT_WORLD := "user://worlds/default"
-## Solo and hosted games play the same world, so a solo world can be opened to friends.
+## The world a --bot or --host command line plays; the start menu picks from WorldList.
 const SOLO_WORLD := "user://worlds/solo"
 ## Where a host server writes its room code for the client that spawned it.
 const ROOM_FILE := "user://host_room.txt"
@@ -56,8 +56,11 @@ func _ready() -> void:
 			int(args.get("metrics-port", "0"))
 		)
 		return
+	if not _back:
+		Settings.load_file()
+	Settings.apply()
 	# Godot's own --windowed loses to the project's fullscreen setting, hence our own flag.
-	if args.has("windowed"):
+	if args.has("windowed") or (not Settings.fullscreen and not _back):
 		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED)
 	get_window().size_changed.connect(_fit_viewport)
 	_fit_viewport()
@@ -78,8 +81,8 @@ func _show_menu() -> void:
 	_menu = StartMenu.new()
 	add_child(_menu)
 	_menu.show_status(_menu_message)
-	_menu.solo_chosen.connect(_solo)
-	_menu.host_chosen.connect(_host)
+	_menu.solo_chosen.connect(func(world: String) -> void: _solo(_world_dir(world)))
+	_menu.host_chosen.connect(func(world: String) -> void: _host(_world_dir(world)))
 	_menu.join_chosen.connect(_join)
 
 
@@ -105,23 +108,23 @@ func _status(text: String) -> void:
 		_menu.show_status(text, true)
 
 
-func _solo() -> void:
+func _solo(world := SOLO_WORLD) -> void:
 	_status("Starting the world...")
 	var port := _free_port()
-	_spawn_server(["--solo", "--port=%d" % port])
+	_spawn_server(world, ["--solo", "--port=%d" % port])
 	_new_client().join("127.0.0.1", port)
 
 
 ## Starts a local server that opens a lobby room, waits for its code and joins it like any
 ## friend would (PLAN §4.2: in player host everyone uses WebRTC, the host too).
-func _host() -> void:
+func _host(world := SOLO_WORLD) -> void:
 	_status("Opening a room...")
 	var lobby := _lobby_url()
 	var client := _new_client()
 	var room_file := ProjectSettings.globalize_path(ROOM_FILE)
 	DirAccess.remove_absolute(room_file)
 	var pid := _spawn_server(
-		["--owner=" + client.player_name, "--lobby=" + lobby, "--room-file=" + room_file]
+		world, ["--owner=" + client.player_name, "--lobby=" + lobby, "--room-file=" + room_file]
 	)
 	var waited := 0.0
 	while waited < ROOM_TIMEOUT:
@@ -183,14 +186,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	if key == null or not key.pressed or key.echo:
 		return
 	if key.keycode == KEY_F11 or (key.keycode == KEY_ENTER and key.alt_pressed):
-		var fullscreen := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
-		DisplayServer.window_set_mode(
-			(
-				DisplayServer.WINDOW_MODE_WINDOWED
-				if fullscreen
-				else DisplayServer.WINDOW_MODE_FULLSCREEN
-			)
+		Settings.set_fullscreen(
+			DisplayServer.window_get_mode() != DisplayServer.WINDOW_MODE_FULLSCREEN
 		)
+		Settings.save_file()
 		get_viewport().set_input_as_handled()
 
 
@@ -203,13 +202,17 @@ static func parse_args(user_args: PackedStringArray) -> Dictionary:
 	return args
 
 
-## Starts this same executable as a headless server on the solo world. Returns its pid.
-func _spawn_server(server_args: PackedStringArray) -> int:
+static func _world_dir(world: String) -> String:
+	return WorldList.ROOT.path_join(world)
+
+
+## Starts this same executable as a headless server on a world dir. Returns its pid.
+func _spawn_server(world: String, server_args: PackedStringArray) -> int:
 	var cmd: PackedStringArray = ["--headless"]
 	# From source the executable is the Godot binary, which needs the project path.
 	if not OS.has_feature("template"):
 		cmd.append_array(["--path", ProjectSettings.globalize_path("res://")])
-	cmd.append_array(["--", "--server", "--world=" + SOLO_WORLD])
+	cmd.append_array(["--", "--server", "--world=" + world])
 	cmd.append_array(server_args)
 	return OS.create_process(OS.get_executable_path(), cmd)
 
