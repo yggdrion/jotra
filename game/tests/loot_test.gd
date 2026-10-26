@@ -89,18 +89,20 @@ func test_drops_slide_to_a_player_walking_near() -> void:
 
 
 func test_craft_status_says_why_not() -> void:
-	var recipe: RecipeDef = Content.recipes[&"stone_axe"]  # 3 wood, 5 stone
+	var recipe: RecipeDef = Content.recipes[&"stone_axe"]  # wood and stone
+	var wood: int = recipe.inputs[&"wood"]
+	var stone: int = recipe.inputs[&"stone"]
 	var bench: Vector2 = Content.tuning.stations[recipe.station]
 	var inventory := Inventory.new(2)
 	var away := bench + Vector2(500, 0)
 	assert_int(Crafting.status(inventory, recipe, away)).is_equal(Crafting.Status.AWAY_FROM_STATION)
 	assert_int(Crafting.status(inventory, recipe, bench)).is_equal(Crafting.Status.MISSING_ITEMS)
 	# Using up all the stone frees its slot for the axe.
-	inventory.slots[0] = {item = &"wood", count = 4}
-	inventory.slots[1] = {item = &"stone", count = 5}
+	inventory.slots[0] = {item = &"wood", count = wood + 1}
+	inventory.slots[1] = {item = &"stone", count = stone}
 	assert_int(Crafting.status(inventory, recipe, bench)).is_equal(Crafting.Status.READY)
 	# With some of each left over, both slots stay taken.
-	inventory.slots[1] = {item = &"stone", count = 6}
+	inventory.slots[1] = {item = &"stone", count = stone + 1}
 	assert_int(Crafting.status(inventory, recipe, bench)).is_equal(Crafting.Status.NO_ROOM)
 
 

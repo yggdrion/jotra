@@ -12,6 +12,9 @@ extends Resource
 @export var attack_slack := 8.0
 ## The telegraph before a hit lands: dash out or away.
 @export var windup := 0.5
+## Share of its speed it keeps closing in at while winding up: near 1, walking away is no
+## escape and only a dash dodges.
+@export var windup_speed := 0.0
 @export var cooldown := 1.0
 ## Chasing further than this from home it gives up, walks back and heals.
 @export var leash := 400.0

@@ -40,9 +40,14 @@ static func until_change(time: float) -> float:
 	return t.day_length - at if at < t.day_length else t.day_length + t.night_length - at
 
 
-## Multipliers on enemy count, health and damage for spawns at this time: 1 by day.
+## Multipliers on enemy count, health, damage and speed for spawns at this time: 1 by day.
 static func night_scale(time: float) -> Dictionary:
 	var t := Content.tuning
 	if not is_night(time):
-		return {count = 1.0, health = 1.0, damage = 1.0}
-	return {count = t.night_count, health = t.night_health, damage = t.night_damage}
+		return {count = 1.0, health = 1.0, damage = 1.0, speed = 1.0}
+	return {
+		count = t.night_count,
+		health = t.night_health,
+		damage = t.night_damage,
+		speed = t.night_speed,
+	}

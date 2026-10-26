@@ -22,6 +22,7 @@ class SimPlayer:
 	var stamina_used_at := -INF
 	var cooldown_until := -INF
 	var dashed_at := -INF
+	var gathered_at := -INF
 	## Sim time of the respawn while dead, 0 while alive.
 	var dead_until := 0.0
 
@@ -112,10 +113,11 @@ var spawn_enemies := true
 ## position], ["swing", player id, heavy, aim, position, weapon], ["loot", player id, item,
 ## count] for a pickup, ["full", player id] when loot didn't fit.
 var events: Array[Array] = []
+## Seeded by the balance sim for repeatable runs.
+var rng := RandomNumberGenerator.new()
 var _next_enemy_id := 1
 var _next_drop_id := 1
 var _spawn_due := 0.0
-var _rng := RandomNumberGenerator.new()
 
 
 ## Loads the world in path, or creates it with a random seed. Null if it can't be read.
@@ -183,9 +185,9 @@ func _tick_drops(delta: float) -> void:
 ## Rolls a drop table and scatters what it gives around at.
 func _drop_loot(table: Array, at: Vector2) -> void:
 	var scatter := Content.tuning.drop_scatter
-	for got in Loot.roll(table, _rng):
+	for got in Loot.roll(table, rng):
 		var offset := Vector2(
-			_rng.randf_range(-scatter, scatter), _rng.randf_range(-scatter, scatter)
+			rng.randf_range(-scatter, scatter), rng.randf_range(-scatter, scatter)
 		)
 		add_drop(got[0], got[1], at + offset)
 
@@ -251,13 +253,14 @@ func _spawn(delta: float) -> void:
 				have += 1
 		if have >= want:
 			continue
-		var distance := _rng.randf_range(t.spawn_ring_min, t.spawn_ring_max)
-		var at := player.position + Vector2.from_angle(_rng.randf() * TAU) * distance
-		add_enemy(
+		var distance := rng.randf_range(t.spawn_ring_min, t.spawn_ring_max)
+		var at := player.position + Vector2.from_angle(rng.randf() * TAU) * distance
+		var enemy := add_enemy(
 			at,
 			t.enemy.health * scale.health * night.health,
 			t.enemy.damage * scale.damage * night.damage
 		)
+		enemy.speed *= night.speed
 
 
 ## An enemy of kind (Tuning.enemy by default) with health and damage already scaled.
@@ -400,12 +403,14 @@ func move_player(id: int, position: Vector2) -> bool:
 	return true
 
 
-## Removes a prop the player stands next to; it drops what it is made of. Returns whether it
-## was removed.
+## Removes a prop the player stands next to, at most one per gather_time; it drops what it is
+## made of. Returns whether it was removed.
 func remove_prop(id: int, coord: Vector2i, prop_id: int) -> bool:
 	var player: SimPlayer = players.get(id)
 	var chunk: SimChunk = chunks.get(coord)
-	if player == null or chunk == null:
+	if player == null or chunk == null or player.dead_until > 0:
+		return false
+	if time - player.gathered_at < Content.tuning.gather_time:
 		return false
 	if not chunk.props.has(prop_id) or chunk.removed.has(prop_id):
 		return false
@@ -414,6 +419,7 @@ func remove_prop(id: int, coord: Vector2i, prop_id: int) -> bool:
 		return false
 	chunk.removed[prop_id] = true
 	chunk.dirty = true
+	player.gathered_at = time
 	var t := Content.tuning
 	_drop_loot(
 		t.tree_drops if chunk.props[prop_id] == WorldGen.Prop.TREE else t.rock_drops,

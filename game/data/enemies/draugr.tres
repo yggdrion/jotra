@@ -4,13 +4,14 @@
 
 [resource]
 script = ExtResource("1")
-health = 40.0
-damage = 15.0
-speed = 70.0
+health = 70.0
+damage = 13.0
+speed = 110.0
 notice_radius = 160.0
 attack_range = 22.0
 attack_slack = 8.0
 windup = 0.5
+windup_speed = 1.0
 cooldown = 1.0
 leash = 400.0
-drops = [{"item": &"bone", "chance": 0.8, "min": 1, "max": 2}, {"item": &"grave_cloth", "chance": 0.35, "min": 1, "max": 1}, {"item": &"amber", "chance": 0.05, "min": 1, "max": 1}]
+drops = [{"item": &"bone", "chance": 0.6, "min": 1, "max": 2}, {"item": &"grave_cloth", "chance": 0.35, "min": 1, "max": 1}, {"item": &"amber", "chance": 0.05, "min": 1, "max": 1}]

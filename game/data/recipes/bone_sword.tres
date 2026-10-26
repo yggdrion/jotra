@@ -5,5 +5,5 @@
 [resource]
 script = ExtResource("1")
 result = &"bone_sword"
-inputs = {&"bone": 6, &"wood": 2, &"amber": 1}
+inputs = {&"bone": 12, &"wood": 4, &"amber": 2}
 station = &"workbench"

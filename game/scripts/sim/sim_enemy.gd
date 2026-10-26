@@ -1,7 +1,8 @@
 class_name SimEnemy
 extends RefCounted
 ## An enemy on the server. AI v1 (PLAN §5.2): idle until a player comes near, chase, wind up
-## an attack that lands at the end if the target is still in range and not dashing, and walk
+## an attack that lands at the end if the target is still in range and not dashing (closing
+## in at windup_speed meanwhile), and walk
 ## home to heal when led too far away.
 
 enum State { IDLE, CHASE, WINDUP, LEASH }
@@ -13,6 +14,8 @@ var home: Vector2
 var health: float
 var max_health: float
 var damage: float
+## def.speed, faster for those spawned at night.
+var speed: float
 var state := State.IDLE
 var target := 0
 ## Sim time the windup lands (WINDUP) or the next attack may start (CHASE).
@@ -30,6 +33,7 @@ func _init(
 	health = enemy_health
 	max_health = enemy_health
 	damage = enemy_damage
+	speed = kind.speed
 
 
 func tick(world: SimWorld, delta: float) -> void:
@@ -45,22 +49,27 @@ func tick(world: SimWorld, delta: float) -> void:
 				target = 0
 				return
 			if position.distance_to(player.position) > def.attack_range:
-				position = position.move_toward(player.position, def.speed * delta)
+				position = position.move_toward(player.position, speed * delta)
 			elif world.time >= _until:
 				state = State.WINDUP
 				_until = world.time + def.windup
 				world.events.append(["windup", id, position, def.windup])
 		State.WINDUP:
+			var player: SimWorld.SimPlayer = world.players.get(target)
+			if player != null:
+				var close := maxf(position.distance_to(player.position) - def.attack_range, 0.0)
+				position = position.move_toward(
+					player.position, minf(speed * def.windup_speed * delta, close)
+				)
 			if world.time < _until:
 				return
-			var player: SimWorld.SimPlayer = world.players.get(target)
 			var reach := def.attack_range + def.attack_slack
 			if player != null and position.distance_to(player.position) <= reach:
 				world.damage_player(target, damage)
 			_until = world.time + def.cooldown
 			state = State.CHASE
 		State.LEASH:
-			position = position.move_toward(home, def.speed * delta)
+			position = position.move_toward(home, speed * delta)
 			if position == home:
 				health = max_health
 				state = State.IDLE

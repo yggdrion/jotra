@@ -106,3 +106,19 @@ func _some_prop(world: SimWorld) -> Array:
 			if WorldGen.prop_position(coord, id).length() > SimWorld.REACH * 4:
 				return [coord, id]
 	return []
+
+
+func test_gathering_takes_time() -> void:
+	var world := SimWorld.new()
+	world.add_player(1, "p1")
+	world.tick(0.1)
+	var coord: Vector2i = _some_prop(world)[0]
+	var ids: Array = world.chunks[coord].props.keys()
+	var player: SimWorld.SimPlayer = world.players[1]
+	player.position = WorldGen.prop_position(coord, ids[0])
+	assert_bool(world.remove_prop(1, coord, ids[0])).is_true()
+	player.position = WorldGen.prop_position(coord, ids[1])
+	assert_bool(world.remove_prop(1, coord, ids[1])).is_false()
+	world.tick(Content.tuning.gather_time)
+	player.position = WorldGen.prop_position(coord, ids[1])
+	assert_bool(world.remove_prop(1, coord, ids[1])).is_true()

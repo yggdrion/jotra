@@ -17,9 +17,9 @@ extends Resource
 @export_group("Survival")
 @export var max_hunger := 100.0
 ## Hunger lost per second.
-@export var hunger_drain := 0.11
+@export var hunger_drain := 0.14
 ## Health per second while hunger is above zero.
-@export var health_regen := 0.5
+@export var health_regen := 0.25
 ## At zero hunger: health lost per second, and stamina_regen times this.
 @export var starve_damage := 1.0
 @export var starve_stamina := 0.5
@@ -32,10 +32,12 @@ extends Resource
 @export var night_length := 240.0
 ## Seconds over which the light fades at dusk and comes back at dawn (client only).
 @export var twilight := 30.0
-## Multipliers on the enemies spawned at night, on top of the self-scaling.
-@export var night_count := 1.5
+## Multipliers on the enemies spawned at night, on top of the self-scaling. Above
+## walk_speed / enemy speed, night enemies outrun a walking player.
+@export var night_count := 2.0
 @export var night_health := 1.3
-@export var night_damage := 1.3
+@export var night_damage := 1.5
+@export var night_speed := 1.2
 
 @export_group("Attacks")
 ## Swings without a weapon.
@@ -75,9 +77,13 @@ extends Resource
 ## Players this close to an encounter count for its scaling (PLAN §5.6).
 @export var scale_radius := 400.0
 ## Added per extra nearby player to the health, damage and count multipliers.
-@export var scale_health := 0.5
-@export var scale_damage := 0.25
-@export var scale_count := 0.75
+@export var scale_health := 0.15
+@export var scale_damage := 0.1
+@export var scale_count := 0.5
+
+@export_group("Gathering")
+## Seconds a player needs per tree felled or rock broken.
+@export var gather_time := 1.0
 
 @export_group("Loot")
 ## Slots in a player's inventory.

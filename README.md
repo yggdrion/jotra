@@ -61,5 +61,6 @@ Deploying to the vServer is the last milestone (`docs/PLAN.md` §8).
     python tools/run_tests.py -a res://tests/sim_world_test.gd
     python tools/run_network_test.py # headless server + bots over ENet
     python tools/export.py windows   # release build to build/windows/
+    python tools/balance_sim.py --quick --players 1   # bots play the sim headless: deaths, damage, gear times
 
 CI runs the same scripts on every push and uploads Linux and Windows builds as artifacts.

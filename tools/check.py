@@ -17,7 +17,7 @@ args = set(sys.argv[1:])
 if not args <= {"--quick", "--export"}:
     fail("Usage: python tools/check.py [--quick] [--export]")
 py = sys.executable
-dirs = ["game/scripts", "game/tests"]
+dirs = ["game/scripts", "game/tests", "game/tools"]
 
 
 def step(name):

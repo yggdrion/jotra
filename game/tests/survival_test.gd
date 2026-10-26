@@ -109,3 +109,11 @@ func _world() -> SimWorld:
 	world.add_player(1, "p1")
 	world.tick(TICK)
 	return world
+
+
+func test_night_enemies_outrun_a_walking_player() -> void:
+	var t := Content.tuning
+	for enemy: SimEnemy in _spawned(t.day_length):
+		assert_float(enemy.speed).is_greater(t.walk_speed)
+	for enemy: SimEnemy in _spawned(0.0):
+		assert_float(enemy.speed).is_less(t.walk_speed)

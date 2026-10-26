@@ -274,6 +274,7 @@ Dedicated (M1) comes before player host (M6) because it is almost free once solo
 |---|---|---|
 | Unit | gdUnit4 | Sim core: combat math, loot tables, scaling formula, inventory, survival ticks, world gen determinism (same seed → same chunks), save/load round trip and migrations |
 | Network | Headless Godot: 1 server + N bot clients (ENet, localhost) | Join/leave, replication, pause on empty, reconnect restores state, dungeon snapshot rule |
+| Balance | `tools/balance_sim.py`: SurvivalBots of three skill levels play the sim headless for in-game days, solo and in groups | Deaths, day/night damage, hunger, time spent per activity, gear times against the difficulty targets in `.claude/skills/balance-sim/SKILL.md` |
 | Load | Bot clients against the dedicated server | Tick time, bandwidth, entity counts at 10 players |
 | Lobby | `bun test` | Rooms, multi-guest signaling, heartbeat expiry, TURN credentials |
 | Manual | Real machines on different networks | WebRTC NAT traversal and TURN fallback, feel |

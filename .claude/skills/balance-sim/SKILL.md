@@ -1,0 +1,64 @@
+---
+name: balance-sim
+description: Simulate Jotra headless with bots of three skill levels (solo and in groups of 2 and 4) for in-game days, to judge difficulty and balance without playing. Use when asked whether the game is too easy or hard, wants balance numbers, or before and after changing any gameplay number in game/data (enemies, weapons, armor, recipes, drops, hunger, day/night, scaling).
+---
+
+# Balance sim
+
+`python tools/balance_sim.py` runs `game/tools/balance_sim.gd` in one headless Godot process per group size, in parallel, and prints the tables. Each player is a `SurvivalBot` (`game/tools/survival_bot.gd`) driving a plain `SimWorld` through the same calls the server makes for a client, at the server's 30 Hz tick. The bot eats below half hunger, forages trees while carrying less than 40 hunger of food, gathers wood and stone for the next gear upgrade, crafts it (walking to the workbench) and wears it, fights enemies within 150 px and otherwise wanders.
+
+Skill levels (`SKILLS` in `balance_sim.gd`):
+
+| skill | dashes out of a telegraphed hit | backs off when low |
+|---|---|---|
+| novice | 20% | never: fights everything to the end |
+| average | 50% | below 35% health, until 60% |
+| expert | 85% | same |
+
+## Run it
+
+    python tools/balance_sim.py --quick --players 1   # ~1 min: solo, 3 seeds, 2 days. Use while tuning
+    python tools/balance_sim.py --quick               # ~3 min: also groups of 2 and 4
+    python tools/balance_sim.py --csv build/balance.csv   # ~6 min: 6 seeds, 3 days, every group size
+
+Run the full one in the background. One in-game day is `day_length + night_length` (12 minutes).
+
+## Read it
+
+- **Danger:** deaths per bot per in-game day (and how many starved, how many at night), damage taken per minute by day and by night, the lowest health it ever had, kills, and enemies within 150 px on average.
+- **Hunger:** seconds per day spent starving, hunger eaten per day.
+- **Time spent:** share of play per activity. Forage is gathering for food, gather for gear, retreat is backing off at low health.
+- **Gear:** how many bots crafted each piece and the median time, in minutes.
+- The bot plays worse than a person (no kiting, no focus fire in groups, groups of identical bots stand in one blob) and better in places (it never forgets to eat). Compare skills, group sizes and before/after; don't read the numbers as what a player will see. All-novice groups come out much harder than solo mostly because of the blobbing.
+
+## Targets (set 2026-10-26: "game shouldn't be easy")
+
+| | target |
+|---|---|
+| novice, solo | 2–4 deaths per day: fighting everything to the end gets punished |
+| average, solo | 0.2–1 deaths per day, mostly at night |
+| expert, solo | ≤ 0.3 deaths per day, but close calls: lowest health under 40% |
+| day vs night | real damage by day; night clearly more (novice ~2×) |
+| hunger | foraging ≥ 7% of play time; starving deaths only when something else went wrong |
+| gear | bone sword and bone armor not before the end of day 1 (12 min) |
+| groups | average and expert deaths per player within ~3× solo; novice groups may be harder |
+
+## Tune with it
+
+1. Run `--quick --players 1` on main as the baseline and keep the output.
+2. Change one number in `game/data/` (`tuning.tres`, `enemies/`, `items/`, `recipes/`).
+3. Run it again and compare. To try several values at once, copy `game/` into the scratchpad once per value and run `balance_sim.gd` against each copy with `--path`.
+4. When solo looks right, run `--quick` for the groups, then the full run to confirm.
+5. Run `python tools/check.py` (tests that hard-code numbers break: read them from `Content` instead) and put the full-run table in the commit or PR.
+6. Update "Last full result" below.
+
+Levers that mattered in the first tuning (2026-10-26):
+
+- Health regen against damage taken per minute: when regen matches it, a short break heals fully and nobody dies.
+- Enemy speed against `walk_speed`, and `windup_speed`: if a player can outwalk a draugr or walk out of its windup, backing off is always safe. Now only a dash dodges, and at night (`night_speed`) draugr outrun a walking player.
+- `gather_time`: without it E removes a prop per frame and gathering costs nothing.
+- Self-scaling: extra enemy health lets enemies live longer than a group without focus fire can kill them. Scale count rather than health.
+
+## Last full result (2026-10-26)
+
+Deaths per day (novice / average / expert): solo 3.83 / 0.22 / 0.06, groups of 2 5.72 / 0.56 / 0.17, groups of 4 8.29 / 1.03 / 0.19. Night damage per minute about 2× day for novices and experts, 1.4× for average bots (they back off). Foraging 6–22% of play, nobody starves for long. Bone sword median 10–14 min solo, bone armor 13–22 min. Off target: average groups of 4 die ~5× as often as solo, and novice groups get their gear fast (5–9 min) from the many kills.

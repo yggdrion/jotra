@@ -145,3 +145,17 @@ func _spawned(count: int) -> Array:
 	for i in 300:
 		world.tick(TICK)
 	return world.enemies.values()
+
+
+func test_walking_away_from_a_windup_is_no_escape() -> void:
+	var world := _world()
+	var enemy := world.add_enemy(Vector2(Content.tuning.enemy.attack_range, 0), 100, 15)
+	enemy.provoke(1)
+	world.tick(TICK)
+	assert_int(enemy.state).is_equal(SimEnemy.State.WINDUP)
+	var player: SimWorld.SimPlayer = world.players[1]
+	var health := player.health
+	for i in ceili(Content.tuning.enemy.windup / TICK) + 1:
+		world.move_player(1, player.position + Vector2(-Content.tuning.walk_speed * TICK, 0))
+		world.tick(TICK)
+	assert_float(player.health).is_less(health)
