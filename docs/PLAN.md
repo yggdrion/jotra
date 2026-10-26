@@ -265,7 +265,7 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M8 | **Building v1** | Grid placement of a few pieces, persisted and replicated | Done | v0.11.0 |
 | M9 | **10-player test** | 10 headless bot clients for 30 min on the dedicated server: tick time and bandwidth within budget, no errors (§9 load budgets; 2026-10-26: mean 1.65 ms, no slow ticks, max 40 ms, peak 12.9 KB/s sent per player) | Done | v0.12.0 |
 | M9a | **Lobby deploy** | Lobby + coturn (`deploy/lobby/`) run on the gvm host at `jotra.r4b2.de`, replacing the retired Two Wards stack; "Host a game" works with the built-in lobby URL; host and friends join by code from different networks, one of them through the TURN relay. Needs SSH access to r4b2.de from the dev machine | Next | |
-| M9b | **Interim art** | Ground, trees, rocks, players and draugr (4-direction walk), items, pieces, barrow and dungeon drawn with the CC0 Ninja Adventure pack instead of shapes (see 6); content test checks every item and piece has a sprite | In progress | |
+| M9b | **Interim art** | Ground, trees, rocks, players and draugr (4-direction walk), items, pieces, barrow and dungeon drawn with the CC0 Ninja Adventure pack instead of shapes (see 6); content test checks every item and piece has a sprite | Done | v0.13.0 |
 | M10 | **vServer deploy** | CI builds the server image and pushes it to GHCR; it runs on the vServer, friends connect over the internet; vector scrapes its metrics and the dashboard is in the infra Grafana (TLS/metrics stack lives in the separate `infra` repo) | | |
 
 Dedicated (M1) comes before player host (M6) because it is almost free once solo works. It runs locally first; putting it on the vServer waits until the end (M10).

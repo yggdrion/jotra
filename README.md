@@ -32,9 +32,9 @@ line with `--lobby=URL` (see [Lobby](#lobby-player-host) below); solo is unaffec
 
 Move with WASD, E removes the nearest tree or rock. Left mouse is a light attack, right mouse a
 heavy one (both toward the mouse), Space dashes through hits; attacks and dashes cost stamina.
-Enemies (red; orange while winding up a hit) spawn around players, more and tougher when players
-stand together. On death you respawn at the world spawn after 3 s. E fells the outlined tree
-or breaks the outlined rock in reach (a prompt at the bottom says which). Trees, rocks and slain
+Enemies (skeleton draugr, glowing orange while winding up a hit) spawn around players, more and tougher when players
+stand together. On death you respawn at the world spawn after 3 s. E fells the highlighted tree
+or breaks the highlighted rock in reach (a prompt at the bottom says which). Trees, rocks and slain
 enemies drop items, which slide to you when you walk near. Tab or I opens the inventory: drag
 items to move, stack, wear or take them off, right click to wear or take off at once, and point
 at anything for what it is, where it comes from and what it makes. Recipes show what you have
