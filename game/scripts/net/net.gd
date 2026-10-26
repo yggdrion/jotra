@@ -16,7 +16,7 @@ signal equip_requested(peer_id: int, index: int)
 signal unequip_requested(peer_id: int, kind: int, to: int)
 signal craft_requested(peer_id: int, recipe: StringName)
 signal eat_requested(peer_id: int, index: int)
-signal portal_used(peer_id: int)
+signal interact_requested(peer_id: int)
 signal pinged(peer_id: int, sent_ms: int)
 # Client side.
 signal welcomed(spawn: Vector2, world_seed: int)
@@ -35,12 +35,13 @@ signal buffs_received(data: Dictionary)
 signal looted_received(item: StringName, count: int)
 signal inventory_full_received
 signal room_received(code: String)
-signal dungeon_received(area: Array, exit: Vector2, at: Vector2)
+signal dungeon_received(area: Array, exit: Vector2, chest: Vector2, at: Vector2)
+signal chest_opened_received
 signal ponged(sent_ms: int)
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 10
+const PROTOCOL_VERSION := 11
 
 @rpc("any_peer", "reliable")
 func hello(version: int, player_name: String) -> void:
@@ -97,10 +98,10 @@ func eat(index: int) -> void:
 	eat_requested.emit(multiplayer.get_remote_sender_id(), index)
 
 
-## E at the dungeon entrance or the run's exit.
+## E at the dungeon entrance, the run's exit or its end chest.
 @rpc("any_peer", "reliable")
-func use_portal() -> void:
-	portal_used.emit(multiplayer.get_remote_sender_id())
+func interact() -> void:
+	interact_requested.emit(multiplayer.get_remote_sender_id())
 
 
 ## The client's own clock, echoed back by pong: the round trip for the debug overlay where the
@@ -203,7 +204,13 @@ func room(code: String) -> void:
 
 
 ## The receiving player is now at at: inside a dungeon run whose rooms and corridors are area
-## (Array of Rect2), with its exit, or back in the overworld when area is empty.
+## (Array of Rect2), with its exit and end chest, or back in the overworld when area is empty.
 @rpc("authority", "reliable")
-func dungeon(area: Array, exit: Vector2, at: Vector2) -> void:
-	dungeon_received.emit(area, exit, at)
+func dungeon(area: Array, exit: Vector2, chest: Vector2, at: Vector2) -> void:
+	dungeon_received.emit(area, exit, chest, at)
+
+
+## The receiving player opened its run's end chest.
+@rpc("authority", "reliable")
+func chest_opened() -> void:
+	chest_opened_received.emit()

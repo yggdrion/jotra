@@ -6,9 +6,10 @@ extends RefCounted
 ## was found.
 ##
 ## The layout chains handmade rooms (RoomDef) eastward: a start room, dungeon_rooms_min to
-## dungeon_rooms_max middle rooms and an end room with the exit, each joined to the next by a
-## corridor at a random height both rooms share. The walkable area is the union of the rooms and
-## corridors; the client and server keep players inside it with the same clamp_to.
+## dungeon_rooms_max middle rooms and an end room with the exit and the end chest, each joined
+## to the next by a corridor at a random height both rooms share. The walkable area is the
+## union of the rooms and corridors; the client and server keep players inside it with the same
+## clamp_to.
 
 ## The first slot's top-left corner and the distance between slots, in px: far beyond any view
 ## (SimWorld.VIEW_CHUNKS), yet close enough to 0 that float positions stay precise.
@@ -29,8 +30,13 @@ var defs: Array[RoomDef] = []
 var area: Array[Rect2] = []
 var spawn: Vector2
 var exit: Vector2
+## The end chest, in the middle of the end room, and {player id: true} of those who opened it.
+var chest: Vector2
+var opened := {}
 ## Index of the deepest room whose enemies have spawned; the start room's never do.
 var reached := 0
+## Index of the deepest room cleared of every enemy since, which healed those inside.
+var cleared := 0
 ## {player id: true} of those inside.
 var players := {}
 
@@ -64,6 +70,14 @@ func _init(run_slot: int, now: float, rng: RandomNumberGenerator) -> void:
 	spawn = Vector2(rooms[0].position.x + DOOR_INSET, rooms[0].get_center().y)
 	var end := rooms.back() as Rect2
 	exit = Vector2(end.end.x - DOOR_INSET, end.get_center().y)
+	chest = end.get_center()
+
+
+## Whether an enemy stands within Tuning.chest_lock_radius of the chest, keeping it shut. The
+## client asks the same of the enemies it sees.
+static func locked(at: Vector2, enemy_positions: Array[Vector2]) -> bool:
+	var radius := Content.tuning.chest_lock_radius
+	return enemy_positions.any(func(enemy: Vector2) -> bool: return enemy.distance_to(at) <= radius)
 
 
 ## A random room of kind, not the same as after when there is another.

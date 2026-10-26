@@ -115,7 +115,7 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 		func(id: int, index: int) -> void:
 			_act(id, func(p: SimWorld.SimPlayer) -> void: p.eat(index))
 	)
-	net.portal_used.connect(func(id: int) -> void: world.use_portal(id))
+	net.interact_requested.connect(func(id: int) -> void: world.interact(id))
 	net.pinged.connect(func(id: int, sent_ms: int) -> void: net.pong.rpc_id(id, sent_ms))
 	if lobby_url == "":
 		print("server: listening on %d" % port)
@@ -264,7 +264,9 @@ func _send_events() -> void:
 			"dungeon":
 				# Also sent for one who left the game inside a run, who is gone by now.
 				if world.players.has(event[1]):
-					net.dungeon.rpc_id(event[1], event[2], event[3], event[4])
+					net.dungeon.rpc_id(event[1], event[2], event[3], event[4], event[5])
+			"chest":
+				net.chest_opened.rpc_id(event[1])
 	world.events.clear()
 
 

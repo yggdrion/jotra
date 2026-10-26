@@ -4,8 +4,9 @@ extends SceneTree
 ## player count in parallel and prints the tables; run this directly only to debug one part.
 ##
 ## Usage: godot --headless --path game --script res://tools/balance_sim.gd -- \
-##   --players=N [--days=D] [--seeds=S]
-## Prints one "RUN key=value ..." line per bot and run.
+##   --players=N [--days=D] [--seeds=S] [--dungeon]
+## Prints one "RUN key=value ..." line per bot and run. With --dungeon, DelveBots take one
+## dungeon run together instead, per skill, gear tier and seed, and print "DELVE ..." lines.
 
 ## Bot skill levels: chance to dodge a telegraphed hit, and whether it backs off to heal.
 const SKILLS := {
@@ -15,6 +16,16 @@ const SKILLS := {
 }
 const TICK := 1.0 / 30
 const ACTIVITIES := ["fight", "forage", "gather", "craft", "retreat", "wander", "dead"]
+## What a DelveBot carries into the dungeon: nothing, the first crafted gear, the best.
+const TIERS := {
+	fresh = [],
+	crafted = [&"club", &"cloth_tunic"],
+	best = [&"bone_sword", &"bone_armor"],
+}
+## Trail rations each DelveBot brings.
+const RATIONS := 5
+## A dungeon run that takes longer than this counts as stuck.
+const DELVE_LIMIT := 1200.0
 
 var _done := false
 
@@ -30,7 +41,11 @@ func _process(_delta: float) -> bool:
 		var days := float(args.get("days", "3"))
 		for skill: String in SKILLS:
 			for s in int(args.get("seeds", "4")):
-				_run(skill, players, days, 1000 + s)
+				if args.has("dungeon"):
+					for tier: String in TIERS:
+						_delve(skill, tier, players, 1000 + s)
+				else:
+					_run(skill, players, days, 1000 + s)
 		quit()
 	return false
 
@@ -87,3 +102,60 @@ func _run(skill: String, players: int, days: float, seed_value: int) -> void:
 		for key: String in fields:
 			line.append("%s=%s" % [key, fields[key]])
 		print("RUN " + " ".join(line))
+
+
+func _delve(skill: String, tier: String, players: int, seed_value: int) -> void:
+	var world := SimWorld.new()
+	world.world_seed = seed_value
+	world.rng.seed = seed_value
+	world.spawn_enemies = false
+	var bots: Array[DelveBot] = []
+	for i in players:
+		var player := world.add_player(i + 1, "bot%d" % i)
+		player.position = Content.tuning.dungeon_entrance + Vector2(i * 4, 0)
+		for item: StringName in TIERS[tier]:
+			player.inventory.add(item, 1)
+			player.equip(player.inventory.slots.find({item = item, count = 1}))
+		player.health = player.max_health()
+		player.inventory.add(&"trail_ration", RATIONS)
+		var bot := DelveBot.new(world, i + 1, seed_value * 100 + i)
+		bot.dodge = SKILLS[skill].dodge
+		bot.retreats = SKILLS[skill].retreats
+		bots.append(bot)
+	var steps := 0
+	while (
+		steps < roundi(DELVE_LIMIT / TICK)
+		and not bots.all(func(b: DelveBot) -> bool: return b.done())
+	):
+		world.tick(TICK)
+		for bot in bots:
+			bot.observe(TICK)
+		world.events.clear()
+		for bot in bots:
+			bot.act(TICK)
+		steps += 1
+	for bot in bots:
+		var end := bot.ended_at if bot.done() else world.time
+		var fields := {
+			skill = skill,
+			players = players,
+			tier = tier,
+			seed = seed_value,
+			cleared = int(bot.cleared),
+			died = int(bot.deaths_by_enemy + bot.deaths_by_hunger > 0),
+			stuck = int(not bot.done()),
+			chest = int(bot.opened_chest),
+			deepest = bot.deepest,
+			rooms = bot.rooms,
+			minutes = snappedf((end - bot.entered_at) / 60.0, 0.1),
+			kills = bot.kills,
+			buffs = bot.most_buffs,
+			synergies = bot.most_synergies,
+			lowest_health = snappedf(bot.lowest_health, 0.01),
+			hits = bot.hits_taken,
+			dodged = bot.dodged,
+		}
+		var line := PackedStringArray()
+		for key: String in fields:
+			line.append("%s=%s" % [key, fields[key]])
+		print("DELVE " + " ".join(line))

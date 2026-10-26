@@ -42,7 +42,13 @@ against what they need and why one can't be made yet; most need the labeled work
 spawn. The mouse doesn't swing while the inventory is open. Hunger (the brown bar) drains over
 time: while it is above zero you slowly heal, at zero you lose health and stamina comes back
 slower. Trees drop berries; F or a right click in the inventory eats. Days last 8 minutes and
-nights 4; at night the world darkens and more, tougher enemies spawn. The game starts fullscreen; F11 or Alt+Enter toggles a window (or start with
+nights 4; at night the world darkens and more, tougher enemies spawn. E at the Barrow left of the
+spawn enters a dungeon run (anyone entering within 30 s joins the same one): a chain of rooms
+whose draugr wake as you walk in, tougher the deeper you go and the longer you take. Slain ones
+may drop buff orbs (listed top left, some pairs combine into a synergy); clearing the rooms
+heals you. Clear the end chamber to open its chest, then E at the way out to keep everything.
+Die inside, or quit, and you are back at the Barrow with what you carried in and no buffs. The
+game starts fullscreen; F11 or Alt+Enter toggles a window (or start with
 `-- --windowed`). F3 toggles the debug overlay (fps, build, server, ping, snapshot rate,
 player count, position, world seed, chunk; in a room also the ICE candidates the host offered);
 release builds have it too. Command line roles (after `--`, all in `game/scripts/boot/main.gd`):
@@ -90,5 +96,6 @@ Its deployment with coturn (STUN + TURN) is `deploy/lobby/` (see its README).
     python tools/run_network_test.py # headless server + bots over ENet, then over WebRTC via a local lobby
     python tools/export.py windows   # release build to build/windows/
     python tools/balance_sim.py --quick --players 1   # bots play the sim headless: deaths, damage, gear times
+    python tools/balance_sim.py --dungeon --quick     # bots take dungeon runs: clears, deaths, depth, buffs
 
 CI runs the same scripts on every push and uploads Linux and Windows builds as artifacts.

@@ -11,7 +11,7 @@ func _in_run() -> SimWorld:
 	world.add_player(1, "p1")
 	world.players[1].position = Content.tuning.dungeon_entrance
 	world.tick(TICK)
-	world.use_portal(1)
+	world.interact(1)
 	world.tick(1.0)
 	world.enemies.clear()
 	return world
@@ -108,7 +108,7 @@ func test_leaving_the_run_drops_the_buffs_and_their_health() -> void:
 	player.health = player.max_health()
 	assert_float(player.health).is_greater(Content.tuning.max_health)
 	player.position = player.run.exit
-	world.use_portal(1)
+	world.interact(1)
 	assert_dict(player.buffs.stacks).is_empty()
 	assert_float(player.health).is_equal(Content.tuning.max_health)
 

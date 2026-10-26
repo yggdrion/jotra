@@ -19,24 +19,24 @@ func test_entering_needs_the_entrance_and_leaving_the_exit() -> void:
 	var world := _world()
 	var player: SimWorld.SimPlayer = world.players[1]
 	player.position = Content.tuning.dungeon_entrance + Vector2(200, 0)
-	assert_bool(world.use_portal(1)).is_false()
+	assert_bool(world.interact(1)).is_false()
 	player.position = Content.tuning.dungeon_entrance
-	assert_bool(world.use_portal(1)).is_true()
+	assert_bool(world.interact(1)).is_true()
 	assert_object(player.run).is_not_null()
 	assert_vector(player.position).is_equal(player.run.spawn)
 	assert_array(world.events.back()).is_equal(
-		["dungeon", 1, player.run.area, player.run.exit, player.position]
+		["dungeon", 1, player.run.area, player.run.exit, player.run.chest, player.position]
 	)
-	assert_bool(world.use_portal(1)).is_false()  # the exit is across the room
+	assert_bool(world.interact(1)).is_false()  # the exit is across the room
 	player.position = player.run.exit
-	assert_bool(world.use_portal(1)).is_true()
+	assert_bool(world.interact(1)).is_true()
 	assert_object(player.run).is_null()
 	assert_vector(player.position).is_equal(Content.tuning.dungeon_entrance)
 
 
 func test_a_run_shows_no_world_chunks() -> void:
 	var world := _world()
-	world.use_portal(1)
+	world.interact(1)
 	assert_array(world.interest(1)).is_empty()
 	world.tick(TICK)
 	assert_int(world.chunks.size()).is_equal(0)
@@ -70,7 +70,7 @@ func test_the_layout_chains_start_middle_and_end_rooms() -> void:
 
 func test_rooms_wake_when_walked_into_and_grow_stronger_deeper_and_later() -> void:
 	var world := _world()
-	world.use_portal(1)
+	world.interact(1)
 	var run: Dungeon = world.players[1].run
 	assert_dict(world.enemies).is_empty()  # nothing waits in the start room
 	world.tick(120.0)
@@ -95,23 +95,23 @@ func test_rooms_wake_when_walked_into_and_grow_stronger_deeper_and_later() -> vo
 
 func test_others_join_an_open_run_until_the_window_closes() -> void:
 	var world := _world()
-	world.use_portal(1)
+	world.interact(1)
 	for id in [2, 3]:
 		world.add_player(id, "p%d" % id)
 	world.players[2].position = Content.tuning.dungeon_entrance
-	world.use_portal(2)
+	world.interact(2)
 	world.enemies.clear()  # nobody dies and closes the run while we wait
 	assert_object(world.players[2].run).is_same(world.players[1].run)
 	world.tick(Content.tuning.dungeon_join_window + 1)
 	world.players[3].position = Content.tuning.dungeon_entrance
-	world.use_portal(3)
+	world.interact(3)
 	assert_object(world.players[3].run).is_not_same(world.players[1].run)
 	assert_int(world.dungeons.size()).is_equal(2)
 
 
 func test_moves_through_the_walls_are_dropped() -> void:
 	var world := _world()
-	world.use_portal(1)
+	world.interact(1)
 	var player: SimWorld.SimPlayer = world.players[1]
 	var start := player.position
 	world.tick(1.0)
@@ -127,7 +127,7 @@ func test_dying_inside_restores_the_inventory_from_entering() -> void:
 	var world := _world()
 	var player: SimWorld.SimPlayer = world.players[1]
 	player.inventory.add(&"wood", 3)
-	world.use_portal(1)
+	world.interact(1)
 	player.inventory.add(&"bone", 5)
 	player.inventory.take({&"wood": 1})
 	player.health = 1.0
@@ -143,22 +143,22 @@ func test_dying_inside_restores_the_inventory_from_entering() -> void:
 func test_leaving_by_the_exit_keeps_what_was_found() -> void:
 	var world := _world()
 	var player: SimWorld.SimPlayer = world.players[1]
-	world.use_portal(1)
+	world.interact(1)
 	player.inventory.add(&"bone", 5)
 	player.position = player.run.exit
-	world.use_portal(1)
+	world.interact(1)
 	assert_int(player.inventory.count_of(&"bone")).is_equal(5)
 
 
 func test_the_last_one_out_closes_the_run() -> void:
 	var world := _world()
-	world.use_portal(1)
+	world.interact(1)
 	var run: Dungeon = world.players[1].run
 	var drop := world.add_drop(&"bone", 1, run.exit + Vector2(0, 30))
 	world.players[1].position = run.exit
 	world.tick(TICK)  # the end room wakes
 	assert_dict(world.enemies).is_not_empty()
-	world.use_portal(1)
+	world.interact(1)
 	assert_dict(world.dungeons).is_empty()
 	assert_dict(world.enemies).is_empty()
 	assert_bool(world.drops.has(drop.id)).is_false()
@@ -166,7 +166,7 @@ func test_the_last_one_out_closes_the_run() -> void:
 
 func test_drops_inside_a_run_stay_without_chunks() -> void:
 	var world := _world()
-	world.use_portal(1)
+	world.interact(1)
 	var run: Dungeon = world.players[1].run
 	var drop := world.add_drop(&"bone", 1, run.exit)
 	world.tick(TICK)
@@ -181,7 +181,7 @@ func test_saves_inside_store_the_snapshot_at_the_entrance() -> void:
 	player.position = Content.tuning.dungeon_entrance
 	player.inventory.add(&"wood", 2)
 	world.tick(TICK)
-	world.use_portal(1)
+	world.interact(1)
 	player.inventory.add(&"bone", 4)
 	# A periodic save inside, then a crash: the run is gone, and so is what was found in it.
 	world.save()
@@ -196,3 +196,76 @@ func _assert_back_at_the_entrance(ann: SimWorld.SimPlayer) -> void:
 	assert_vector(ann.position).is_equal(Content.tuning.dungeon_entrance)
 	assert_int(ann.inventory.count_of(&"wood")).is_equal(2)
 	assert_int(ann.inventory.count_of(&"bone")).is_equal(0)
+
+
+func test_the_end_chest_opens_once_per_player_when_no_enemy_is_near() -> void:
+	var world := _world()
+	world.interact(1)
+	var run: Dungeon = world.players[1].run
+	var player: SimWorld.SimPlayer = world.players[1]
+	player.position = run.chest
+	world.tick(TICK)  # the end room wakes
+	assert_dict(world.enemies).is_not_empty()
+	assert_bool(world.interact(1)).is_false()  # locked
+	world.enemies.clear()
+	var before := world.drops.size()
+	assert_bool(world.interact(1)).is_true()
+	assert_array(world.events.back()).is_equal(["chest", 1])
+	assert_int(world.drops.size()).is_greater(before)
+	assert_bool(world.interact(1)).is_false()  # once
+	world.add_player(2, "p2")
+	world.players[2].position = Content.tuning.dungeon_entrance
+	world.interact(2)
+	world.players[2].position = run.chest
+	assert_bool(world.interact(2)).is_true()  # everyone gets their own
+
+
+func test_buff_orbs_get_rarer_deeper_in() -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 3
+	var bonus := Content.tuning.buff_depth_bonus
+	var rare := [0, 0]
+	for i in 3000:
+		for deep: int in [0, 1]:
+			var buff: BuffDef = Content.buffs[Buffs.roll(rng, (deep * 7) * bonus)]
+			if buff.rarity == ItemDef.Rarity.RARE:
+				rare[deep] += 1
+	assert_int(rare[1]).is_greater(rare[0])
+
+
+func test_clearing_the_woken_rooms_heals_those_inside() -> void:
+	var world := _world()
+	world.interact(1)
+	var player: SimWorld.SimPlayer = world.players[1]
+	var run := player.run
+	player.position = run.rooms[1].get_center()
+	world.tick(TICK)
+	player.health = 20.0
+	world.tick(TICK)
+	assert_float(player.health).is_less(21.0)  # enemies still up
+	world.enemies.clear()
+	world.tick(TICK)
+	var healed := player.max_health() * Content.tuning.room_clear_heal
+	assert_float(player.health).is_greater(20.0 + healed - 1.0)
+	var after := player.health
+	world.tick(TICK)
+	assert_float(player.health).is_less(after + 1.0)  # once per room
+
+
+func test_more_players_wake_more_enemies() -> void:
+	var world := _world()
+	world.add_player(2, "p2")
+	world.add_player(3, "p3")
+	for id in [1, 2, 3]:
+		world.players[id].position = Content.tuning.dungeon_entrance
+		world.interact(id)
+	var run: Dungeon = world.players[1].run
+	for id in [1, 2, 3]:
+		world.players[id].position = run.rooms[1].get_center()
+	world.tick(TICK)
+	var scale := Combat.dungeon_scaled(1, run.minutes(world.time), 3)
+	var expected := roundi(run.defs[1].spawns.size() * scale.count)
+	assert_int(world.enemies.size()).is_equal(expected)
+	assert_int(expected).is_greater(run.defs[1].spawns.size())
+	for enemy: SimEnemy in world.enemies.values():
+		assert_int(run.room_of(enemy.position)).is_equal(1)

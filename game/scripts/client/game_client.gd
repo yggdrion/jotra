@@ -111,6 +111,8 @@ var _dash_dir := Vector2.ZERO
 ## out.
 var _area: Array[Rect2] = []
 var _exit := Vector2.ZERO
+var _chest := Vector2.ZERO
+var _chest_opened := false
 var _dungeon_view: DungeonView
 
 
@@ -165,6 +167,12 @@ func _ready() -> void:
 	net.looted_received.connect(_on_looted)
 	net.dungeon_received.connect(_on_dungeon)
 	net.buffs_received.connect(_on_buffs)
+	net.chest_opened_received.connect(
+		func() -> void:
+			_chest_opened = true
+			if _dungeon_view:
+				_dungeon_view.open_chest()
+	)
 	net.inventory_full_received.connect(
 		func() -> void:
 			if _me:
@@ -325,9 +333,11 @@ func _on_welcomed(spawn: Vector2, world_seed: int) -> void:
 
 ## area empty: back in the overworld, else in a run of these rooms and corridors with its way
 ## out.
-func _on_dungeon(area: Array, exit: Vector2, at: Vector2) -> void:
+func _on_dungeon(area: Array, exit: Vector2, chest: Vector2, at: Vector2) -> void:
 	_area.assign(area)
 	_exit = exit
+	_chest = chest
+	_chest_opened = false
 	_me.position = at
 	_dash_left = 0.0
 	if _dungeon_view:
@@ -342,6 +352,7 @@ func _on_dungeon(area: Array, exit: Vector2, at: Vector2) -> void:
 	_dungeon_view = DungeonView.new()
 	_dungeon_view.area = _area
 	_dungeon_view.exit = exit
+	_dungeon_view.chest = chest
 	add_child(_dungeon_view)
 	_hud.announce("Die in here and you lose what you found", Color("e43b44"))
 
@@ -369,10 +380,22 @@ func _on_buffs(data: Dictionary) -> void:
 	_hud.show_buffs(lines)
 
 
-## Whether we stand close enough to the entrance, or in a run to its way out, to use it.
-func _at_portal() -> bool:
-	var portal := _exit if not _area.is_empty() else Content.tuning.dungeon_entrance
-	return _me.position.distance_to(portal) <= Content.tuning.portal_reach
+## The prompt for the entrance, or in a run for its end chest or way out, when we stand at
+## one; "" when not. E sends interact only for one starting with "[E]": a chest an enemy is
+## near says so instead, as the server would refuse it.
+func _interaction() -> String:
+	var reach := Content.tuning.portal_reach
+	if _area.is_empty():
+		var near := _me.position.distance_to(Content.tuning.dungeon_entrance) <= reach
+		return "[E] Enter the barrow" if near else ""
+	if _me.position.distance_to(_chest) <= reach and not _chest_opened:
+		var enemies: Array[Vector2] = []
+		for view: EnemyView in _enemy_views.values():
+			enemies.append(view.position)
+		if Dungeon.locked(_chest, enemies):
+			return "Clear the chamber to open the chest"
+		return "[E] Open the chest"
+	return "[E] Leave with your loot" if _me.position.distance_to(_exit) <= reach else ""
 
 
 func _on_chunk(coord: Vector2i, removed: PackedInt32Array) -> void:
@@ -410,8 +433,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif key.keycode == KEY_E:
 		if not _target.is_empty():
 			net.remove_prop.rpc_id(1, _target[0], _target[1])
-		elif _at_portal():
-			net.use_portal.rpc_id(1)
+		elif _interaction().begins_with("[E]"):
+			net.interact.rpc_id(1)
 	elif key.keycode == KEY_SPACE:
 		_dash()
 	elif key.keycode == KEY_F:
@@ -489,8 +512,8 @@ func _update_target() -> void:
 	elif not _target.is_empty():
 		var tree: bool = _chunks[_target[0]].kind_of(_target[1]) == WorldGen.Prop.TREE
 		prompt = "[E] Fell tree" if tree else "[E] Break rock"
-	elif _at_portal():
-		prompt = "[E] Enter the barrow" if _area.is_empty() else "[E] Leave with your loot"
+	elif _interaction() != "":
+		prompt = _interaction()
 	else:
 		var station := Crafting.nearest_station(_me.position)
 		if not station.is_empty() and Crafting.at_station(_me.position, station[0]):

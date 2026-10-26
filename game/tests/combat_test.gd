@@ -162,7 +162,7 @@ func test_walking_away_from_a_windup_is_no_escape() -> void:
 
 
 func test_dungeon_enemies_grow_with_depth_and_time() -> void:
-	assert_dict(Combat.dungeon_scaled(0, 0.0)).is_equal({health = 1.0, damage = 1.0})
+	assert_dict(Combat.dungeon_scaled(0, 0.0)).is_equal({health = 1.0, damage = 1.0, count = 1.0})
 	var shallow := Combat.dungeon_scaled(1, 0.0)
 	var deep := Combat.dungeon_scaled(5, 0.0)
 	var late := Combat.dungeon_scaled(1, 10.0)
@@ -170,3 +170,7 @@ func test_dungeon_enemies_grow_with_depth_and_time() -> void:
 	assert_float(deep.damage).is_greater(shallow.damage)
 	assert_float(late.health).is_greater(shallow.health)
 	assert_float(late.damage).is_greater(shallow.damage)
+	var group := Combat.dungeon_scaled(1, 0.0, 3)
+	assert_float(group.count).is_greater(shallow.count)
+	assert_float(group.health).is_greater(shallow.health)
+	assert_float(group.damage).is_equal(shallow.damage)

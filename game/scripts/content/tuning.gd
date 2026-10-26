@@ -115,6 +115,10 @@ extends Resource
 @export var portal_reach := 40.0
 ## Seconds after a run opens during which others entering join it instead of opening their own.
 @export var dungeon_join_window := 30.0
+## The end chest stays shut while an enemy is this close, and gives each player who opens it
+## these (see Loot.roll), heavier on rare items than anything else.
+@export var chest_lock_radius := 200.0
+@export var chest_drops: Array
 ## What waits at a room's spawns (RoomDef.spawns).
 @export var dungeon_enemy: EnemyDef
 ## Middle rooms between a run's start and end room, picked from res://data/rooms/.
@@ -123,19 +127,25 @@ extends Resource
 ## The corridors joining one room to the next.
 @export var corridor_length := 64.0
 @export var corridor_width := 48.0
+## Share of max health everyone alive in a run gets back when its woken rooms are cleared.
+@export var room_clear_heal := 0.4
 ## Added to the health and damage multipliers of a room's enemies per room from the start
-## (depth) and per minute since the run opened (the Risk of Rain timer, PLAN §5.6), on top of
-## the self-scaling by players nearby.
+## (depth), per minute since the run opened (the Risk of Rain timer, PLAN §5.6) and, for health
+## and count, per extra player near the room: rooms scale with players in place of scale_*.
 @export var depth_health := 0.15
-@export var depth_damage := 0.1
+@export var depth_damage := 0.075
 @export var minute_health := 0.1
 @export var minute_damage := 0.05
+@export var room_health := 0.25
+@export var room_count := 1.0
 
 @export_group("Buffs")
 ## Chance an enemy killed inside a run drops a buff orb.
 @export var buff_chance := 0.2
 ## Relative chance of a dropped buff being of each ItemDef.Rarity, common first.
 @export var buff_rarity_weights: Array[float] = [70.0, 25.0, 5.0]
+## Added to Buffs.roll's rare_bonus per room the run has reached: orbs get rarer deeper in.
+@export var buff_depth_bonus := 0.25
 ## Seconds a bleed from one hit lasts; a new hit starts it over.
 @export var bleed_time := 3.0
 ## Enemies this close to a dashing player take its dash_damage.

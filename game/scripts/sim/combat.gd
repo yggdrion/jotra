@@ -14,13 +14,16 @@ static func scaled(nearby_players: int) -> Dictionary:
 	}
 
 
-## Multipliers on enemy health and damage in a dungeon room depth rooms from the start, minutes
-## after its run opened; on top of scaled.
-static func dungeon_scaled(depth: int, minutes: float) -> Dictionary:
+## Multipliers on enemy health, damage and count in a dungeon room depth rooms from the start,
+## minutes after its run opened, with nearby_players near it. Rooms scale with players on their
+## own terms: a group fights one room together instead of spread out over the world.
+static func dungeon_scaled(depth: int, minutes: float, nearby_players := 1) -> Dictionary:
 	var t := Content.tuning
+	var extra := maxi(nearby_players - 1, 0)
 	return {
-		health = 1.0 + t.depth_health * depth + t.minute_health * minutes,
+		health = 1.0 + t.depth_health * depth + t.minute_health * minutes + t.room_health * extra,
 		damage = 1.0 + t.depth_damage * depth + t.minute_damage * minutes,
+		count = 1.0 + t.room_count * extra,
 	}
 
 

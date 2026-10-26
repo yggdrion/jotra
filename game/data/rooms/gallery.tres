@@ -6,4 +6,4 @@
 script = ExtResource("1")
 kind = 1
 size = Vector2(560, 160)
-spawns = Array[Vector2]([Vector2(200, 80), Vector2(360, 50), Vector2(480, 110)])
+spawns = Array[Vector2]([Vector2(240, 80), Vector2(460, 80)])

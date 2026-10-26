@@ -127,7 +127,8 @@ var spawn_enemies := true
 ## id, amount, position], ["windup", enemy id, position, seconds], ["respawn", player id,
 ## position], ["swing", player id, heavy, aim, position, weapon], ["loot", player id, item,
 ## count] for a pickup, ["full", player id] when loot didn't fit, ["dungeon", player id, area,
-## exit, position] when a player entered a run or (area empty) is back in the overworld.
+## exit, chest, position] when a player entered a run or (area empty) is back in the
+## overworld, ["chest", player id] when one opened its run's end chest.
 var events: Array[Array] = []
 ## Seeded by the balance sim for repeatable runs.
 var rng := RandomNumberGenerator.new()
@@ -452,23 +453,32 @@ func move_player(id: int, position: Vector2) -> bool:
 	return true
 
 
-## E at the dungeon entrance or a run's exit. A living player at the entrance goes into a run,
-## the one opened within dungeon_join_window or a new one, and its inventory is snapshotted; at
-## its run's exit it goes back to the entrance with everything found inside. Returns whether it
-## went through.
-func use_portal(id: int) -> bool:
+## E at the dungeon entrance, a run's exit or its end chest. A living player at the entrance
+## goes into a run, the one opened within dungeon_join_window or a new one, and its inventory is
+## snapshotted; at its run's exit it goes back to the entrance with everything found inside; at
+## the chest, once no enemy is near it, it opens it once for itself and the chest_drops spill
+## out. Returns whether it did any of that.
+func interact(id: int) -> bool:
 	var player: SimPlayer = players.get(id)
 	var t := Content.tuning
+	var reach := t.portal_reach + REACH_SLACK
 	if player == null or player.dead_until > 0:
 		return false
-	var portal := player.run.exit if player.run else t.dungeon_entrance
-	if player.position.distance_to(portal) > t.portal_reach + REACH_SLACK:
+	var run := player.run
+	if run and player.position.distance_to(run.chest) <= reach:
+		if run.opened.has(id) or Dungeon.locked(run.chest, _enemy_positions()):
+			return false
+		run.opened[id] = true
+		_drop_loot(t.chest_drops, run.chest)
+		events.append(["chest", id])
+		return true
+	var portal := run.exit if run else t.dungeon_entrance
+	if player.position.distance_to(portal) > reach:
 		return false
-	if player.run:
+	if run:
 		player.position = t.dungeon_entrance
 		_leave_run(player, false)
 		return true
-	var run: Dungeon = null
 	for open: Dungeon in dungeons.values():
 		if time - open.opened_at <= t.dungeon_join_window:
 			run = open
@@ -480,8 +490,15 @@ func use_portal(id: int) -> bool:
 	player.position = run.spawn + Vector2(0, (run.players.size() - 1) * SPAWN_SPACING)
 	player.position = Dungeon.clamp_to(run.area, player.position)
 	player.moved_at = time
-	events.append(["dungeon", id, run.area, run.exit, player.position])
+	events.append(["dungeon", id, run.area, run.exit, run.chest, player.position])
 	return true
+
+
+func _enemy_positions() -> Array[Vector2]:
+	var out: Array[Vector2] = []
+	for enemy: SimEnemy in enemies.values():
+		out.append(enemy.position)
+	return out
 
 
 ## The run whose slot holds a position, null in the overworld.
@@ -504,9 +521,19 @@ func _open_run() -> Dungeon:
 	return run
 
 
-## Spawns the enemies of each room a living player has walked into for the first time, scaled
-## by the players near it, its depth and the minutes the run has been open.
+## Spawns the enemies of each room a living player has walked into for the first time, in
+## number and strength scaled by the players near it, in strength by its depth and the minutes
+## the run has been open. Once every enemy of the rooms woken so far is dead, the living inside
+## heal room_clear_heal of their max health.
 func _wake_rooms(run: Dungeon) -> void:
+	if (
+		run.cleared < run.reached
+		and not enemies.values().any(func(enemy: SimEnemy) -> bool: return run.owns(enemy.position))
+	):
+		run.cleared = run.reached
+		for id: int in run.players:
+			if players[id].dead_until == 0:
+				players[id].heal(players[id].max_health() * Content.tuning.room_clear_heal)
 	var deepest := run.reached
 	for id: int in run.players:
 		if players[id].dead_until == 0:
@@ -515,13 +542,18 @@ func _wake_rooms(run: Dungeon) -> void:
 	while run.reached < deepest:
 		run.reached += 1
 		var room := run.rooms[run.reached]
-		var scale := Combat.scaled(players_near(room.get_center()))
-		var deeper := Combat.dungeon_scaled(run.reached, run.minutes(time))
-		for at in run.defs[run.reached].spawns:
+		var scale := Combat.dungeon_scaled(
+			run.reached, run.minutes(time), players_near(room.get_center())
+		)
+		# More players bring more enemies, from the same spawn points, each a step aside.
+		var spawns := run.defs[run.reached].spawns
+		for i in roundi(spawns.size() * scale.count):
+			var aside := floorf(float(i) / spawns.size()) * 16.0
+			var at := room.position + spawns[i % spawns.size()] + Vector2(aside, 0)
 			add_enemy(
-				room.position + at,
-				kind.health * scale.health * deeper.health,
-				kind.damage * scale.damage * deeper.damage,
+				Dungeon.clamp_to(run.area, at),
+				kind.health * scale.health,
+				kind.damage * scale.damage,
 				kind
 			)
 
@@ -539,7 +571,9 @@ func _leave_run(player: SimPlayer, restore: bool) -> void:
 	player.run = null
 	player.snapshot = {}
 	player.moved_at = time
-	events.append(["dungeon", player.id, [] as Array[Rect2], Vector2.ZERO, player.position])
+	events.append(
+		["dungeon", player.id, [] as Array[Rect2], Vector2.ZERO, Vector2.ZERO, player.position]
+	)
 	if not run.players.is_empty():
 		return
 	dungeons.erase(run.slot)
@@ -615,7 +649,8 @@ func attack(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> Packe
 
 
 ## Takes health off an enemy, with a damage number if shown. One that dies drops its loot,
-## inside a run maybe a buff orb, and feeds by's kill buffs. Returns whether it died.
+## inside a run maybe a buff orb (rarer the deeper the run has gone), and feeds by's kill
+## buffs. Returns whether it died.
 func _hurt_enemy(enemy: SimEnemy, amount: float, by: SimPlayer, shown := true) -> bool:
 	enemy.health -= amount
 	if shown:
@@ -624,8 +659,9 @@ func _hurt_enemy(enemy: SimEnemy, amount: float, by: SimPlayer, shown := true) -
 		return false
 	enemies.erase(enemy.id)
 	_drop_loot(enemy.def.drops, enemy.position)
-	if _run_at(enemy.position) and rng.randf() < Content.tuning.buff_chance:
-		_add_orb(Buffs.roll(rng), enemy.position)
+	var run := _run_at(enemy.position)
+	if run and rng.randf() < Content.tuning.buff_chance:
+		_add_orb(Buffs.roll(rng, run.reached * Content.tuning.buff_depth_bonus), enemy.position)
 	if by:
 		by.heal(by.buffs.stat("kill_heal"), by.buffs.stat("kill_stamina"))
 	return true
