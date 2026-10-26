@@ -2,8 +2,9 @@ class_name SimWorld
 extends RefCounted
 ## The server's simulation. Plain objects, no scene tree: tests build one directly and step it
 ## with tick(delta); GameServer drives the same path. Keeps the chunks around players loaded,
-## runs combat and enemies, drops loot that players walk over to pick up, handles inventories
-## and crafting, and, with a store, saves what changed against the seed and the players.
+## runs combat and enemies, drops loot that players walk over to pick up, handles inventories,
+## crafting, hunger and eating, spawns more and stronger enemies at night and, with a store,
+## saves what changed against the seed and the players.
 
 
 class SimPlayer:
@@ -16,6 +17,7 @@ class SimPlayer:
 	var full_noticed_at := -INF
 	var health := Content.tuning.max_health
 	var stamina := Content.tuning.max_stamina
+	var hunger := Content.tuning.max_hunger
 	var inventory := Inventory.new(Content.tuning.inventory_size)
 	var stamina_used_at := -INF
 	var cooldown_until := -INF
@@ -38,6 +40,22 @@ class SimPlayer:
 		if not inventory.equip(index):
 			return false
 		health = minf(health, max_health())
+		return true
+
+	## Eats one of the food in an inventory slot, the first food for -1, unless dead or full.
+	func eat(index: int) -> bool:
+		if index == -1:
+			index = inventory.first_food()
+		if index < 0 or index >= inventory.slots.size() or dead_until > 0:
+			return false
+		var slot := inventory.slots[index]
+		if slot.is_empty() or hunger >= Content.tuning.max_hunger:
+			return false
+		var food := Content.item(slot.item).food
+		if food <= 0:
+			return false
+		inventory.take_at(index, 1)
+		hunger = minf(hunger + food, Content.tuning.max_hunger)
 		return true
 
 	## Takes off what is worn in an ItemDef.Slot, into inventory slot to if that is free.
@@ -190,28 +208,43 @@ func _tick_player(player: SimPlayer, delta: float) -> void:
 			player.dead_until = 0.0
 			player.health = player.max_health()
 			player.stamina = Content.tuning.max_stamina
+			player.hunger = maxf(player.hunger, Content.tuning.respawn_hunger)
 			player.position = Content.tuning.respawn_at
 			player.moved_at = time
 			events.append(["respawn", player.id, player.position])
 		return
 	var t := Content.tuning
+	player.hunger = maxf(player.hunger - t.hunger_drain * delta, 0.0)
+	var regen := t.stamina_regen
+	if player.hunger > 0:
+		player.health = minf(player.health + t.health_regen * delta, player.max_health())
+	else:
+		regen *= t.starve_stamina
+		player.health = maxf(player.health - t.starve_damage * delta, 0.0)
+		if player.health == 0:
+			_die(player)
 	if time - player.stamina_used_at >= t.stamina_delay:
-		player.stamina = minf(player.stamina + t.stamina_regen * delta, t.max_stamina)
+		player.stamina = minf(player.stamina + regen * delta, t.max_stamina)
+
+
+func _die(player: SimPlayer) -> void:
+	player.dead_until = time + Content.tuning.respawn_delay
 
 
 ## Tops up the enemies around each living player, one per player per spawn_interval, in number
-## and strength scaled by the players near that one.
+## and strength scaled by the players near that one and, at night, by Survival.night_scale.
 func _spawn(delta: float) -> void:
 	_spawn_due -= delta
 	if _spawn_due > 0.0:
 		return
 	var t := Content.tuning
 	_spawn_due = t.spawn_interval
+	var night := Survival.night_scale(time)
 	for player: SimPlayer in players.values():
 		if player.dead_until > 0:
 			continue
 		var scale := Combat.scaled(players_near(player.position))
-		var want := roundi(t.enemies_per_player * scale.count)
+		var want := roundi(t.enemies_per_player * scale.count * night.count)
 		var have := 0
 		for enemy: SimEnemy in enemies.values():
 			if enemy.position.distance_to(player.position) <= t.spawn_radius:
@@ -220,7 +253,11 @@ func _spawn(delta: float) -> void:
 			continue
 		var distance := _rng.randf_range(t.spawn_ring_min, t.spawn_ring_max)
 		var at := player.position + Vector2.from_angle(_rng.randf() * TAU) * distance
-		add_enemy(at, t.enemy.health * scale.health, t.enemy.damage * scale.damage)
+		add_enemy(
+			at,
+			t.enemy.health * scale.health * night.health,
+			t.enemy.damage * scale.damage * night.damage
+		)
 
 
 ## An enemy of kind (Tuning.enemy by default) with health and damage already scaled.
@@ -308,13 +345,15 @@ func _save_player(player: SimPlayer) -> void:
 					x = player.position.x,
 					y = player.position.y,
 					health = player.health,
+					hunger = player.hunger,
 					inventory = player.inventory.to_data(),
 				}
 			)
 		)
 
 
-## Joins at the saved position of that name with its saved inventory, or fresh at the spawn.
+## Joins at the saved position of that name with its saved inventory and hunger, or fresh at
+## the spawn.
 func add_player(id: int, player_name: String) -> SimPlayer:
 	var spawn := Vector2(players.size() * SPAWN_SPACING, 0)
 	var saved := store.load_player(player_name) if store else {}
@@ -325,6 +364,9 @@ func add_player(id: int, player_name: String) -> SimPlayer:
 	# Someone who left while dead comes back alive.
 	var health := minf(float(saved.get("health", player.max_health())), player.max_health())
 	player.health = health if health > 0 else player.max_health()
+	player.hunger = clampf(float(saved.get("hunger", player.hunger)), 0.0, player.hunger)
+	if health <= 0:
+		player.hunger = maxf(player.hunger, Content.tuning.respawn_hunger)
 	players[id] = player
 	return player
 
@@ -443,7 +485,7 @@ func damage_player(id: int, amount: float) -> bool:
 	player.health = maxf(player.health - taken, 0.0)
 	events.append(["hit", false, id, taken, player.position])
 	if player.health == 0:
-		player.dead_until = time + Content.tuning.respawn_delay
+		_die(player)
 	return true
 
 
@@ -465,8 +507,9 @@ func sees(id: int, at: Vector2) -> bool:
 
 
 ## What one player's client is sent: {players: {id: Vector3(x, y, health 0..1)}, enemies: the
-## same, drops: {id: Vector3(x, y, Content.item_index)}, me: Vector3(health, stamina, max
-## health)}, with only the players (itself included), enemies and drops near it.
+## same, drops: {id: Vector3(x, y, Content.item_index)}, me: Vector4(health, stamina, max
+## health, hunger), time: the world's time for the day/night clock}, with only the players
+## (itself included), enemies and drops near it.
 func snapshot_for(id: int) -> Dictionary:
 	var near := {}
 	for other: SimPlayer in players.values():
@@ -491,5 +534,6 @@ func snapshot_for(id: int) -> Dictionary:
 		players = near,
 		enemies = near_enemies,
 		drops = near_drops,
-		me = Vector3(me.health, me.stamina, me.max_health()),
+		me = Vector4(me.health, me.stamina, me.max_health(), me.hunger),
+		time = time,
 	}

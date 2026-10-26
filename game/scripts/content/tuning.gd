@@ -14,6 +14,29 @@ extends Resource
 @export var respawn_delay := 3.0
 @export var respawn_at := Vector2.ZERO
 
+@export_group("Survival")
+@export var max_hunger := 100.0
+## Hunger lost per second.
+@export var hunger_drain := 0.11
+## Health per second while hunger is above zero.
+@export var health_regen := 0.5
+## At zero hunger: health lost per second, and stamina_regen times this.
+@export var starve_damage := 1.0
+@export var starve_stamina := 0.5
+## A respawned player has at least this much hunger.
+@export var respawn_hunger := 50.0
+
+@export_group("Day and night")
+## Seconds of day, then of night; world time 0 is dawn of day 1.
+@export var day_length := 480.0
+@export var night_length := 240.0
+## Seconds over which the light fades at dusk and comes back at dawn (client only).
+@export var twilight := 30.0
+## Multipliers on the enemies spawned at night, on top of the self-scaling.
+@export var night_count := 1.5
+@export var night_health := 1.3
+@export var night_damage := 1.3
+
 @export_group("Attacks")
 ## Swings without a weapon.
 @export var fists_light: AttackDef

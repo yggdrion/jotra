@@ -3,7 +3,7 @@ extends CanvasLayer
 ## The inventory screen (Tab or I), in three columns: what is worn and its stats above the
 ## backpack grid; an info panel on whatever the mouse is over; and the recipes, each with what
 ## it needs against what the player has and, if it can't be crafted, why. Items are dragged to
-## move, stack, wear or take off; right click wears or takes off at once. A line at the bottom
+## move, stack, wear or take off; right click wears, takes off or eats at once. A line at the bottom
 ## says so. Everything is only a request: the server's inventory comes back through
 ## show_inventory.
 
@@ -11,6 +11,7 @@ signal move_requested(from: int, to: int)
 signal equip_requested(index: int)
 signal unequip_requested(kind: int, to: int)
 signal craft_requested(recipe: StringName)
+signal eat_requested(index: int)
 
 const SLOT := 20
 const COLUMNS := 6
@@ -20,7 +21,7 @@ const HEADING := Color("feae34")
 const OK := Color("63c74d")
 const BAD := Color("e43b44")
 const INFO_WIDTH := 120
-const CONTROLS := "Drag: move, stack, wear   Right click: wear or take off   Tab: close"
+const CONTROLS := "Drag: move, stack, wear   Right click: wear, take off, eat   Tab: close"
 const STATUS_TEXT := {
 	Crafting.Status.READY: "",
 	Crafting.Status.MISSING_ITEMS: "Missing items",
@@ -130,6 +131,9 @@ static func describe(id: StringName) -> String:
 			lines[0] += " armor"
 			lines.append("Blocks %d damage per hit" % def.armor)
 			lines.append("Max health +%d" % def.health)
+		_ when def.food > 0:
+			lines[0] += " food"
+			lines.append("Restores %d hunger" % def.food)
 		_:
 			lines[0] += " material"
 	var found := sources(id)
@@ -375,7 +379,7 @@ func _slot_view() -> SlotView:
 	return view
 
 
-## Right click wears what is in the backpack or takes off what is worn.
+## Right click wears or eats what is in the backpack, or takes off what is worn.
 func _on_slot_input(event: InputEvent, view: SlotView) -> void:
 	var click := event as InputEventMouseButton
 	if click == null or not click.pressed or click.button_index != MOUSE_BUTTON_RIGHT:
@@ -384,6 +388,8 @@ func _on_slot_input(event: InputEvent, view: SlotView) -> void:
 		unequip_requested.emit(view.worn, -1)
 	elif Content.item(view.item) and Content.item(view.item).slot != ItemDef.Slot.NONE:
 		equip_requested.emit(view.index)
+	elif Content.item(view.item) and Content.item(view.item).food > 0:
+		eat_requested.emit(view.index)
 
 
 ## The info panel on an item, with what can be done with it; a hint while on none.
@@ -403,6 +409,8 @@ func _show_info(id: StringName, worn := false) -> void:
 	var text := describe(id)
 	if def.slot != ItemDef.Slot.NONE:
 		text += "\n\n" + ("Right click to take off." if worn else "Right click to wear.")
+	elif def.food > 0:
+		text += "\n\nRight click or F to eat."
 	_info_body.text = text
 
 

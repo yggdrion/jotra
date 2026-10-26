@@ -85,6 +85,10 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 		func(id: int, recipe: StringName) -> void:
 			_act(id, func(p: SimWorld.SimPlayer) -> void: Crafting.craft(p, recipe))
 	)
+	net.eat_requested.connect(
+		func(id: int, index: int) -> void:
+			_act(id, func(p: SimWorld.SimPlayer) -> void: p.eat(index))
+	)
 	print("server: listening on %d" % port)
 	if metrics_port > 0:
 		var metrics := MetricsServer.new()
@@ -130,7 +134,7 @@ func _physics_process(delta: float) -> void:
 		for id: int in world.players:
 			_send_chunks(id)
 			var snap := world.snapshot_for(id)
-			net.snapshot.rpc_id(id, snap.players, snap.enemies, snap.drops, snap.me)
+			net.snapshot.rpc_id(id, snap.players, snap.enemies, snap.drops, snap.me, snap.time)
 	_save_due -= delta
 	if _save_due <= 0.0:
 		_save_due = SAVE_INTERVAL

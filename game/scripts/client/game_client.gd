@@ -8,7 +8,8 @@ extends Node2D
 ## hit; Space dashes. Stamina and cooldowns are checked
 ## here first, the server has the last word. Tab or I opens the inventory and crafting screen;
 ## while it is open the mouse is for the screen, not for swinging. Items on the ground slide
-## to a player walking near and are picked up (server side).
+## to a player walking near and are picked up (server side). F eats; the world darkens at night
+## by the server's clock, which the HUD shows and announces.
 ##
 ## Bot mode (run headless by the network test) walks in a circle instead of reading the
 ## keyboard and exits 0 once it has chunks and its inventory, has seen an enemy, the server
@@ -31,6 +32,10 @@ const BOT_ECHO_PX := 40.0
 const BOT_LINGER := 2.0
 ## Where the name of a player who passes no --name is kept.
 const NAME_FILE := "user://player.txt"
+## Hunger below this share of the max prompts to eat.
+const HUNGRY := 0.25
+## The world's tint at full night; day is untinted.
+const NIGHT_TINT := Color("3a4466")
 ## Chunks are freed this far out, one further than the server forgets them, so a chunk the
 ## server sends again is never one the client already dropped.
 const KEEP_CHUNKS := SimWorld.VIEW_CHUNKS + 2
@@ -61,10 +66,16 @@ var _drop_views := {}  # drop id -> DropView
 var _target := []
 var _hud := Hud.new()
 var _inventory_ui := InventoryUi.new()
+## The server's copy of our inventory, for finding food to eat.
+var _inventory := Inventory.new(Content.tuning.inventory_size)
+var _tint := CanvasModulate.new()
 ## From the server's snapshots, spent ahead of them here.
 var _health := Content.tuning.max_health
 var _max_health := Content.tuning.max_health
 var _stamina := Content.tuning.max_stamina
+var _hunger := Content.tuning.max_hunger
+## The world's time from the newest snapshot, run on locally in between; -1 before the first.
+var _time := -1.0
 ## The equipped weapon, from the server's inventory; "" bare-handed.
 var _weapon := &""
 var _attack_ready_ms := 0
@@ -112,6 +123,7 @@ func _ready() -> void:
 		func(data: Dictionary) -> void:
 			_bot_inventory = true
 			_weapon = StringName(data.get("weapon", ""))
+			_inventory.load_data(data)
 			_inventory_ui.show_inventory(data)
 	)
 	net.looted_received.connect(_on_looted)
@@ -130,6 +142,8 @@ func _ready() -> void:
 	_inventory_ui.craft_requested.connect(
 		func(recipe: StringName) -> void: net.craft.rpc_id(1, recipe)
 	)
+	_inventory_ui.eat_requested.connect(func(index: int) -> void: net.eat.rpc_id(1, index))
+	add_child(_tint)
 	add_child(_hud)
 	add_child(_inventory_ui)
 	var overlay := DebugOverlay.new()
@@ -274,6 +288,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			net.remove_prop.rpc_id(1, _target[0], _target[1])
 	elif key.keycode == KEY_SPACE:
 		_dash()
+	elif key.keycode == KEY_F:
+		net.eat.rpc_id(1, -1)
 	else:
 		return
 	get_viewport().set_input_as_handled()
@@ -335,8 +351,15 @@ func _update_target() -> void:
 		if not best.is_empty():
 			_chunks[best[0]].highlight(best[1], true)
 	var prompt := ""
+	var food := _inventory.first_food()
+	var hungry := _hunger < Content.tuning.max_hunger * HUNGRY
 	if _health <= 0:
 		prompt = ""
+	elif hungry and food != -1:
+		var meal := Content.item(_inventory.slots[food].item).display_name
+		prompt = "%s: [F] Eat %s" % ["Starving" if _hunger <= 0 else "Hungry", meal.to_lower()]
+	elif _hunger <= 0:
+		prompt = "Starving: fell trees for berries"
 	elif not _target.is_empty():
 		var tree: bool = _chunks[_target[0]].kind_of(_target[1]) == WorldGen.Prop.TREE
 		prompt = "[E] Fell tree" if tree else "[E] Break rock"
@@ -347,7 +370,9 @@ func _update_target() -> void:
 	_hud.show_prompt(prompt)
 
 
-func _on_snapshot(players: Dictionary, enemies: Dictionary, drops: Dictionary, me: Vector3) -> void:
+func _on_snapshot(
+	players: Dictionary, enemies: Dictionary, drops: Dictionary, me: Vector4, time: float
+) -> void:
 	var now := Time.get_ticks_msec()
 	_snapshots.append({ms = now, players = players, enemies = enemies})
 	while _snapshots[0].ms < now - BUFFER_MS:
@@ -355,7 +380,15 @@ func _on_snapshot(players: Dictionary, enemies: Dictionary, drops: Dictionary, m
 	_health = me.x
 	_stamina = me.y
 	_max_health = me.z
-	_hud.show_stats(_health / _max_health, _stamina / Content.tuning.max_stamina)
+	_hunger = me.w
+	var t := Content.tuning
+	_hud.show_stats(_health / _max_health, _stamina / t.max_stamina, _hunger / t.max_hunger)
+	if _time >= 0 and Survival.is_night(_time) != Survival.is_night(time):
+		if Survival.is_night(time):
+			_hud.announce("Night falls: enemies grow stronger", Color("8b9bb4"))
+		else:
+			_hud.announce("Day %d dawns" % Survival.day_number(time), Color("feae34"))
+	_time = time
 	if _me:
 		_me.health = _health / _max_health
 	_show_drops(drops)
@@ -446,6 +479,29 @@ func _process(delta: float) -> void:
 	_show_remote_players(Interpolation.sample(_snapshots, at))
 	_update_target()
 	_inventory_ui.player_at = _me.position
+	if _time >= 0:
+		_time += delta
+		_show_clock()
+
+
+## Tints the world by daylight and shows the day in the HUD.
+func _show_clock() -> void:
+	_tint.color = NIGHT_TINT.lerp(Color.WHITE, Survival.daylight(_time))
+	var night := Survival.is_night(_time)
+	var left := ceili(Survival.until_change(_time))
+	_hud.show_clock(
+		(
+			"%s %d  %d:%02d to %s"
+			% [
+				"Night" if night else "Day",
+				Survival.day_number(_time),
+				left / 60,
+				left % 60,
+				"dawn" if night else "dusk"
+			]
+		),
+		night
+	)
 
 
 func _input_direction() -> Vector2:

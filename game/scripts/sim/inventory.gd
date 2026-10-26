@@ -73,6 +73,25 @@ func take(items: Dictionary) -> void:
 	changed = true
 
 
+## Takes count out of one slot. Returns false if it holds fewer.
+func take_at(index: int, count: int) -> bool:
+	if not _valid(index) or slots[index].is_empty() or slots[index].count < count:
+		return false
+	slots[index].count -= count
+	if slots[index].count == 0:
+		slots[index] = {}
+	changed = true
+	return true
+
+
+## The first slot holding food, -1 if none does.
+func first_food() -> int:
+	for i in slots.size():
+		if not slots[i].is_empty() and Content.item(slots[i].item).food > 0:
+			return i
+	return -1
+
+
 ## Moves a slot onto another: merged if both hold the same stackable item, swapped otherwise.
 func move(from: int, to: int) -> bool:
 	if from == to or not _valid(from) or not _valid(to) or slots[from].is_empty():

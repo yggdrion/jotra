@@ -15,10 +15,13 @@ signal item_moved(peer_id: int, from: int, to: int)
 signal equip_requested(peer_id: int, index: int)
 signal unequip_requested(peer_id: int, kind: int, to: int)
 signal craft_requested(peer_id: int, recipe: StringName)
+signal eat_requested(peer_id: int, index: int)
 # Client side.
 signal welcomed(spawn: Vector2, world_seed: int)
 signal rejected(reason: String)
-signal snapshot_received(players: Dictionary, enemies: Dictionary, drops: Dictionary, me: Vector3)
+signal snapshot_received(
+	players: Dictionary, enemies: Dictionary, drops: Dictionary, me: Vector4, time: float
+)
 signal chunk_received(coord: Vector2i, removed: PackedInt32Array)
 signal prop_removed_received(coord: Vector2i, prop_id: int)
 signal hit_received(enemy: bool, id: int, amount: int)
@@ -31,7 +34,7 @@ signal inventory_full_received
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 6
+const PROTOCOL_VERSION := 7
 
 @rpc("any_peer", "reliable")
 func hello(version: int, player_name: String) -> void:
@@ -82,6 +85,12 @@ func craft(recipe: StringName) -> void:
 	craft_requested.emit(multiplayer.get_remote_sender_id(), recipe)
 
 
+## Eat one of the food in an inventory slot (-1: the first food).
+@rpc("any_peer", "reliable")
+func eat(index: int) -> void:
+	eat_requested.emit(multiplayer.get_remote_sender_id(), index)
+
+
 @rpc("authority", "reliable")
 func welcome(spawn: Vector2, world_seed: int) -> void:
 	welcomed.emit(spawn, world_seed)
@@ -93,11 +102,13 @@ func reject(reason: String) -> void:
 
 
 ## players and enemies: {id: Vector3(x, y, health 0..1)}, drops: {id: Vector3(x, y,
-## Content.item_index)}, only those near the receiving player; me: its own Vector3(health,
-## stamina, max health).
+## Content.item_index)}, only those near the receiving player; me: its own Vector4(health,
+## stamina, max health, hunger); time: the world's time, for the day/night clock.
 @rpc("authority", "unreliable_ordered")
-func snapshot(players: Dictionary, enemies: Dictionary, drops: Dictionary, me: Vector3) -> void:
-	snapshot_received.emit(players, enemies, drops, me)
+func snapshot(
+	players: Dictionary, enemies: Dictionary, drops: Dictionary, me: Vector4, time: float
+) -> void:
+	snapshot_received.emit(players, enemies, drops, me, time)
 
 
 ## A chunk entered the player's view: the client generates it from the seed and leaves out

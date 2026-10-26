@@ -1,7 +1,7 @@
 class_name ItemDef
 extends Resource
 ## An item kind, one file per item in res://data/items/; its id is the file name. Materials
-## stack, gear goes in an equipment slot and changes the wearer's stats.
+## stack, food is eaten, gear goes in an equipment slot and changes the wearer's stats.
 
 enum Rarity { COMMON, UNCOMMON, RARE, EPIC }
 ## NONE: a material, not wearable.
@@ -17,6 +17,8 @@ const RARITY_COLORS: Array[Color] = [
 ## The placeholder sprite's color (a square on the ground and in slots).
 @export var color := Color.WHITE
 @export var slot := Slot.NONE
+## Hunger restored by eating one; 0: not food.
+@export var food := 0.0
 @export_group("Weapon")
 @export var light: AttackDef
 @export var heavy: AttackDef
