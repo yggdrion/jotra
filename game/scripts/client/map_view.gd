@@ -23,6 +23,7 @@ var me := Vector2.ZERO
 var players: Array[Vector2] = []
 
 var _seed := 0
+var _player := ""
 var _explored := {}  # chunk coord -> ImageTexture
 var _mini := Control.new()
 var _big := Control.new()
@@ -50,9 +51,11 @@ func explored() -> Array:
 	return _explored.keys()
 
 
-## Starts the map of this world over, with the chunks explored in it before.
-func load_world(world_seed: int) -> void:
+## Starts the map of this world over, with the chunks player_name explored in it before.
+## Per player too, so clients on one machine (the load test's bots) don't share a file.
+func load_world(world_seed: int, player_name: String) -> void:
 	_seed = world_seed
+	_player = player_name
 	_explored.clear()
 	if not FileAccess.file_exists(_path()):
 		return
@@ -88,7 +91,7 @@ func refresh() -> void:
 
 
 func _path() -> String:
-	return "%s/%d.json" % [dir, _seed]
+	return "%s/%d-%s.json" % [dir, _seed, _player]
 
 
 ## One pixel per tile in the biome's color, darker where a tree or rock stands.

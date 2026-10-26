@@ -331,7 +331,7 @@ func _on_welcomed(spawn: Vector2, world_seed: int) -> void:
 	print("client: joined as %s (%d)" % [player_name, multiplayer.get_unique_id()])
 	joined.emit()
 	_world_seed = world_seed
-	_map.load_world(world_seed)
+	_map.load_world(world_seed, player_name)
 	_me = PlayerView.new()
 	_me.own = true
 	_me.position = spawn
