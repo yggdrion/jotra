@@ -254,8 +254,8 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M2 | **World + persistence** | Seeded chunk generation with placeholder biomes; chunk streaming with interest management; deltas, players and world meta survive a server restart | Done | v0.4.0 |
 | M3 | **Combat** | Enemies spawn and use simple AI; light/heavy/dash with stamina; damage, death, respawn; self-scaling by nearby player count | Done | v0.5.0 |
 | M4 | **Loot + inventory** | Drop tables, pickup, inventory, equipment changes stats, crafting at a station | Done | v0.6.0 |
-| M4a | **Loot + inventory UX** | A new player finds out unaided how to gather, loot, equip and craft: on-screen prompts near trees, rocks and the labeled workbench; drops pulled in when walked near, an "inventory full" notice; drag-and-drop inventory with an item info panel, equipped stats and a controls line; recipes show have/need per input and why one can't be crafted | Playtest | |
-| M5 | **Survival** | Hunger, eating, day/night with stronger nights; penalties at zero | | |
+| M4a | **Loot + inventory UX** | A new player finds out unaided how to gather, loot, equip and craft: on-screen prompts near trees, rocks and the labeled workbench; drops pulled in when walked near, an "inventory full" notice; drag-and-drop inventory with an item info panel, equipped stats and a controls line; recipes show have/need per input and why one can't be crafted | Done | v0.7.0 |
+| M5 | **Survival** | Hunger, eating, day/night with stronger nights; penalties at zero | Next | |
 | M6 | **Player host** | Bun lobby + coturn deployed; server opens a room; host and friends join by code via WebRTC on different networks; rooms stay open while the server runs | | |
 | M7 | **Dungeon v1** | Entrance in the world; generated instance; ~15 buffs; inventory snapshot rule; end chest; time/depth scaling | | |
 | M8 | **Building v1** | Grid placement of a few pieces, persisted and replicated | | |
