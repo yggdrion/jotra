@@ -98,6 +98,7 @@ var _world_seed := 0
 var _chunks := {}  # Vector2i -> ChunkView
 var _enemy_views := {}  # enemy id -> EnemyView
 var _drop_views := {}  # drop id -> DropView
+var _projectile_views := {}  # projectile id -> ProjectileView
 ## [chunk coord, prop id] of the prop E acts on, [] if none is in reach.
 var _target := []
 ## The tile of the door or chest E acts on instead, null if none.
@@ -127,6 +128,8 @@ var _buffs := Buffs.new()
 var _weapon := &""
 var _attack_ready_ms := 0
 var _dash_ready_ms := 0
+## When the bow in hand started being drawn (msec), 0 if it is not.
+var _draw_started_ms := 0
 var _dash_left := 0.0
 var _dash_dir := Vector2.ZERO
 ## The rooms and corridors of the dungeon run we are in, empty in the overworld, and its way
@@ -504,7 +507,11 @@ func _unhandled_input(event: InputEvent) -> void:
 		get_viewport().set_input_as_handled()
 		return
 	if mouse and mouse.pressed and mouse.button_index in [MOUSE_BUTTON_LEFT, MOUSE_BUTTON_RIGHT]:
-		_attack(mouse.button_index == MOUSE_BUTTON_RIGHT)
+		var bow := Content.item(_weapon)
+		if mouse.button_index == MOUSE_BUTTON_LEFT and bow and bow.ammo != &"":
+			_begin_draw(bow)
+		else:
+			_attack(mouse.button_index == MOUSE_BUTTON_RIGHT)
 		get_viewport().set_input_as_handled()
 		return
 	if key == null or not key.pressed or key.echo:
@@ -593,6 +600,42 @@ func _attack(heavy: bool) -> void:
 	net.attack.rpc_id(1, heavy, aim, hits)
 
 
+## Starts drawing the bow in hand, if it is ready, there is an arrow and stamina for the shot.
+func _begin_draw(bow: ItemDef) -> void:
+	if Time.get_ticks_msec() < _attack_ready_ms or _stamina < bow.draw_cost:
+		return
+	if _inventory.count_of(bow.ammo) < 1:
+		_float_text("No arrows", Color("e43b44"), _me.position)
+		return
+	_draw_started_ms = Time.get_ticks_msec()
+
+
+## The share (0..1) of the bow's draw time the button has been held, 0 when not drawing.
+func _drawn(bow: ItemDef) -> float:
+	if _draw_started_ms == 0:
+		return 0.0
+	return clampf((Time.get_ticks_msec() - _draw_started_ms) / 1000.0 / bow.draw_time, 0.0, 1.0)
+
+
+## While the bow is drawn: shows the draw, and shoots when the button is let go (anywhere, also
+## over the UI). It is dropped without a shot when the bow is put away, the inventory opens or
+## the draw was too short.
+func _tick_draw(bow: ItemDef) -> void:
+	var drawn := _drawn(bow)
+	_me.draw_share = drawn
+	if _inventory_ui.visible or _health <= 0:
+		_draw_started_ms = 0
+		_me.draw_share = 0.0
+		return
+	if _draw_started_ms == 0 or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+		return
+	_draw_started_ms = 0
+	_me.draw_share = 0.0
+	if drawn >= bow.min_draw:
+		_stamina -= bow.draw_cost
+		net.shoot.rpc_id(1, _aim(), drawn)
+
+
 ## Dashes in the walking direction, or toward the mouse when standing still.
 func _dash() -> void:
 	var now := Time.get_ticks_msec()
@@ -676,7 +719,12 @@ func _update_target() -> void:
 
 
 func _on_snapshot(
-	players: Dictionary, enemies: Dictionary, drops: Dictionary, me: Vector4, time: float
+	players: Dictionary,
+	enemies: Dictionary,
+	drops: Dictionary,
+	projectiles: Dictionary,
+	me: Vector4,
+	time: float
 ) -> void:
 	var now := Time.get_ticks_msec()
 	_snapshots.append({ms = now, players = players, enemies = enemies})
@@ -697,6 +745,21 @@ func _on_snapshot(
 	if _me:
 		_me.health = _health / _max_health
 	_show_drops(drops)
+	_show_projectiles(projectiles)
+
+
+## projectiles: {id: Vector3(x, y, flight angle)}.
+func _show_projectiles(projectiles: Dictionary) -> void:
+	for id: int in _projectile_views.keys():
+		if not projectiles.has(id):
+			_projectile_views[id].queue_free()
+			_projectile_views.erase(id)
+	for id: int in projectiles:
+		var p: Vector3 = projectiles[id]
+		if not _projectile_views.has(id):
+			_projectile_views[id] = ProjectileView.new()
+			add_child(_projectile_views[id])
+		_projectile_views[id].update(Vector2(p.x, p.y), p.z)
 
 
 ## drops: {id: Vector3(x, y, item index, or -1 - buff index for an orb)}. Most lie still;
@@ -780,6 +843,12 @@ func _process(delta: float) -> void:
 		if _bot_swing_at <= 0.0:
 			_bot_swing_at = BOT_SWING_EVERY
 			_attack(false)
+	var bow := Content.item(_weapon)
+	if bow == null or bow.ammo == &"":
+		_draw_started_ms = 0
+		_me.draw_share = 0.0
+	else:
+		_tick_draw(bow)
 	if _dash_left > 0.0:
 		var step := minf(delta, _dash_left)
 		_dash_left -= step

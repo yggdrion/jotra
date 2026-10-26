@@ -137,7 +137,19 @@ static func describe(id: StringName) -> String:
 	match def.slot:
 		ItemDef.Slot.WEAPON:
 			lines[0] += " weapon"
-			lines.append("Light hit %d, heavy hit %d" % [def.light.damage, def.heavy.damage])
+			if def.ammo != &"":
+				lines.append(
+					(
+						"Hold to draw, release to shoot %s: up to %d damage, %d px"
+						% [
+							Content.item(def.ammo).display_name.to_lower(),
+							def.arrow_damage,
+							def.arrow_range
+						]
+					)
+				)
+			else:
+				lines.append("Light hit %d, heavy hit %d" % [def.light.damage, def.heavy.damage])
 		ItemDef.Slot.ARMOR:
 			lines[0] += " armor"
 			lines.append("Blocks %d damage per hit" % def.armor)

@@ -97,6 +97,7 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 		func(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> void:
 			world.attack(id, heavy, aim, hits)
 	)
+	net.shot.connect(func(id: int, aim: Vector2, drawn: float) -> void: world.shoot(id, aim, drawn))
 	net.dashed.connect(func(id: int) -> void: world.dash(id))
 	net.item_moved.connect(
 		func(id: int, from: int, to: int) -> void:
@@ -221,6 +222,7 @@ func _physics_process(delta: float) -> void:
 				Net.pack_entities(snap.players, at),
 				Net.pack_entities(snap.enemies, at),
 				Net.pack_entities(snap.drops, at),
+				Net.pack_entities(snap.projectiles, at),
 				snap.me,
 				snap.time
 			)

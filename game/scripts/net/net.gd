@@ -11,6 +11,7 @@ signal moved(peer_id: int, position: Vector2)
 signal prop_remove_requested(peer_id: int, coord: Vector2i, prop_id: int)
 signal attacked(peer_id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array)
 signal dashed(peer_id: int)
+signal shot(peer_id: int, aim: Vector2, drawn: float)
 signal item_moved(peer_id: int, from: int, to: int)
 signal equip_requested(peer_id: int, index: int)
 signal unequip_requested(peer_id: int, kind: int, to: int)
@@ -26,7 +27,12 @@ signal pinged(peer_id: int, sent_ms: int)
 signal welcomed(spawn: Vector2, world_seed: int)
 signal rejected(reason: String)
 signal snapshot_received(
-	players: Dictionary, enemies: Dictionary, drops: Dictionary, me: Vector4, time: float
+	players: Dictionary,
+	enemies: Dictionary,
+	drops: Dictionary,
+	projectiles: Dictionary,
+	me: Vector4,
+	time: float
 )
 signal chunk_received(coord: Vector2i, removed: PackedInt32Array, pieces: Array)
 signal piece_received(coord: Vector2i, index: int, data: Array)
@@ -47,7 +53,7 @@ signal ponged(sent_ms: int)
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 14
+const PROTOCOL_VERSION := 15
 const ENTITY_BYTES := 10
 
 @rpc("any_peer", "reliable")
@@ -69,6 +75,12 @@ func remove_prop(coord: Vector2i, prop_id: int) -> void:
 @rpc("any_peer", "reliable")
 func attack(heavy: bool, aim: Vector2, hits: PackedInt32Array) -> void:
 	attacked.emit(multiplayer.get_remote_sender_id(), heavy, aim, hits)
+
+
+## A bow shot toward aim, drawn (0..1) of the bow's draw time.
+@rpc("any_peer", "reliable")
+func shoot(aim: Vector2, drawn: float) -> void:
+	shot.emit(multiplayer.get_remote_sender_id(), aim, drawn)
 
 
 @rpc("any_peer", "reliable")
@@ -158,15 +170,17 @@ func reject(reason: String) -> void:
 
 ## players: {id: Vector3(x, y, health 0..1)}, enemies: the same with z = enemy_z (kind and
 ## health), drops: {id: Vector3(x, y, Content.item_index, or -1 - the buff's index in
-## Content.buff_ids for a buff orb)}, only those near the receiving player; me: its own
-## Vector4(health, stamina, max health, hunger); time: the world's time, for the day/night
-## clock. Sent packed (pack_entities) around at, the receiving player's position on the server.
+## Content.buff_ids for a buff orb)}, projectiles: {id: Vector3(x, y, flight angle in radians)},
+## only those near the receiving player; me: its own Vector4(health, stamina, max health,
+## hunger); time: the world's time, for the day/night clock. Sent packed (pack_entities) around
+## at, the receiving player's position on the server.
 @rpc("authority", "unreliable_ordered")
 func snapshot(
 	at: Vector2,
 	players: PackedByteArray,
 	enemies: PackedByteArray,
 	drops: PackedByteArray,
+	projectiles: PackedByteArray,
 	me: Vector4,
 	time: float
 ) -> void:
@@ -174,6 +188,7 @@ func snapshot(
 		unpack_entities(players, at),
 		unpack_entities(enemies, at),
 		unpack_entities(drops, at),
+		unpack_entities(projectiles, at),
 		me,
 		time
 	)

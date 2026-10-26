@@ -37,10 +37,10 @@ static func piece(id: StringName) -> PieceDef:
 	return pieces.get(id)
 
 
-## The light or heavy swing of a weapon, or bare-handed for "".
+## The light or heavy swing of a weapon, or bare-handed for "" and for a bow (ItemDef.ammo).
 static func attack(weapon: StringName, heavy: bool) -> AttackDef:
 	var def := item(weapon)
-	if def == null or def.slot != ItemDef.Slot.WEAPON:
+	if def == null or def.slot != ItemDef.Slot.WEAPON or def.light == null:
 		return tuning.fists_heavy if heavy else tuning.fists_light
 	return def.heavy if heavy else def.light
 

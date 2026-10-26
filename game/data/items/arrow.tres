@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/item_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/items/arrow.png" id="icon"]
+
+[resource]
+script = ExtResource("1")
+icon = ExtResource("icon")
+display_name = "Arrow"
+rarity = 0
+max_stack = 99
+color = Color(0.75, 0.65, 0.5, 1)
