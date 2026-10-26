@@ -17,9 +17,18 @@ func test_items_are_complete() -> void:
 		var item := Content.item(id)
 		assert_str(item.display_name).override_failure_message(str(id)).is_not_empty()
 		assert_int(item.max_stack).is_greater(0)
-		if item.slot == ItemDef.Slot.WEAPON:
+		if item.slot == ItemDef.Slot.WEAPON and item.ammo == &"":
 			assert_object(item.light).override_failure_message(str(id)).is_not_null()
 			assert_object(item.heavy).override_failure_message(str(id)).is_not_null()
+		if item.ammo != &"":
+			var message := str(id)
+			assert_int(item.slot).override_failure_message(message).is_equal(ItemDef.Slot.WEAPON)
+			assert_object(Content.item(item.ammo)).override_failure_message(message).is_not_null()
+			assert_float(item.draw_time).override_failure_message(message).is_greater(0.0)
+			assert_float(item.min_draw).override_failure_message(message).is_between(0.0, 1.0)
+			assert_float(item.arrow_damage).override_failure_message(message).is_greater(0.0)
+			assert_float(item.arrow_speed).override_failure_message(message).is_greater(0.0)
+			assert_float(item.arrow_range).override_failure_message(message).is_greater(0.0)
 		# ponytail: the interim pack has no armor sprites, so armor keeps its color square.
 		if item.slot != ItemDef.Slot.ARMOR:
 			assert_object(item.icon).override_failure_message(str(id)).is_not_null()
@@ -72,6 +81,7 @@ func test_bare_hands_without_a_weapon() -> void:
 	assert_object(Content.attack(&"", false)).is_same(Content.tuning.fists_light)
 	assert_object(Content.attack(&"wood", true)).is_same(Content.tuning.fists_heavy)
 	assert_object(Content.attack(&"club", true)).is_same(Content.item(&"club").heavy)
+	assert_object(Content.attack(&"bow", false)).is_same(Content.tuning.fists_light)
 
 
 func test_rooms_fit_the_layout() -> void:

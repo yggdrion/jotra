@@ -52,6 +52,13 @@ extends Resource
 ## No hit does less than this, whatever the armor.
 @export var min_damage := 1.0
 
+@export_group("Projectiles")
+## A projectile hits a body whose center is this close to its path.
+@export var projectile_radius := 8.0
+## The server only accepts a shot this share of the time its draw takes, as the client's clock
+## and the packets lag.
+@export var draw_slack := 0.7
+
 @export_group("Dash")
 @export var dash_distance := 64.0
 @export var dash_time := 0.15

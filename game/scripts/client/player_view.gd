@@ -19,6 +19,8 @@ const BAR_WIDTH := 16.0
 const RADIUS := 6.0
 
 var own := false
+## 0..1 of a bow drawn, shown as a ring that fills; 0: not drawing.
+var draw_share := 0.0
 ## 0..1, from the snapshots.
 var health := 1.0:
 	set(value):
@@ -84,6 +86,9 @@ func _draw() -> void:
 		var bar := Rect2(-BAR_WIDTH / 2, -FRAME - 5, BAR_WIDTH, 2)
 		draw_rect(bar, Color.BLACK)
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x * health, bar.size.y)), Color("e43b44"))
+	if draw_share > 0.0:
+		var ring := Color.WHITE if draw_share >= 1.0 else Color(1, 1, 1, 0.6)
+		draw_arc(Vector2(0, -RADIUS), 10.0, -PI / 2, -PI / 2 + TAU * draw_share, 24, ring, 2)
 	if now < _swing_until:
 		var half := deg_to_rad(_swing.arc) / 2
 		var angle := _swing_aim.angle()

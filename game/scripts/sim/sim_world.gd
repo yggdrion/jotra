@@ -1,5 +1,6 @@
-# gdlint: disable=max-public-methods
-# Every request a client can make lands on the world, so it outgrows the public method limit.
+# gdlint: disable=max-public-methods,max-file-lines
+# Every request a client can make lands on the world, so it outgrows the public method limit
+# and, with the rules it runs, the file length limit.
 class_name SimWorld
 extends RefCounted
 ## The server's simulation. Plain objects, no scene tree: tests build one directly and step it
@@ -25,6 +26,8 @@ class SimPlayer:
 	var stamina_used_at := -INF
 	var cooldown_until := -INF
 	var dashed_at := -INF
+	## Sim time of the last bow shot, for the draw time check.
+	var shot_at := -INF
 	var gathered_at := -INF
 	## Sim time of the respawn while dead, 0 while alive.
 	var dead_until := 0.0
@@ -126,6 +129,7 @@ var players := {}  # id -> SimPlayer
 var chunks := {}  # Vector2i -> SimChunk
 var enemies := {}  # id -> SimEnemy
 var drops := {}  # id -> SimDrop
+var projectiles := {}  # id -> SimProjectile
 var dungeons := {}  # slot -> Dungeon
 ## {global tile: Building.Piece} of every loaded chunk.
 var pieces := {}
@@ -144,6 +148,7 @@ var events: Array[Array] = []
 var rng := RandomNumberGenerator.new()
 var _next_enemy_id := 1
 var _next_drop_id := 1
+var _next_projectile_id := 1
 var _spawn_due := 0.0
 
 
@@ -181,6 +186,7 @@ func tick(delta: float) -> void:
 		var run := _run_at(enemy.position)
 		if run:
 			enemy.position = Dungeon.clamp_to(run.area, enemy.position)
+	_tick_projectiles(delta)
 	if spawn_enemies:
 		_spawn(delta)
 	for id: int in enemies.keys():
@@ -888,6 +894,108 @@ func _add_orb(buff: StringName, at: Vector2) -> SimDrop:
 	return drop
 
 
+## A shot from the bow in a player's hands, toward aim, drawn (0..1) of its draw_time. The
+## client holds the button for the draw: the server only checks that the time since the last
+## shot allows it (with draw_slack), and takes the arrow and stamina. Arrow damage, speed
+## and range scale with the draw. Returns whether an arrow flew.
+func shoot(id: int, aim: Vector2, drawn: float) -> bool:
+	var player: SimPlayer = players.get(id)
+	if player == null or player.dead_until > 0 or aim == Vector2.ZERO:
+		return false
+	var bow := Content.item(player.inventory.weapon())
+	if bow == null or bow.ammo == &"" or not player.inventory.has_all({bow.ammo: 1}):
+		return false
+	var share := clampf(drawn, 0.0, 1.0)
+	var t := Content.tuning
+	if share < bow.min_draw or time - player.shot_at < bow.draw_time * share * t.draw_slack:
+		return false
+	if not _spend(player, bow.draw_cost):
+		return false
+	player.inventory.take({bow.ammo: 1})
+	player.shot_at = time
+	var b := player.buffs
+	var damage := bow.arrow_damage * share * (1.0 + b.stat("damage"))
+	# Rolled only with a crit buff, so runs without buffs draw the same numbers.
+	if b.stat("crit") > 0 and rng.randf() < b.stat("crit"):
+		damage *= 2.0
+	add_projectile(
+		SimProjectile.Team.PLAYERS,
+		id,
+		player.position,
+		aim,
+		bow.arrow_speed * share,
+		damage,
+		bow.arrow_range * share
+	)
+	return true
+
+
+## Sends a projectile flying from from toward direction, for a player (team PLAYERS) or an
+## enemy (ENEMIES) with that id.
+func add_projectile(
+	team: SimProjectile.Team,
+	owner_id: int,
+	from: Vector2,
+	direction: Vector2,
+	speed: float,
+	damage: float,
+	max_range: float
+) -> SimProjectile:
+	var p := SimProjectile.new(
+		_next_projectile_id, team, owner_id, from, direction, speed, damage, max_range
+	)
+	_next_projectile_id += 1
+	projectiles[p.id] = p
+	return p
+
+
+## Flies every projectile on, in steps no longer than its hit radius so nothing slips through.
+## One ends at the first blocking piece (damaging it if an enemy shot it), at the first body of
+## the other team it hurts (a dashing or dead player is passed through), when it leaves a
+## dungeon's rooms or when its range is spent.
+func _tick_projectiles(delta: float) -> void:
+	var radius := Content.tuning.projectile_radius
+	for p: SimProjectile in projectiles.values():
+		var distance := minf(p.velocity.length() * delta, p.range_left)
+		var steps := maxi(ceili(distance / radius), 1)
+		var step := p.velocity.normalized() * distance / steps
+		var done := distance < 0.001
+		for i in steps:
+			p.position += step
+			if _projectile_hits(p, radius):
+				done = true
+				break
+			var run := _run_at(p.position)
+			if run and Dungeon.clamp_to(run.area, p.position) != p.position:
+				done = true
+				break
+		p.range_left -= distance
+		if done or p.range_left <= 0.0:
+			projectiles.erase(p.id)
+
+
+## Whether p, at its position, hit something and is spent.
+func _projectile_hits(p: SimProjectile, radius: float) -> bool:
+	var wall: Variant = blocker(p.position)
+	if wall != null:
+		if p.team == SimProjectile.Team.ENEMIES:
+			damage_piece(wall, p.damage)
+		return true
+	if p.team == SimProjectile.Team.ENEMIES:
+		for player: SimPlayer in players.values():
+			if player.position.distance_to(p.position) <= radius:
+				if damage_player(player.id, p.damage):
+					return true
+		return false
+	for enemy: SimEnemy in enemies.values():
+		if enemy.position.distance_to(p.position) <= radius:
+			var shooter: SimPlayer = players.get(p.owner_id)
+			enemy.provoke(p.owner_id)
+			_hurt_enemy(enemy, p.damage, shooter)
+			return true
+	return false
+
+
 ## Starts a dash: i-frames now, and the next moves may cover its distance. With dash_damage,
 ## enemies around the player take it.
 func dash(id: int) -> bool:
@@ -964,9 +1072,10 @@ func sees(id: int, at: Vector2) -> bool:
 
 ## What one player's client is sent: {players: {id: Vector3(x, y, health 0..1)}, enemies: the
 ## same with Net.enemy_z for z, drops: {id: Vector3(x, y, Content.item_index, or -1 - the
-## index in Content.buff_ids for a buff orb)}, me: Vector4(health, stamina, max health,
-## hunger), time: the world's time for the day/night clock}, with only the players
-## (itself included), enemies and drops near it.
+## index in Content.buff_ids for a buff orb)}, projectiles: {id: Vector3(x, y, flight angle in
+## radians)}, me: Vector4(health, stamina, max health, hunger), time: the world's time for the
+## day/night clock}, with only the players (itself included), enemies, drops and projectiles
+## near it.
 func snapshot_for(id: int) -> Dictionary:
 	var near := {}
 	for other: SimPlayer in players.values():
@@ -990,11 +1099,16 @@ func snapshot_for(id: int) -> Dictionary:
 			if drop.buff != &"":
 				kind = -1 - Content.buff_ids.find(drop.buff)
 			near_drops[drop.id] = Vector3(drop.position.x, drop.position.y, kind)
+	var near_projectiles := {}
+	for p: SimProjectile in projectiles.values():
+		if sees(id, p.position):
+			near_projectiles[p.id] = Vector3(p.position.x, p.position.y, p.velocity.angle())
 	var me: SimPlayer = players[id]
 	return {
 		players = near,
 		enemies = near_enemies,
 		drops = near_drops,
+		projectiles = near_projectiles,
 		me = Vector4(me.health, me.stamina, me.max_health(), me.hunger),
 		time = time,
 	}

@@ -1,0 +1,19 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/item_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/items/bow.png" id="icon"]
+
+[resource]
+script = ExtResource("1")
+icon = ExtResource("icon")
+display_name = "Bow"
+rarity = 0
+color = Color(0.6, 0.4, 0.25, 1)
+slot = 1
+ammo = &"arrow"
+draw_time = 0.8
+min_draw = 0.3
+arrow_damage = 24.0
+arrow_speed = 360.0
+arrow_range = 280.0
+draw_cost = 10.0
