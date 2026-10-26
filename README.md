@@ -27,7 +27,10 @@ enemies drop items, which slide to you when you walk near. Tab or I opens the in
 items to move, stack, wear or take them off, right click to wear or take off at once, and point
 at anything for what it is, where it comes from and what it makes. Recipes show what you have
 against what they need and why one can't be made yet; most need the labeled workbench at the
-spawn. The mouse doesn't swing while the inventory is open. The game starts fullscreen; F11 or Alt+Enter toggles a window (or start with
+spawn. The mouse doesn't swing while the inventory is open. Hunger (the brown bar) drains over
+time: while it is above zero you slowly heal, at zero you lose health and stamina comes back
+slower. Trees drop berries; F or a right click in the inventory eats. Days last 8 minutes and
+nights 4; at night the world darkens and more, tougher enemies spawn. The game starts fullscreen; F11 or Alt+Enter toggles a window (or start with
 `-- --windowed`). F3 toggles the debug overlay (fps, build, server, ping, snapshot rate,
 player count, position, world seed, chunk); release builds have it too. Command line roles (after `--`):
 `--server --port=N [--solo] [--world=DIR] [--metrics-port=N]`, `--connect=host:port [--name=NAME]`,
