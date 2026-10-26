@@ -3,6 +3,8 @@ extends Node
 ## The game server: owns the SimWorld, ticks it at TICK_RATE and sends snapshots to every
 ## client at SNAPSHOT_RATE, along with the chunks entering each player's view. Runs headless, in
 ## its own process even for solo. The world pauses and is saved while nobody is online.
+## Players reach it over ENet by address, or with a lobby URL over WebRTC by room code (player
+## host, PLAN §4.9): then the server opens the room and keeps it open while it runs.
 
 const TICK_RATE := 30
 const SNAPSHOT_RATE := 20
@@ -10,8 +12,10 @@ const SNAPSHOT_RATE := 20
 ## TICK_RATE.
 const POLL_RATE := 240
 const MAX_PLAYERS := 10
-## Solo: how long the spawning client has to join before we give up on it.
+## Solo and host: how long the spawning client has to join before we give up on it.
 const SOLO_JOIN_TIMEOUT := 30.0
+## Host: seconds before opening a new room after the lobby was lost.
+const LOBBY_RETRY := 10.0
 ## Seconds between saves while players are online.
 const SAVE_INTERVAL := 60.0
 
@@ -20,6 +24,16 @@ var net: Net
 ## player leaves or never joins. (OS.is_process_running only sees our own child processes, so
 ## the parent's pid can't be watched.)
 var solo := false
+## Host: the name of the player whose game started this server. Like solo, the server exits
+## when that player leaves or never joins; friends come and go.
+var owner_name := ""
+## Opens a room in this lobby and takes players over WebRTC instead of ENet.
+var lobby_url := ""
+## Host: where the room code goes once the room is open ("!reason" if it can't be), for the
+## spawning client to read.
+var room_file := ""
+## The lobby room code, "" without one.
+var room := ""
 ## When this file appears the server saves and exits: Godot dies on SIGTERM without running any
 ## code, so the Docker entrypoint creates it on docker stop instead.
 var stop_file := ""
@@ -31,6 +45,8 @@ var _save_due := SAVE_INTERVAL
 var _sent_chunks := {}
 var _name_pattern := RegEx.create_from_string("^[A-Za-z0-9_-]{1,32}$")
 var _solo_wait := SOLO_JOIN_TIMEOUT
+var _owner_joined := false
+var _rtc: WebRTCMultiplayerPeer
 var _started := Time.get_unix_time_from_system()
 # Metrics counters.
 var _ticks := 0
@@ -40,8 +56,8 @@ var _received_bytes := 0
 var _save_usec := 0
 
 
-## Serves the world saved in world_path (created if missing). metrics_port > 0 also serves
-## Prometheus metrics on that TCP port.
+## Serves the world saved in world_path (created if missing), on port or, with lobby_url, in a
+## lobby room. metrics_port > 0 also serves Prometheus metrics on that TCP port.
 func start(port: int, world_path: String, metrics_port := 0) -> void:
 	world = SimWorld.open(world_path)
 	if world == null:
@@ -53,13 +69,23 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 	# TICK_RATE because ENet is only polled once per frame: at 30 fps every packet waited up to
 	# 33 ms, which showed as ~35 ms ping on localhost.
 	Engine.max_fps = POLL_RATE
-	var peer := ENetMultiplayerPeer.new()
-	var err := peer.create_server(port, MAX_PLAYERS)
-	if err != OK:
-		push_error("server: cannot listen on port %d (%s)" % [port, error_string(err)])
-		get_tree().quit(1)
-		return
-	multiplayer.multiplayer_peer = peer
+	var err := OK
+	if lobby_url != "":
+		_rtc = WebRTCMultiplayerPeer.new()
+		err = _rtc.create_server()
+		if err != OK:
+			_room_failed("WebRTC is not available (%s)" % error_string(err))
+			return
+		multiplayer.multiplayer_peer = _rtc
+		_open_room()
+	else:
+		var peer := ENetMultiplayerPeer.new()
+		err = peer.create_server(port, MAX_PLAYERS)
+		if err != OK:
+			push_error("server: cannot listen on port %d (%s)" % [port, error_string(err)])
+			get_tree().quit(1)
+			return
+		multiplayer.multiplayer_peer = peer
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	net.hello_received.connect(_on_hello)
 	net.moved.connect(func(id: int, position: Vector2) -> void: world.move_player(id, position))
@@ -89,7 +115,9 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 		func(id: int, index: int) -> void:
 			_act(id, func(p: SimWorld.SimPlayer) -> void: p.eat(index))
 	)
-	print("server: listening on %d" % port)
+	net.pinged.connect(func(id: int, sent_ms: int) -> void: net.pong.rpc_id(id, sent_ms))
+	if lobby_url == "":
+		print("server: listening on %d" % port)
 	if metrics_port > 0:
 		var metrics := MetricsServer.new()
 		metrics.source = metrics_text
@@ -102,6 +130,47 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 			get_tree().quit(1)
 			return
 		print("server: metrics on %d" % metrics_port)
+
+
+## Connects to the lobby and opens a room for the WebRTC peer.
+func _open_room() -> void:
+	var lobby := LobbyClient.new()
+	add_child(lobby)
+	lobby.room_opened.connect(
+		func(code: String) -> void:
+			room = code
+			print("server: room %s" % code)
+			_write_room_file(code)
+			for id: int in world.players:
+				net.room.rpc_id(id, code)
+	)
+	lobby.failed.connect(
+		func(reason: String) -> void:
+			lobby.queue_free()
+			if room == "":
+				_room_failed(reason)
+				return
+			# Players already in stay connected; new ones need the new code.
+			push_warning("server: lost the lobby (%s), new room in %d s" % [reason, LOBBY_RETRY])
+			room = ""
+			get_tree().create_timer(LOBBY_RETRY).timeout.connect(_open_room)
+	)
+	lobby.host(lobby_url, _rtc)
+
+
+## The first room could not be opened: nobody can join, so give up.
+func _room_failed(reason: String) -> void:
+	push_error("server: cannot open a room: %s" % reason)
+	_write_room_file("!" + reason)
+	get_tree().quit(1)
+
+
+func _write_room_file(text: String) -> void:
+	if room_file == "":
+		return
+	var file := FileAccess.open(room_file, FileAccess.WRITE)
+	if file:
+		file.store_string(text)
 
 
 ## Runs action on a player's SimPlayer, if that peer has joined.
@@ -118,12 +187,13 @@ func _physics_process(delta: float) -> void:
 		set_physics_process(false)
 		get_tree().quit()  # _exit_tree saves
 		return
+	if (solo or owner_name != "") and not _owner_joined:
+		_solo_wait -= delta
+		if _solo_wait <= 0.0:
+			print("server: the player who started it never joined, exiting")
+			get_tree().quit(1)
+			return
 	if world.players.is_empty():
-		if solo:
-			_solo_wait -= delta
-			if _solo_wait <= 0.0:
-				print("server: solo player never joined, exiting")
-				get_tree().quit(1)
 		return
 	var started := Time.get_ticks_usec()
 	world.tick(delta)
@@ -203,15 +273,20 @@ func _exit_tree() -> void:
 
 ## Prometheus text format. Tick counters only count ticks that ran, not paused ones.
 func metrics_text() -> String:
-	var host := (multiplayer.multiplayer_peer as ENetMultiplayerPeer).host
-	_sent_bytes += host.pop_statistic(ENetConnection.HOST_TOTAL_SENT_DATA)
-	_received_bytes += host.pop_statistic(ENetConnection.HOST_TOTAL_RECEIVED_DATA)
+	# WebRTC has no traffic statistics in Godot; its byte counters stay at 0.
+	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	if enet:
+		_sent_bytes += enet.host.pop_statistic(ENetConnection.HOST_TOTAL_SENT_DATA)
+		_received_bytes += enet.host.pop_statistic(ENetConnection.HOST_TOTAL_RECEIVED_DATA)
 	var lines := PackedStringArray()
 	for metric: Array in [
 		[
 			"build_info",
 			"gauge",
-			'build="%s",protocol="%d"' % [GameClient.build_id(), Net.PROTOCOL_VERSION],
+			(
+				'build="%s",protocol="%d",transport="%s"'
+				% [GameClient.build_id(), Net.PROTOCOL_VERSION, "webrtc" if _rtc else "enet"]
+			),
 			1
 		],
 		["start_time_seconds", "gauge", "", _started],
@@ -243,9 +318,16 @@ func _on_hello(id: int, version: int, player_name: String) -> void:
 	if world.is_online(player_name):
 		net.reject.rpc_id(id, "%s is already online" % player_name)
 		return
+	# ENet caps its peers itself; a lobby room lets anyone with the code in.
+	if world.players.size() >= MAX_PLAYERS:
+		net.reject.rpc_id(id, "the world is full (%d players)" % MAX_PLAYERS)
+		return
 	var player := world.add_player(id, player_name)
 	_sent_chunks[id] = {}
+	_owner_joined = _owner_joined or solo or player_name == owner_name
 	net.welcome.rpc_id(id, player.position, world.world_seed)
+	if room != "":
+		net.room.rpc_id(id, room)
 	print("server: %s joined as %d (%d online)" % [player_name, id, world.players.size()])
 
 
@@ -260,11 +342,12 @@ func _on_prop_remove_requested(id: int, coord: Vector2i, prop_id: int) -> void:
 func _on_peer_disconnected(id: int) -> void:
 	if not world.players.has(id):
 		return
+	var was_owner: bool = owner_name != "" and world.players[id].name == owner_name
 	world.remove_player(id)
 	_sent_chunks.erase(id)
 	print("server: player %d left (%d online)" % [id, world.players.size()])
 	if world.players.is_empty():
 		_save()
-	if solo:
-		print("server: solo player left, exiting")
+	if solo or was_owner:
+		print("server: the player who started it left, exiting")
 		get_tree().quit()

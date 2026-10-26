@@ -11,10 +11,19 @@ extends Node2D
 ## to a player walking near and are picked up (server side). F eats; the world darkens at night
 ## by the server's clock, which the HUD shows and announces.
 ##
+## Reaches the server over ENet by address (join) or over WebRTC by lobby room code
+## (join_room). A player who can't get in, is rejected or loses the server gets `left` with the
+## reason; the game then goes back to its start menu.
+##
 ## Bot mode (run headless by the network test) walks in a circle instead of reading the
 ## keyboard and exits 0 once it has chunks and its inventory, has seen an enemy, the server
 ## echoes its own position and bot_expect other players have been seen moving; 1 on timeout
 ## or a lost server, 2 if it never connects.
+
+## In the world: the server welcomed us.
+signal joined
+## Not a bot: out of the game, for this reason.
+signal left(reason: String)
 
 const SEND_RATE := 20
 const INTERP_DELAY_MS := 100
@@ -23,7 +32,8 @@ const BUFFER_MS := 1000
 ## Solo: the spawned server needs a moment before it listens.
 const CONNECT_ATTEMPTS := 40
 const RETRY_MS := 250
-const BOT_TIMEOUT_MS := 20000
+## Generous for a bot that spawns its own host server and connects through a lobby.
+const BOT_TIMEOUT_MS := 30000
 ## How far a remote player must move before a bot counts it as moving.
 const BOT_MOVE_PX := 20.0
 ## How close the server's copy of a bot's position must be to its own.
@@ -39,6 +49,8 @@ const NIGHT_TINT := Color("3a4466")
 ## Chunks are freed this far out, one further than the server forgets them, so a chunk the
 ## server sends again is never one the client already dropped.
 const KEEP_CHUNKS := SimWorld.VIEW_CHUNKS + 2
+## Seconds between pings where the transport measures none itself (WebRTC).
+const PING_INTERVAL := 1.0
 
 var net: Net
 var bot := false
@@ -49,6 +61,12 @@ var player_name := ""
 var _address := ""
 var _port := 0
 var _attempts := 0
+## Over WebRTC: the lobby that set up the connection and the room joined.
+var _lobby: LobbyClient
+var _room := ""
+var _ping_ms := -1
+var _gone := false
+var _ping_due := 0.0
 var _me: PlayerView
 var _views := {}  # peer id -> PlayerView
 var _snapshots: Array[Dictionary] = []
@@ -94,6 +112,12 @@ func _ready() -> void:
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
 	net.welcomed.connect(_on_welcomed)
+	net.room_received.connect(
+		func(code: String) -> void:
+			_room = code
+			_hud.show_room(code)
+	)
+	net.ponged.connect(func(sent: int) -> void: _ping_ms = Time.get_ticks_msec() - sent)
 	net.rejected.connect(_on_rejected)
 	net.snapshot_received.connect(_on_snapshot)
 	net.chunk_received.connect(_on_chunk)
@@ -154,20 +178,20 @@ func _ready() -> void:
 ## The F3 overlay's connection readout.
 func debug_lines() -> PackedStringArray:
 	var lines := PackedStringArray(["Build " + build_id()])
-	var peer := multiplayer.multiplayer_peer as ENetMultiplayerPeer
-	var server := peer.get_peer(1) if peer != null else null
-	if _me == null or server == null:
-		lines.append("Net  connecting to %s:%d (try %d)" % [_address, _port, _attempts])
+	var where := "%s:%d" % [_address, _port]
+	if _lobby:
+		where = "room %s (WebRTC)" % _room
+	if _me == null:
+		lines.append("Net  connecting to %s%s" % [where, "" if _lobby else " (try %d)" % _attempts])
 		return lines
-	lines.append(
-		"Net  %s:%d  id %d  %s" % [_address, _port, multiplayer.get_unique_id(), player_name]
-	)
-	lines.append(
-		(
-			"Ping %d ms  snapshots %d/s"
-			% [server.get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME), _snapshots.size()]
-		)
-	)
+	lines.append("Net  %s  id %d  %s" % [where, multiplayer.get_unique_id(), player_name])
+	var ping := _ping_ms
+	var enet := multiplayer.multiplayer_peer as ENetMultiplayerPeer
+	if enet and enet.get_peer(1):
+		ping = enet.get_peer(1).get_statistic(ENetPacketPeer.PEER_ROUND_TRIP_TIME)
+	lines.append("Ping %d ms  snapshots %d/s" % [ping, _snapshots.size()])
+	if _lobby:
+		lines.append("ICE  host offered %s" % ", ".join(_lobby.remote_candidates))
 	var players: Dictionary = _snapshots[-1].players if not _snapshots.is_empty() else {}
 	lines.append(
 		(
@@ -201,6 +225,22 @@ static func build_id() -> String:
 	return text if text != "" else "dev"
 
 
+## Joins a lobby room by code, over WebRTC.
+func join_room(lobby_url: String, code: String) -> void:
+	_lobby = LobbyClient.new()
+	_room = code.strip_edges().to_upper()
+	add_child(_lobby)
+	_lobby.peer_created.connect(
+		func(peer: WebRTCMultiplayerPeer) -> void: multiplayer.multiplayer_peer = peer
+	)
+	_lobby.failed.connect(
+		func(reason: String) -> void:
+			push_error("client: %s" % reason)
+			_leave(reason, 2)
+	)
+	_lobby.join(lobby_url, _room)
+
+
 func join(address: String, port: int) -> void:
 	_address = address
 	_port = port
@@ -220,7 +260,7 @@ func _connect() -> void:
 func _on_connection_failed() -> void:
 	if _attempts >= CONNECT_ATTEMPTS:
 		push_error("client: no server at %s:%d" % [_address, _port])
-		get_tree().quit(2)
+		_leave("No server at %s:%d" % [_address, _port], 2)
 		return
 	multiplayer.multiplayer_peer = null
 	get_tree().create_timer(RETRY_MS / 1000.0).timeout.connect(_connect)
@@ -228,16 +268,30 @@ func _on_connection_failed() -> void:
 
 func _on_server_disconnected() -> void:
 	print("client: server closed the connection")
-	get_tree().quit(1 if bot else 0)
+	_leave("The server closed the connection", 1)
 
 
 func _on_rejected(reason: String) -> void:
 	push_error("client: server rejected us: %s" % reason)
-	get_tree().quit(1)
+	_leave("The server turned us away: %s" % reason, 1)
+
+
+## Out of the game: a bot exits with code, a player hears why.
+func _leave(reason: String, code: int) -> void:
+	if bot:
+		get_tree().quit(code)
+		return
+	if _gone:
+		return
+	_gone = true
+	if multiplayer.multiplayer_peer:
+		multiplayer.multiplayer_peer.close()
+	left.emit(reason)
 
 
 func _on_welcomed(spawn: Vector2, world_seed: int) -> void:
 	print("client: joined as %s (%d)" % [player_name, multiplayer.get_unique_id()])
+	joined.emit()
 	_world_seed = world_seed
 	_me = PlayerView.new()
 	_me.own = true
@@ -474,6 +528,10 @@ func _process(delta: float) -> void:
 		_send_due += 1.0 / SEND_RATE
 		net.move.rpc_id(1, _me.position)
 		_drop_far_chunks()
+	_ping_due -= delta
+	if _lobby and _ping_due <= 0.0:
+		_ping_due = PING_INTERVAL
+		net.ping.rpc_id(1, Time.get_ticks_msec())
 	var at := Time.get_ticks_msec() - INTERP_DELAY_MS
 	_show_enemies(Interpolation.sample(_snapshots, at, "enemies"))
 	_show_remote_players(Interpolation.sample(_snapshots, at))

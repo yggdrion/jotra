@@ -60,7 +60,15 @@ def godot():
     """Path of the Godot binary: $GODOT_BIN, or the pinned one (installed on first use)."""
     import install  # here, not at the top: install imports this module
 
+    install.webrtc()
     return os.environ.get("GODOT_BIN") or str(install.godot())
+
+
+def bun():
+    """Path of the Bun binary for the lobby: $BUN_BIN, or the pinned one (installed on first use)."""
+    import install
+
+    return os.environ.get("BUN_BIN") or str(install.bun())
 
 
 def godot_import(godot_bin, path=GAME):

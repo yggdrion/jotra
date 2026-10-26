@@ -3,7 +3,8 @@ extends CanvasLayer
 ## Health, stamina and hunger bars in the bottom-left corner with the day above them, "You
 ## died" in the middle while dead, announcements like nightfall at the top, a prompt for what
 ## the player can do right here above the bottom edge, and the inventory key in the
-## bottom-right corner. Anchored to the screen, as the visible area differs per player
+## bottom-right corner, and the room code friends join with in the top-right one when hosting.
+## Anchored to the screen, as the visible area differs per player
 ## (PLAN §6).
 
 const BAR := Vector2(80, 5)
@@ -20,6 +21,7 @@ var _prompt := Label.new()
 var _keys := Label.new()
 var _clock := Label.new()
 var _announce := Label.new()
+var _room := Label.new()
 var _health := 1.0
 var _stamina := 1.0
 var _hunger := 1.0
@@ -41,7 +43,7 @@ func _ready() -> void:
 	_died.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_died.visible = false
 	add_child(_died)
-	for label: Label in [_prompt, _keys, _clock, _announce]:
+	for label: Label in [_prompt, _keys, _clock, _announce, _room]:
 		label.add_theme_font_size_override("font_size", 8)
 		label.add_theme_constant_override("outline_size", 2)
 		label.add_theme_color_override("font_outline_color", Color.BLACK)
@@ -69,6 +71,11 @@ func _ready() -> void:
 	_announce.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_announce.offset_top = 24
 	_announce.visible = false
+	_room.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+	_room.set_anchors_and_offsets_preset(
+		Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, MARGIN
+	)
+	_room.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 
 
 ## All 0..1.
@@ -90,6 +97,11 @@ func show_prompt(text: String) -> void:
 func show_clock(text: String, night: bool) -> void:
 	_clock.text = text
 	_clock.modulate = Color("8b9bb4") if night else Color.WHITE
+
+
+## The lobby room code, "" for none.
+func show_room(code: String) -> void:
+	_room.text = "Room %s" % code if code != "" else ""
 
 
 ## A line at the top of the screen for a few seconds.

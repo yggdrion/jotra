@@ -1,9 +1,10 @@
 name: CI
 
 # Every job runs the same tools/*.py scripts as the local check (python tools/check.py):
-#   1. Lint GDScript   2. gdUnit4 tests (Linux + Windows)   3. Headless network test
-#   4. Linux + Windows exports, uploaded as artifacts on every push
-#   5. GitHub Release with both zips on `v*` tags
+#   1. Lint GDScript   2. Lobby tests + container build   3. gdUnit4 tests (Linux + Windows)
+#   4. Headless network test (ENet, and WebRTC through a local lobby)
+#   5. Linux + Windows exports, uploaded as artifacts on every push
+#   6. GitHub Release with both zips on `v*` tags
 
 on:
   push:
@@ -20,6 +21,17 @@ jobs:
       - run: pip install -r tools/requirements.txt
       - run: gdlint game/scripts game/tests
       - run: gdformat --check game/scripts game/tests
+
+  lobby:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: python tools/run_lobby_tests.py
+      - name: Build container
+        run: docker build -t jotra-lobby:${{ github.sha }} lobby
 
   test:
     name: test (${{ matrix.os }})
@@ -48,14 +60,15 @@ jobs:
           name: gdunit4-report-${{ matrix.os }}
           path: game/reports/
           if-no-files-found: ignore
-      # A headless server plus bot clients over ENet on localhost.
+      # A headless server plus bot clients over ENet on localhost, then over WebRTC through a
+      # local lobby (pinned Bun, downloaded by the script).
       - name: Run network test
         run: python tools/run_network_test.py
 
   # Every push gets a downloadable playtest build. Each platform exports on its own OS.
   export:
     name: export (${{ matrix.platform }})
-    needs: [lint, test]
+    needs: [lint, lobby, test]
     strategy:
       fail-fast: false
       matrix:

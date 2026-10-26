@@ -1,10 +1,13 @@
 """Installs the pinned tools; re-running is a no-op once installed.
 
-Usage: python tools/install.py [godot|gdunit4|templates]   (default: godot)
+Usage: python tools/install.py [godot|gdunit4|webrtc|bun|templates]   (default: godot)
 
   godot      Godot from .godot-version into .tools/godot/<version>/ (gitignored), checked
-             against tools/godot-<version>.sha512. Prints the binary path.
+             against tools/godot-<version>.sha512, plus webrtc. Prints the binary path.
   gdunit4    gdUnit4 into game/addons/gdUnit4 (gitignored).
+  webrtc     the webrtc-native GDExtension (player host) into game/addons/webrtc_native
+             (gitignored); exports ship its library next to the game.
+  bun        Bun (the lobby in lobby/) into .tools/bun/<version>/ (gitignored). Prints the path.
   templates  the Linux and Windows release export templates into the directory Godot
              reads them from; only the ones we ship are extracted from the ~1.3 GB .tpz. Prints it.
 
@@ -23,6 +26,17 @@ from pathlib import Path
 from _common import RELEASES, ROOT, VERSION, download, expected_sum, fail, log
 
 GDUNIT4_VERSION = os.environ.get("GDUNIT4_VERSION", "v6.2.2")
+WEBRTC_VERSION = "1.2.2-stable"
+WEBRTC_SHA256 = "98e9446921740d995bd9ca1be48798dc3c2ceed51e044a25ce18b3cff11f56e5"
+BUN_VERSION = "1.4.4"
+# From the release's SHASUMS256.txt.
+BUN_SHA256 = {
+    "linux-x64": "bf8ccbfb2b0b80159e0f9a6d15c55317add8077534dbc6130a3edb52fccb395c",
+    "linux-aarch64": "baa6bb36f51d6e58561e02bbea825038a9df454f673d6d776e8bbf86f8c7850e",
+    "windows-x64": "cd2c0fccc78f3ede1f50ca827a15f063eda13d4d150a3d0674f4f6e323d864a5",
+    "darwin-aarch64": "c240d7f0ccb90c263a849fcdb09b7ee62630d921348ed6aafda86b9d577bc510",
+    "darwin-x64": "50a3491f73abc2fe81673171a85762d3bc2cc1680ccecadd983de99adf77977e",
+}
 TEMPLATES = ["version.txt", "linux_release.x86_64", "windows_release_x86_64.exe"]
 
 
@@ -79,6 +93,49 @@ def gdunit4():
     log(f"gdUnit4 {GDUNIT4_VERSION} installed to {dest}")
 
 
+def webrtc():
+    dest = ROOT / "game" / "addons" / "webrtc_native"
+    marker = dest / ".version"
+    if marker.exists() and marker.read_text().strip() == WEBRTC_VERSION:
+        return
+    with tempfile.TemporaryDirectory() as tmp:
+        log(f"Downloading webrtc-native {WEBRTC_VERSION}...")
+        archive = Path(tmp) / "webrtc.zip"
+        url = (f"https://github.com/godotengine/webrtc-native/releases/download/"
+               f"{WEBRTC_VERSION}/godot-extension-webrtc_native.zip")
+        download(url, archive, "sha256", WEBRTC_SHA256)
+        with zipfile.ZipFile(archive) as z:
+            z.extractall(f"{tmp}/x")
+        shutil.rmtree(dest, ignore_errors=True)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(f"{tmp}/x/addons/webrtc_native", dest)
+    marker.write_text(WEBRTC_VERSION + "\n")
+    log(f"webrtc-native {WEBRTC_VERSION} installed to {dest}")
+
+
+def bun():
+    system, machine = platform.system(), platform.machine().lower()
+    arch = "aarch64" if machine in ("aarch64", "arm64") else "x64"
+    target = {"Windows": "windows", "Darwin": "darwin", "Linux": "linux"}.get(system, "") + f"-{arch}"
+    if target not in BUN_SHA256:
+        fail(f"Unsupported platform for bun: {system} {machine}")
+    dest = ROOT / ".tools" / "bun" / BUN_VERSION
+    path = dest / ("bun.exe" if system == "Windows" else "bun")
+    if path.exists():
+        return path
+    with tempfile.TemporaryDirectory() as tmp:
+        log(f"Downloading Bun {BUN_VERSION} ({target})...")
+        archive = Path(tmp) / "bun.zip"
+        url = f"https://github.com/oven-sh/bun/releases/download/bun-v{BUN_VERSION}/bun-{target}.zip"
+        download(url, archive, "sha256", BUN_SHA256[target])
+        dest.mkdir(parents=True, exist_ok=True)
+        with zipfile.ZipFile(archive) as z:
+            path.write_bytes(z.read(f"bun-{target}/{path.name}"))
+    path.chmod(0o755)
+    log(f"Installed Bun {BUN_VERSION} to {dest}")
+    return path
+
+
 def templates():
     system = platform.system()
     if system == "Windows":
@@ -106,10 +163,12 @@ def templates():
 
 
 if __name__ == "__main__":
-    tools = {"godot": godot, "gdunit4": gdunit4, "templates": templates}
+    tools = {"godot": godot, "gdunit4": gdunit4, "webrtc": webrtc, "bun": bun, "templates": templates}
     which = sys.argv[1] if len(sys.argv) > 1 else "godot"
     if which not in tools or len(sys.argv) > 2:
         fail(f"Usage: python tools/install.py [{'|'.join(tools)}]")
+    if which == "godot":
+        webrtc()
     result = tools[which]()
     if result:
         print(result)

@@ -16,6 +16,7 @@ signal equip_requested(peer_id: int, index: int)
 signal unequip_requested(peer_id: int, kind: int, to: int)
 signal craft_requested(peer_id: int, recipe: StringName)
 signal eat_requested(peer_id: int, index: int)
+signal pinged(peer_id: int, sent_ms: int)
 # Client side.
 signal welcomed(spawn: Vector2, world_seed: int)
 signal rejected(reason: String)
@@ -31,10 +32,12 @@ signal swing_received(player_id: int, heavy: bool, aim: Vector2, weapon: StringN
 signal inventory_received(data: Dictionary)
 signal looted_received(item: StringName, count: int)
 signal inventory_full_received
+signal room_received(code: String)
+signal ponged(sent_ms: int)
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 7
+const PROTOCOL_VERSION := 8
 
 @rpc("any_peer", "reliable")
 func hello(version: int, player_name: String) -> void:
@@ -89,6 +92,18 @@ func craft(recipe: StringName) -> void:
 @rpc("any_peer", "reliable")
 func eat(index: int) -> void:
 	eat_requested.emit(multiplayer.get_remote_sender_id(), index)
+
+
+## The client's own clock, echoed back by pong: the round trip for the debug overlay where the
+## transport has no ping of its own (WebRTC).
+@rpc("any_peer", "unreliable")
+func ping(sent_ms: int) -> void:
+	pinged.emit(multiplayer.get_remote_sender_id(), sent_ms)
+
+
+@rpc("authority", "unreliable")
+func pong(sent_ms: int) -> void:
+	ponged.emit(sent_ms)
 
 
 @rpc("authority", "reliable")
@@ -163,3 +178,9 @@ func looted(item: StringName, count: int) -> void:
 @rpc("authority", "reliable")
 func inventory_full() -> void:
 	inventory_full_received.emit()
+
+
+## Player host: the lobby room code friends join with, after welcome and whenever it changes.
+@rpc("authority", "reliable")
+func room(code: String) -> void:
+	room_received.emit(code)

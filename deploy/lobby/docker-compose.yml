@@ -1,0 +1,39 @@
+# Player host (PLAN §4.9): the lobby that hands out room codes and relays WebRTC signaling,
+# and coturn for STUN plus a TURN relay. Runs from a clone of this repo on the gvm host next to
+# the Two Wards stack, whose coturn already has 3478, so ours listens on 3479. gvm's Caddy
+# terminates TLS for jotra.r4b2.de and reaches the lobby over gvm's network. Setup: README.md.
+name: jotra-lobby
+
+services:
+  lobby:
+    build: ../../lobby
+    environment:
+      TURN_HOST: jotra.r4b2.de
+      TURN_PORT: "3479"
+      TURN_SECRET: ${TURN_SECRET:?set TURN_SECRET in .env}
+    restart: unless-stopped
+    networks:
+      default:
+      # gvm's Caddy proxies wss://jotra.r4b2.de/ws to jotra-lobby:8080.
+      gvm:
+        aliases: [jotra-lobby]
+
+  coturn:
+    image: coturn/coturn:4.18.0
+    command:
+      - -c
+      - /etc/coturn/turnserver.conf
+      - --static-auth-secret=${TURN_SECRET:?set TURN_SECRET in .env}
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+    ports:
+      - "3479:3479/udp"
+      - "3479:3479/tcp"
+      # Relay range; must match min-port/max-port in turnserver.conf.
+      - "49300-49399:49300-49399/udp"
+    restart: unless-stopped
+
+networks:
+  gvm:
+    name: gvm_default
+    external: true

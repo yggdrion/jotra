@@ -1,0 +1,9 @@
+{
+  "name": "jotra-lobby",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun src/server.ts",
+    "test": "bun test"
+  }
+}

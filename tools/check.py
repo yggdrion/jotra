@@ -1,10 +1,11 @@
 """Runs the same checks as CI locally, in CI order, and stops at the first failure:
-  1. gdlint + gdformat --check   2. gdUnit4 tests (pinned Godot)   3. headless network test
+  1. gdlint + gdformat --check   2. lobby tests (pinned Bun)   3. gdUnit4 tests (pinned Godot)
+  4. headless network test (ENet, and WebRTC through a local lobby)
 
 Usage: python tools/check.py [--quick] [--export]
   --quick   only step 1 (no Godot), a few seconds
   --export  also export the Linux and Windows builds to build/<platform>/
-Needs: python tools/setup.py once (Python packages, Godot, gdUnit4, hooks). setup.py also
+Needs: python tools/setup.py once (Python packages, Godot, webrtc-native, gdUnit4, Bun, hooks). setup.py also
 installs it as a git pre-push hook (skip once with: git push --no-verify).
 """
 
@@ -38,6 +39,9 @@ run(py, "-m", "gdtoolkit.formatter", "--check", *dirs, cwd=ROOT)
 if "--quick" in args:
     print("\nQuick checks passed (Godot tests skipped).")
     sys.exit(0)
+
+step("Lobby tests")
+tool("run_lobby_tests")
 
 step("gdUnit4 tests")
 tool("run_tests")

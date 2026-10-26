@@ -1,6 +1,7 @@
 # Godot
 game/.godot/
 game/addons/gdUnit4/
+game/addons/webrtc_native/
 *.translation
 export_presets.cfg.local
 
