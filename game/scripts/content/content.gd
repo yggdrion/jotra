@@ -1,15 +1,19 @@
 class_name Content
 ## All game data, loaded once from res://data/ on both sides: Tuning, and items, recipes,
-## enemies and dungeon rooms by id (their file name). Gameplay numbers live there, not in code
-## (PLAN §10).
+## enemies, dungeon rooms, buffs and synergies by id (their file name). Gameplay numbers live
+## there, not in code (PLAN §10).
 
 static var tuning: Tuning = load("res://data/tuning.tres")
 static var items := _load("res://data/items/")
 static var recipes := _load("res://data/recipes/")
 static var enemies := _load("res://data/enemies/")
 static var rooms := _load("res://data/rooms/")
+static var buffs := _load("res://data/buffs/")
+static var synergies := _load("res://data/synergies/")
 ## Item ids in a fixed order, so snapshots can send an item as its index.
 static var item_ids: Array[StringName] = _sorted_ids(items)
+## Buff ids the same way, for buff orbs in snapshots.
+static var buff_ids: Array[StringName] = _sorted_ids(buffs)
 
 
 static func item(id: StringName) -> ItemDef:

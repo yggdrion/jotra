@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="SynergyDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/synergy_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Carrion Feast"
+description = "Heal 5% more of the damage you deal"
+buffs = Array[StringName]([&"draugr_thirst", &"feast_of_bones"])
+stat = "lifesteal"
+amount = 0.05

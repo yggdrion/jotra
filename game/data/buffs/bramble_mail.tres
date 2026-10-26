@@ -1,0 +1,12 @@
+[gd_resource type="Resource" script_class="BuffDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/buff_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Bramble Mail"
+description = "Enemies that hit you take 6 damage"
+rarity = 1
+stat = "thorns"
+amount = 6.0
+max_stacks = 5

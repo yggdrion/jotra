@@ -24,6 +24,17 @@ static func dungeon_scaled(depth: int, minutes: float) -> Dictionary:
 	}
 
 
+## A swing's damage with a player's buffs, before crits.
+static func swing_damage(move: AttackDef, heavy: bool, buffs: Buffs) -> float:
+	var bonus := buffs.stat("damage") + (buffs.stat("heavy_damage") if heavy else 0.0)
+	return move.damage * (1.0 + bonus)
+
+
+## A swing's cooldown with a player's buffs; the client waits the same.
+static func cooldown(move: AttackDef, buffs: Buffs) -> float:
+	return move.cooldown * maxf(1.0 - buffs.stat("attack_speed"), 0.5)
+
+
 ## Whether a swing from origin toward aim, reach long and arc degrees wide, hits target.
 static func in_arc(
 	origin: Vector2, aim: Vector2, target: Vector2, reach: float, arc: float

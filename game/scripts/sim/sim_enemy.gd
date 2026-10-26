@@ -18,6 +18,10 @@ var damage: float
 var speed: float
 var state := State.IDLE
 var target := 0
+## A bleed from a player's buff: damage a second until the sim time bleed_until, by whom.
+var bleed_dps := 0.0
+var bleed_until := 0.0
+var bleed_by := 0
 ## Sim time the windup lands (WINDUP) or the next attack may start (CHASE).
 var _until := 0.0
 
@@ -65,7 +69,7 @@ func tick(world: SimWorld, delta: float) -> void:
 				return
 			var reach := def.attack_range + def.attack_slack
 			if player != null and position.distance_to(player.position) <= reach:
-				world.damage_player(target, damage)
+				world.damage_player(target, damage, self)
 			_until = world.time + def.cooldown
 			state = State.CHASE
 		State.LEASH:

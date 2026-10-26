@@ -130,3 +130,13 @@ extends Resource
 @export var depth_damage := 0.1
 @export var minute_health := 0.1
 @export var minute_damage := 0.05
+
+@export_group("Buffs")
+## Chance an enemy killed inside a run drops a buff orb.
+@export var buff_chance := 0.2
+## Relative chance of a dropped buff being of each ItemDef.Rarity, common first.
+@export var buff_rarity_weights: Array[float] = [70.0, 25.0, 5.0]
+## Seconds a bleed from one hit lasts; a new hit starts it over.
+@export var bleed_time := 3.0
+## Enemies this close to a dashing player take its dash_damage.
+@export var dash_burst_radius := 48.0

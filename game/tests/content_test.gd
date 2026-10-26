@@ -62,3 +62,20 @@ func test_rooms_fit_the_layout() -> void:
 				. is_true()
 			)
 	assert_dict(kinds).contains_keys([RoomDef.Kind.START, RoomDef.Kind.MIDDLE, RoomDef.Kind.END])
+
+
+func test_buffs_and_synergies_name_real_stats_and_buffs() -> void:
+	assert_int(Content.buffs.size()).is_greater_equal(15)
+	assert_int(Content.buff_ids.size()).is_equal(Content.buffs.size())
+	for id: StringName in Content.buffs:
+		var buff: BuffDef = Content.buffs[id]
+		assert_str(buff.display_name).override_failure_message(str(id)).is_not_empty()
+		assert_bool(buff.stat in Buffs.STATS).override_failure_message(str(id)).is_true()
+		assert_int(buff.max_stacks).is_greater(0)
+		assert_int(buff.rarity).is_less(Content.tuning.buff_rarity_weights.size())
+	for id: StringName in Content.synergies:
+		var synergy: SynergyDef = Content.synergies[id]
+		assert_bool(synergy.stat in Buffs.STATS).override_failure_message(str(id)).is_true()
+		assert_int(synergy.buffs.size()).is_equal(2)
+		for buff in synergy.buffs:
+			assert_bool(Content.buffs.has(buff)).override_failure_message(str(id)).is_true()

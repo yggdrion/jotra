@@ -11,7 +11,8 @@ extends Node2D
 ## to a player walking near and are picked up (server side). F eats; the world darkens at night
 ## by the server's clock, which the HUD shows and announces. E at the barrow near the spawn
 ## goes into a dungeon run, whose rooms and corridors the player can't walk out of; E at its
-## way out comes back.
+## way out comes back. Buffs picked up inside are listed in the HUD and speed up walking and
+## swinging here as on the server.
 ##
 ## Reaches the server over ENet by address (join) or over WebRTC by lobby room code
 ## (join_room). A player who can't get in, is rejected or loses the server gets `left` with the
@@ -98,6 +99,8 @@ var _stamina := Content.tuning.max_stamina
 var _hunger := Content.tuning.max_hunger
 ## The world's time from the newest snapshot, run on locally in between; -1 before the first.
 var _time := -1.0
+## Our dungeon buffs, from the server.
+var _buffs := Buffs.new()
 ## The equipped weapon, from the server's inventory; "" bare-handed.
 var _weapon := &""
 var _attack_ready_ms := 0
@@ -161,6 +164,7 @@ func _ready() -> void:
 	)
 	net.looted_received.connect(_on_looted)
 	net.dungeon_received.connect(_on_dungeon)
+	net.buffs_received.connect(_on_buffs)
 	net.inventory_full_received.connect(
 		func() -> void:
 			if _me:
@@ -342,6 +346,29 @@ func _on_dungeon(area: Array, exit: Vector2, at: Vector2) -> void:
 	_hud.announce("Die in here and you lose what you found", Color("e43b44"))
 
 
+## Floats the buffs just gained, announces synergies just completed and lists them all.
+func _on_buffs(data: Dictionary) -> void:
+	var had := _buffs.stacks.duplicate()
+	var had_synergies := _buffs.synergies()
+	_buffs.load_data(data)
+	var lines := []
+	for id: StringName in Content.buff_ids:
+		if not _buffs.stacks.has(id):
+			continue
+		var def: BuffDef = Content.buffs[id]
+		var color := ItemDef.RARITY_COLORS[def.rarity]
+		var count: int = _buffs.stacks[id]
+		lines.append(["%s x%d  %s" % [def.display_name, count, def.description], color])
+		if count > had.get(id, 0) and _me:
+			_float_text("+" + def.display_name, color, _me.position)
+	for id in _buffs.synergies():
+		var synergy: SynergyDef = Content.synergies[id]
+		lines.append(["* %s  %s" % [synergy.display_name, synergy.description], Color("feae34")])
+		if id not in had_synergies:
+			_hud.announce("Synergy: %s" % synergy.display_name, Color("feae34"))
+	_hud.show_buffs(lines)
+
+
 ## Whether we stand close enough to the entrance, or in a run to its way out, to use it.
 func _at_portal() -> bool:
 	var portal := _exit if not _area.is_empty() else Content.tuning.dungeon_entrance
@@ -400,7 +427,7 @@ func _attack(heavy: bool) -> void:
 	var now := Time.get_ticks_msec()
 	if now < _attack_ready_ms or _stamina < move.cost:
 		return
-	_attack_ready_ms = now + int(move.cooldown * 1000)
+	_attack_ready_ms = now + int(Combat.cooldown(move, _buffs) * 1000)
 	_stamina -= move.cost
 	var aim := _aim()
 	var hits := PackedInt32Array()
@@ -495,8 +522,8 @@ func _on_snapshot(
 	_show_drops(drops)
 
 
-## drops: {id: Vector3(x, y, item index)}. Most lie still; those sliding to a player glide
-## toward their newest position instead of being interpolated.
+## drops: {id: Vector3(x, y, item index, or -1 - buff index for an orb)}. Most lie still;
+## those sliding to a player glide toward their newest position instead of being interpolated.
 func _show_drops(drops: Dictionary) -> void:
 	for id: int in _drop_views.keys():
 		if not drops.has(id):
@@ -509,7 +536,10 @@ func _show_drops(drops: Dictionary) -> void:
 			_drop_views[id].target = at
 			continue
 		var view := DropView.new()
-		view.item = Content.item(Content.item_ids[int(drop.z)])
+		if drop.z < 0:
+			view.buff = Content.buffs[Content.buff_ids[-1 - int(drop.z)]]
+		else:
+			view.item = Content.item(Content.item_ids[int(drop.z)])
 		view.position = at
 		view.target = at
 		add_child(view)
@@ -569,7 +599,8 @@ func _process(delta: float) -> void:
 		var t := Content.tuning
 		_me.position += _dash_dir * t.dash_distance / t.dash_time * step
 	elif _health > 0:
-		_me.position += _input_direction() * Content.tuning.walk_speed * delta
+		var speed := Content.tuning.walk_speed * (1.0 + _buffs.stat("move_speed"))
+		_me.position += _input_direction() * speed * delta
 	if not _area.is_empty():
 		_me.position = Dungeon.clamp_to(_area, _me.position)
 	_send_due -= delta

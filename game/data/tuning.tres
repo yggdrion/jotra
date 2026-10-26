@@ -90,3 +90,7 @@ depth_health = 0.15
 depth_damage = 0.1
 minute_health = 0.1
 minute_damage = 0.05
+buff_chance = 0.2
+buff_rarity_weights = Array[float]([70.0, 25.0, 5.0])
+bleed_time = 3.0
+dash_burst_radius = 48.0

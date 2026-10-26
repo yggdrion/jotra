@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="SynergyDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/synergy_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Open Wounds"
+description = "Bleeds deal 6 more damage a second"
+buffs = Array[StringName]([&"rusted_edge", &"rune_of_ruin"])
+stat = "bleed"
+amount = 6.0

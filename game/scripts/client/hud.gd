@@ -3,7 +3,8 @@ extends CanvasLayer
 ## Health, stamina and hunger bars in the bottom-left corner with the day above them, "You
 ## died" in the middle while dead, announcements like nightfall at the top, a prompt for what
 ## the player can do right here above the bottom edge, and the inventory key in the
-## bottom-right corner, and the room code friends join with in the top-right one when hosting.
+## bottom-right corner, the room code friends join with in the top-right one when hosting,
+## and the dungeon buffs held in the top-left one.
 ## Anchored to the screen, as the visible area differs per player
 ## (PLAN §6).
 
@@ -22,6 +23,7 @@ var _keys := Label.new()
 var _clock := Label.new()
 var _announce := Label.new()
 var _room := Label.new()
+var _buffs := VBoxContainer.new()
 var _health := 1.0
 var _stamina := 1.0
 var _hunger := 1.0
@@ -76,6 +78,12 @@ func _ready() -> void:
 		Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, MARGIN
 	)
 	_room.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_buffs.set_anchors_and_offsets_preset(
+		Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE, MARGIN
+	)
+	_buffs.add_theme_constant_override("separation", 0)
+	_buffs.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_buffs)
 
 
 ## All 0..1.
@@ -102,6 +110,21 @@ func show_clock(text: String, night: bool) -> void:
 ## The lobby room code, "" for none.
 func show_room(code: String) -> void:
 	_room.text = "Room %s" % code if code != "" else ""
+
+
+## The buffs held, one line each: [text, color].
+func show_buffs(lines: Array) -> void:
+	for child in _buffs.get_children():
+		child.queue_free()
+	for line: Array in lines:
+		var label := Label.new()
+		label.text = line[0]
+		label.modulate = line[1]
+		label.add_theme_font_size_override("font_size", 8)
+		label.add_theme_constant_override("outline_size", 2)
+		label.add_theme_color_override("font_outline_color", Color.BLACK)
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_buffs.add_child(label)
 
 
 ## A line at the top of the screen for a few seconds.

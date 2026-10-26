@@ -1,0 +1,11 @@
+[gd_resource type="Resource" script_class="SynergyDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/synergy_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Iron Hide"
+description = "Thorns deal 8 more damage"
+buffs = Array[StringName]([&"barrow_skin", &"bramble_mail"])
+stat = "thorns"
+amount = 8.0

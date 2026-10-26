@@ -31,6 +31,7 @@ signal windup_received(enemy_id: int, seconds: float)
 signal respawned_received(position: Vector2)
 signal swing_received(player_id: int, heavy: bool, aim: Vector2, weapon: StringName)
 signal inventory_received(data: Dictionary)
+signal buffs_received(data: Dictionary)
 signal looted_received(item: StringName, count: int)
 signal inventory_full_received
 signal room_received(code: String)
@@ -39,7 +40,7 @@ signal ponged(sent_ms: int)
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 9
+const PROTOCOL_VERSION := 10
 
 @rpc("any_peer", "reliable")
 func hello(version: int, player_name: String) -> void:
@@ -125,8 +126,9 @@ func reject(reason: String) -> void:
 
 
 ## players and enemies: {id: Vector3(x, y, health 0..1)}, drops: {id: Vector3(x, y,
-## Content.item_index)}, only those near the receiving player; me: its own Vector4(health,
-## stamina, max health, hunger); time: the world's time, for the day/night clock.
+## Content.item_index, or -1 - the buff's index in Content.buff_ids for a buff orb)}, only
+## those near the receiving player; me: its own Vector4(health, stamina, max health, hunger);
+## time: the world's time, for the day/night clock.
 @rpc("authority", "unreliable_ordered")
 func snapshot(
 	players: Dictionary, enemies: Dictionary, drops: Dictionary, me: Vector4, time: float
@@ -174,6 +176,12 @@ func respawned(position: Vector2) -> void:
 @rpc("authority", "reliable")
 func inventory(data: Dictionary) -> void:
 	inventory_received.emit(data)
+
+
+## The receiving player's dungeon buffs (Buffs.to_data), whenever they change.
+@rpc("authority", "reliable")
+func buffs(data: Dictionary) -> void:
+	buffs_received.emit(data)
 
 
 ## The receiving player picked something up.

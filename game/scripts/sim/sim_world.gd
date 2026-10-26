@@ -4,7 +4,8 @@ extends RefCounted
 ## with tick(delta); GameServer drives the same path. Keeps the chunks around players loaded,
 ## runs combat and enemies, drops loot that players walk over to pick up, handles inventories,
 ## crafting, hunger and eating, spawns more and stronger enemies at night, runs dungeon
-## instances (Dungeon) and, with a store, saves what changed against the seed and the players.
+## instances (Dungeon) with their buffs (Buffs) and, with a store, saves what changed against
+## the seed and the players.
 
 
 class SimPlayer:
@@ -29,6 +30,8 @@ class SimPlayer:
 	var run: Dungeon
 	## Inventory.to_data from entering the run, restored on dying inside (PLAN §4.8).
 	var snapshot := {}
+	## Dungeon buffs, held only inside a run.
+	var buffs := Buffs.new()
 
 	func _init(player_id: int, player_name: String, spawn: Vector2, now: float) -> void:
 		id = player_id
@@ -36,9 +39,14 @@ class SimPlayer:
 		position = spawn
 		moved_at = now
 
-	## Base health plus what the worn gear adds.
+	## Base health plus what the worn gear and buffs add.
 	func max_health() -> float:
-		return Content.tuning.max_health + inventory.worn("health")
+		return Content.tuning.max_health + inventory.worn("health") + buffs.stat("max_health")
+
+	## Health or stamina back, up to the max.
+	func heal(health_back: float, stamina_back := 0.0) -> void:
+		health = minf(health + health_back, max_health())
+		stamina = minf(stamina + stamina_back, Content.tuning.max_stamina)
 
 	## Wears the item in an inventory slot.
 	func equip(index: int) -> bool:
@@ -71,10 +79,12 @@ class SimPlayer:
 		return true
 
 
-## Items lying on the ground.
+## Items lying on the ground, or a buff orb inside a run.
 class SimDrop:
 	var id: int
 	var item: StringName
+	## The buff an orb gives, "" for items.
+	var buff := &""
 	var count: int
 	var position: Vector2
 	## Sim time it vanishes.
@@ -154,6 +164,8 @@ func tick(delta: float) -> void:
 		_wake_rooms(run)
 	for enemy: SimEnemy in enemies.values():
 		enemy.tick(self, delta)
+		if time < enemy.bleed_until and enemies.has(enemy.id):
+			_hurt_enemy(enemy, enemy.bleed_dps * delta, players.get(enemy.bleed_by), false)
 		var run := _run_at(enemy.position)
 		if run:
 			enemy.position = Dungeon.clamp_to(run.area, enemy.position)
@@ -166,8 +178,9 @@ func tick(delta: float) -> void:
 
 
 ## Drops slide toward the closest living player within magnet_radius, who picks them up
-## within pickup_radius, as much as fits; a full inventory gets a notice every
-## FULL_NOTICE_INTERVAL. Drops vanish when their time is up or their chunk unloads.
+## within pickup_radius, as much as fits (a buff orb: unless at its max stacks); a full
+## inventory gets a notice every FULL_NOTICE_INTERVAL. Drops vanish when their time is up or
+## their chunk unloads.
 # ponytail: drops are not saved; a restart or an unloaded chunk loses them.
 func _tick_drops(delta: float) -> void:
 	var t := Content.tuning
@@ -182,6 +195,11 @@ func _tick_drops(delta: float) -> void:
 			continue
 		drop.position = drop.position.move_toward(player.position, t.magnet_speed * delta)
 		if drop.position.distance_to(player.position) > t.pickup_radius:
+			continue
+		if drop.buff != &"":
+			# One at max stacks leaves the orb for someone else.
+			if player.buffs.add(drop.buff):
+				drops.erase(id)
 			continue
 		var left := player.inventory.add(drop.item, drop.count)
 		if left < drop.count:
@@ -233,7 +251,7 @@ func _tick_player(player: SimPlayer, delta: float) -> void:
 		return
 	var t := Content.tuning
 	player.hunger = maxf(player.hunger - t.hunger_drain * delta, 0.0)
-	var regen := t.stamina_regen
+	var regen := t.stamina_regen * (1.0 + player.buffs.stat("stamina_regen"))
 	if player.hunger > 0:
 		player.health = minf(player.health + t.health_regen * delta, player.max_health())
 	else:
@@ -421,7 +439,8 @@ func move_player(id: int, position: Vector2) -> bool:
 	if player == null or player.dead_until > 0:
 		return false
 	var t := Content.tuning
-	var allowed := t.walk_speed * (time - player.moved_at + MOVE_SLACK)
+	var speed := t.walk_speed * (1.0 + player.buffs.stat("move_speed"))
+	var allowed := speed * (time - player.moved_at + MOVE_SLACK)
 	if time - player.dashed_at <= t.dash_time + MOVE_SLACK:
 		allowed += t.dash_distance
 	if player.position.distance_to(position) > allowed:
@@ -507,13 +526,15 @@ func _wake_rooms(run: Dungeon) -> void:
 			)
 
 
-## Out of its run, at the position already set; restore puts back the inventory from entering.
+## Out of its run, at the position already set, without its buffs; restore puts back the
+## inventory from entering.
 ## The last one out closes the run and clears its enemies and drops.
 func _leave_run(player: SimPlayer, restore: bool) -> void:
 	var run := player.run
 	if restore:
 		player.inventory.load_data(player.snapshot)
-		player.health = minf(player.health, player.max_health())
+	player.buffs.clear()
+	player.health = minf(player.health, player.max_health())
 	run.players.erase(player.id)
 	player.run = null
 	player.snapshot = {}
@@ -557,8 +578,8 @@ func remove_prop(id: int, coord: Vector2i, prop_id: int) -> bool:
 
 ## A light or heavy swing toward aim. The client reports the enemies it saw hit (PLAN §4.4); the
 ## server checks them against its own copy with some slack. The equipped weapon decides the
-## swing. Returns the enemies damaged, empty if the swing itself was refused (dead, cooling
-## down, out of stamina). Enemies killed drop their loot.
+## swing, buffs make it stronger, faster, critical, bleeding or healing. Returns the enemies
+## damaged, empty if the swing itself was refused (dead, cooling down, out of stamina).
 func attack(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> PackedInt32Array:
 	var player: SimPlayer = players.get(id)
 	var damaged := PackedInt32Array()
@@ -567,26 +588,57 @@ func attack(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> Packe
 	var move := Content.attack(player.inventory.weapon(), heavy)
 	if time < player.cooldown_until or not _spend(player, move.cost):
 		return damaged
-	player.cooldown_until = time + move.cooldown
+	var b := player.buffs
+	player.cooldown_until = time + Combat.cooldown(move, b)
 	events.append(["swing", id, heavy, aim, player.position, player.inventory.weapon()])
-	var reach := move.reach + Content.tuning.hit_slack
-	var arc := move.arc + Content.tuning.arc_slack
+	var t := Content.tuning
+	var reach := move.reach + t.hit_slack
+	var arc := move.arc + t.arc_slack
+	var damage := Combat.swing_damage(move, heavy, b)
+	var crit := b.stat("crit")
 	for enemy_id in hits:
 		var enemy: SimEnemy = enemies.get(enemy_id)
 		if enemy == null or not Combat.in_arc(player.position, aim, enemy.position, reach, arc):
 			continue
-		enemy.health -= move.damage
+		# Rolled only with a crit buff, so runs without buffs draw the same numbers.
+		var dealt := damage * (2.0 if crit > 0 and rng.randf() < crit else 1.0)
 		enemy.position += (enemy.position - player.position).normalized() * move.knock
 		enemy.provoke(id)
-		events.append(["hit", true, enemy.id, move.damage, enemy.position])
 		damaged.append(enemy.id)
-		if enemy.health <= 0:
-			enemies.erase(enemy.id)
-			_drop_loot(enemy.def.drops, enemy.position)
+		player.heal(dealt * b.stat("lifesteal"))
+		if b.stat("bleed") > 0:
+			enemy.bleed_dps = b.stat("bleed")
+			enemy.bleed_until = time + t.bleed_time
+			enemy.bleed_by = id
+		_hurt_enemy(enemy, dealt, player)
 	return damaged
 
 
-## Starts a dash: i-frames now, and the next moves may cover its distance.
+## Takes health off an enemy, with a damage number if shown. One that dies drops its loot,
+## inside a run maybe a buff orb, and feeds by's kill buffs. Returns whether it died.
+func _hurt_enemy(enemy: SimEnemy, amount: float, by: SimPlayer, shown := true) -> bool:
+	enemy.health -= amount
+	if shown:
+		events.append(["hit", true, enemy.id, amount, enemy.position])
+	if enemy.health > 0:
+		return false
+	enemies.erase(enemy.id)
+	_drop_loot(enemy.def.drops, enemy.position)
+	if _run_at(enemy.position) and rng.randf() < Content.tuning.buff_chance:
+		_add_orb(Buffs.roll(rng), enemy.position)
+	if by:
+		by.heal(by.buffs.stat("kill_heal"), by.buffs.stat("kill_stamina"))
+	return true
+
+
+func _add_orb(buff: StringName, at: Vector2) -> SimDrop:
+	var drop := add_drop(&"", 0, at)
+	drop.buff = buff
+	return drop
+
+
+## Starts a dash: i-frames now, and the next moves may cover its distance. With dash_damage,
+## enemies around the player take it.
 func dash(id: int) -> bool:
 	var player: SimPlayer = players.get(id)
 	if player == null or time - player.dashed_at < Content.tuning.dash_cooldown:
@@ -594,6 +646,12 @@ func dash(id: int) -> bool:
 	if not _spend(player, Content.tuning.dash_cost):
 		return false
 	player.dashed_at = time
+	var burst := player.buffs.stat("dash_damage")
+	if burst > 0:
+		for enemy: SimEnemy in enemies.values():
+			if enemy.position.distance_to(player.position) <= Content.tuning.dash_burst_radius:
+				enemy.provoke(id)
+				_hurt_enemy(enemy, burst, player)
 	return true
 
 
@@ -606,17 +664,21 @@ func _spend(player: SimPlayer, cost: float) -> bool:
 	return true
 
 
-## An enemy hit lands, less the player's armor, unless the player is dead or dashing. Returns
-## whether it did.
-func damage_player(id: int, amount: float) -> bool:
+## An enemy hit lands, less the player's armor, unless the player is dead or dashing. With
+## thorns, the enemy that hit (from) takes them back. Returns whether it landed.
+func damage_player(id: int, amount: float, from: SimEnemy = null) -> bool:
 	var player: SimPlayer = players.get(id)
 	if player == null or player.dead_until > 0:
 		return false
-	if time - player.dashed_at <= Content.tuning.iframes + Content.tuning.iframe_slack:
+	var t := Content.tuning
+	var b := player.buffs
+	if time - player.dashed_at <= t.iframes + b.stat("iframes") + t.iframe_slack:
 		return false
-	var taken := Combat.after_armor(amount, player.inventory.worn("armor"))
+	var taken := Combat.after_armor(amount, player.inventory.worn("armor") + b.stat("armor"))
 	player.health = maxf(player.health - taken, 0.0)
 	events.append(["hit", false, id, taken, player.position])
+	if from and b.stat("thorns") > 0 and enemies.has(from.id):
+		_hurt_enemy(from, b.stat("thorns"), player)
 	if player.health == 0:
 		_die(player)
 	return true
@@ -642,7 +704,8 @@ func sees(id: int, at: Vector2) -> bool:
 
 
 ## What one player's client is sent: {players: {id: Vector3(x, y, health 0..1)}, enemies: the
-## same, drops: {id: Vector3(x, y, Content.item_index)}, me: Vector4(health, stamina, max
+## same, drops: {id: Vector3(x, y, Content.item_index, or -1 - the index in Content.buff_ids
+## for a buff orb)}, me: Vector4(health, stamina, max
 ## health, hunger), time: the world's time for the day/night clock}, with only the players
 ## (itself included), enemies and drops near it.
 func snapshot_for(id: int) -> Dictionary:
@@ -661,9 +724,10 @@ func snapshot_for(id: int) -> Dictionary:
 	var near_drops := {}
 	for drop: SimDrop in drops.values():
 		if sees(id, drop.position):
-			near_drops[drop.id] = Vector3(
-				drop.position.x, drop.position.y, Content.item_index(drop.item)
-			)
+			var kind := Content.item_index(drop.item)
+			if drop.buff != &"":
+				kind = -1 - Content.buff_ids.find(drop.buff)
+			near_drops[drop.id] = Vector3(drop.position.x, drop.position.y, kind)
 	var me: SimPlayer = players[id]
 	return {
 		players = near,

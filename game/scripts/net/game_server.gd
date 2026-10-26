@@ -229,13 +229,17 @@ func _send_chunks(id: int) -> void:
 
 
 ## Forwards what happened in the sim, including attacks handled between ticks, to the clients
-## that see it, and changed inventories to their owners.
+## that see it, and changed inventories and buffs to their owners.
 func _send_events() -> void:
 	for id: int in world.players:
 		var inventory: Inventory = world.players[id].inventory
 		if inventory.changed:
 			inventory.changed = false
 			net.inventory.rpc_id(id, inventory.to_data())
+		var buffs: Buffs = world.players[id].buffs
+		if buffs.changed:
+			buffs.changed = false
+			net.buffs.rpc_id(id, buffs.to_data())
 	for event in world.events:
 		match event[0]:
 			"respawn":
