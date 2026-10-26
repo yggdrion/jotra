@@ -26,6 +26,10 @@ your world over WebRTC from their own networks (through a TURN relay when a dire
 fails). Friends can join and leave any time; the game ends for everyone when the host leaves.
 If a game can't be reached or ends, you are back in the menu with the reason.
 
+**Not live yet:** the built-in lobby (`wss://jotra.r4b2.de/ws`) is deployed with milestone M9a.
+Until then Host and Join only work through a lobby you run yourself, started from the command
+line with `--lobby=URL` (see [Lobby](#lobby-player-host) below); solo is unaffected.
+
 Move with WASD, E removes the nearest tree or rock. Left mouse is a light attack, right mouse a
 heavy one (both toward the mouse), Space dashes through hits; attacks and dashes cost stamina.
 Enemies (red; orange while winding up a hit) spawn around players, more and tougher when players
@@ -72,6 +76,8 @@ gameplay. Locally:
 
     .tools/bun/1.4.4/bun lobby/src/server.ts                       # PORT=8080 by default
     python tools/godot.py --path game -- --host --lobby=ws://127.0.0.1:8080/ws
+
+Friends on the same network join with `-- --join=CODE --lobby=ws://<host's ip>:8080/ws`.
 
 Its deployment with coturn (STUN + TURN) is `deploy/lobby/` (see its README).
 
