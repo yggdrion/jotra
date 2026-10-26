@@ -253,8 +253,8 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M1 | **Dedicated mode (local)** | Same server as a locally built Docker image via compose; clients connect by address; pause when empty; protocol version check; Prometheus metrics endpoint and a Grafana dashboard JSON (vServer deploy is M10) | Done | v0.3.0 |
 | M2 | **World + persistence** | Seeded chunk generation with placeholder biomes; chunk streaming with interest management; deltas, players and world meta survive a server restart | Done | v0.4.0 |
 | M3 | **Combat** | Enemies spawn and use simple AI; light/heavy/dash with stamina; damage, death, respawn; self-scaling by nearby player count | Done | v0.5.0 |
-| M4 | **Loot + inventory** | Drop tables, pickup, inventory, equipment changes stats, crafting at a station | Playtest | |
-| M5 | **Survival** | Hunger, eating, day/night with stronger nights; penalties at zero | | |
+| M4 | **Loot + inventory** | Drop tables, pickup, inventory, equipment changes stats, crafting at a station | Done | v0.6.0 |
+| M5 | **Survival** | Hunger, eating, day/night with stronger nights; penalties at zero | Next | |
 | M6 | **Player host** | Bun lobby + coturn deployed; server opens a room; host and friends join by code via WebRTC on different networks; rooms stay open while the server runs | | |
 | M7 | **Dungeon v1** | Entrance in the world; generated instance; ~15 buffs; inventory snapshot rule; end chest; time/depth scaling | | |
 | M8 | **Building v1** | Grid placement of a few pieces, persisted and replicated | | |
