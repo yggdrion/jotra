@@ -78,8 +78,8 @@ extends Resource
 @export var scale_radius := 400.0
 ## Added per extra nearby player to the health, damage and count multipliers.
 @export var scale_health := 0.15
-@export var scale_damage := 0.1
-@export var scale_count := 0.5
+@export var scale_damage := 0.0
+@export var scale_count := 0.3
 
 @export_group("Gathering")
 ## Seconds a player needs per tree felled or rock broken.

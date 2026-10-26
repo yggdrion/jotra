@@ -59,6 +59,8 @@ Levers that mattered in the first tuning (2026-10-26):
 - `gather_time`: without it E removes a prop per frame and gathering costs nothing.
 - Self-scaling: extra enemy health lets enemies live longer than a group without focus fire can kill them. Scale count rather than health.
 
-## Last full result (2026-10-26)
+## Last full result (2026-10-26, co-op scaling count 0.3, health 0.15, damage 0)
 
-Deaths per day (novice / average / expert): solo 3.83 / 0.22 / 0.06, groups of 2 5.72 / 0.56 / 0.17, groups of 4 8.29 / 1.03 / 0.19. Night damage per minute about 2× day for novices and experts, 1.4× for average bots (they back off). Foraging 6–22% of play, nobody starves for long. Bone sword median 10–14 min solo, bone armor 13–22 min. Off target: average groups of 4 die ~5× as often as solo, and novice groups get their gear fast (5–9 min) from the many kills.
+Deaths per day (novice / average / expert): solo 3.83 / 0.22 / 0.06, groups of 2 5.19 / 0.39 / 0.06, groups of 4 7.12 / 0.58 / 0.15. Groups stay a bit harder per player than solo, within ~3×. Night damage per minute about 2× day for novices and experts, 1.4× for average bots (they back off). Foraging 6–22% of play, nobody starves for long. Bone sword median 10–14 min solo, bone armor 13–22 min. Off target: novice groups get their gear fast (4–7 min) from the many kills.
+
+Co-op scaling sweep (groups of 4, 2 days, 6 seeds; average bot deaths/day): count/health/damage 0.5/0.15/0.1 → 0.96, 0.3/0.15/0 → 0.54, 0.3/0/0 → 0.58, 0.15/0.3/0 → 0.71. Damage scaling was what hurt groups most.
