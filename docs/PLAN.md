@@ -166,6 +166,7 @@ Players, enemies, dropped items, resource nodes, buildings, projectiles. Stable 
 
 - Drop tables with rarity tiers. Items on the ground, pickup, grid inventory, equipment slots, stacking.
 - Gear with random affixes (dungeon drops). Crafting from materials at stations.
+- M4 built: all game data in `game/data/` (`tuning.tres`, `items/`, `recipes/`, `enemies/`; an item's or recipe's id is its file name), loaded by `content/content.gd`. Drop tables roll each entry on its own (`sim/loot.gd`); drops lie on the ground for 5 min and are picked up by walking over them (server side, not saved yet). 24-slot inventory plus a weapon and an armor slot (`sim/inventory.gd`); the weapon sets the light/heavy attacks, armor takes a flat amount off each hit and adds max health. Crafting by hand or at the one workbench at the spawn (`sim/crafting.gd`; player-built stations come with M8). Random affixes wait for dungeons (M7).
 
 ### 5.4 Survival
 
@@ -252,7 +253,7 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M1 | **Dedicated mode (local)** | Same server as a locally built Docker image via compose; clients connect by address; pause when empty; protocol version check; Prometheus metrics endpoint and a Grafana dashboard JSON (vServer deploy is M10) | Done | v0.3.0 |
 | M2 | **World + persistence** | Seeded chunk generation with placeholder biomes; chunk streaming with interest management; deltas, players and world meta survive a server restart | Done | v0.4.0 |
 | M3 | **Combat** | Enemies spawn and use simple AI; light/heavy/dash with stamina; damage, death, respawn; self-scaling by nearby player count | Done | v0.5.0 |
-| M4 | **Loot + inventory** | Drop tables, pickup, inventory, equipment changes stats, crafting at a station | Next | |
+| M4 | **Loot + inventory** | Drop tables, pickup, inventory, equipment changes stats, crafting at a station | Playtest | |
 | M5 | **Survival** | Hunger, eating, day/night with stronger nights; penalties at zero | | |
 | M6 | **Player host** | Bun lobby + coturn deployed; server opens a room; host and friends join by code via WebRTC on different networks; rooms stay open while the server runs | | |
 | M7 | **Dungeon v1** | Entrance in the world; generated instance; ~15 buffs; inventory snapshot rule; end chest; time/depth scaling | | |
