@@ -18,10 +18,11 @@ signal prop_removed_received(coord: Vector2i, prop_id: int)
 signal hit_received(enemy: bool, id: int, amount: int)
 signal windup_received(enemy_id: int)
 signal respawned_received(position: Vector2)
+signal swing_received(player_id: int, heavy: bool, aim: Vector2)
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 3
+const PROTOCOL_VERSION := 4
 
 @rpc("any_peer", "reliable")
 func hello(version: int, player_name: String) -> void:
@@ -88,6 +89,12 @@ func hit(enemy: bool, id: int, amount: int) -> void:
 @rpc("authority", "reliable")
 func windup(enemy_id: int) -> void:
 	windup_received.emit(enemy_id)
+
+
+## Another player in view swung: draw it.
+@rpc("authority", "reliable")
+func swing(player_id: int, heavy: bool, aim: Vector2) -> void:
+	swing_received.emit(player_id, heavy, aim)
 
 
 ## The receiving player died earlier and is back, here.

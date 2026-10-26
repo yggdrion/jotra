@@ -92,6 +92,11 @@ func _ready() -> void:
 			_dash_left = 0.0
 			_health = Combat.MAX_HEALTH
 	)
+	net.swing_received.connect(
+		func(id: int, heavy: bool, aim: Vector2) -> void:
+			if _views.has(id):
+				_views[id].swing(aim, Combat.HEAVY if heavy else Combat.LIGHT)
+	)
 	add_child(_hud)
 	var overlay := DebugOverlay.new()
 	overlay.client = self

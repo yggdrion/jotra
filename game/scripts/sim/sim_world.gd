@@ -58,7 +58,8 @@ var enemies := {}  # id -> SimEnemy
 ## Off in tests that place their own enemies.
 var spawn_enemies := true
 ## What happened this tick for clients to show, drained by GameServer: ["hit", enemy: bool,
-## id, amount, position], ["windup", enemy id, position], ["respawn", player id, position].
+## id, amount, position], ["windup", enemy id, position], ["respawn", player id, position],
+## ["swing", player id, heavy, aim, position].
 var events: Array[Array] = []
 var _next_enemy_id := 1
 var _spawn_due := 0.0
@@ -281,6 +282,7 @@ func attack(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> Packe
 	if player == null or time < player.cooldown_until or not _spend(player, move.cost):
 		return damaged
 	player.cooldown_until = time + move.cooldown
+	events.append(["swing", id, heavy, aim, player.position])
 	var reach: float = move.reach + Combat.HIT_SLACK
 	var arc: float = move.arc + Combat.ARC_SLACK
 	for enemy_id in hits:

@@ -11,7 +11,12 @@ func test_attack_spends_stamina_and_cools_down() -> void:
 	var hits := PackedInt32Array([enemy.id])
 	assert_array(Array(world.attack(1, false, Vector2.RIGHT, hits))).is_equal([enemy.id])
 	assert_float(world.players[1].stamina).is_equal(Combat.MAX_STAMINA - Combat.LIGHT.cost)
+	assert_array(world.events[0]).is_equal(["swing", 1, false, Vector2.RIGHT, Vector2.ZERO])
 	assert_array(Array(world.attack(1, false, Vector2.RIGHT, hits))).is_empty()
+	(
+		assert_int(world.events.filter(func(e: Array) -> bool: return e[0] == "swing").size())
+		. is_equal(1)
+	)
 	world.tick(Combat.LIGHT.cooldown)
 	world.players[1].stamina = Combat.LIGHT.cost - 1
 	assert_array(Array(world.attack(1, false, Vector2.RIGHT, hits))).is_empty()

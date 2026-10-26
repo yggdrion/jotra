@@ -146,6 +146,11 @@ func _send_events() -> void:
 				for id: int in world.players:
 					if world.sees(id, event[2]):
 						net.windup.rpc_id(id, event[1])
+			"swing":
+				# The swinging client has drawn its own already.
+				for id: int in world.players:
+					if id != event[1] and world.sees(id, event[4]):
+						net.swing.rpc_id(id, event[1], event[2], event[3])
 	world.events.clear()
 
 
