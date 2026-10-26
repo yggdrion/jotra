@@ -1,14 +1,14 @@
 class_name DungeonView
 extends Node2D
-## A dungeon run's rooms on the client: stone floor below everything, a wall around each room
-## where no other room joins it, and the exit.
+## A dungeon run's rooms and corridors on the client: stone floor below everything, a wall
+## around each where no other joins it, and the exit.
 # ponytail: flat rects until there is tile art for the room chunks.
 
 const FLOOR := Color("3e2731")
 const WALL := Color("262b44")
 const WALL_WIDTH := 8.0
 
-var rooms: Array[Rect2] = []
+var area: Array[Rect2] = []
 var exit: Vector2
 
 
@@ -23,7 +23,7 @@ func _ready() -> void:
 
 
 func _draw() -> void:
-	for room in rooms:
-		draw_rect(room.grow(WALL_WIDTH), WALL)
-	for room in rooms:
-		draw_rect(room, FLOOR)
+	for rect in area:
+		draw_rect(rect.grow(WALL_WIDTH), WALL)
+	for rect in area:
+		draw_rect(rect, FLOOR)

@@ -44,3 +44,21 @@ func test_bare_hands_without_a_weapon() -> void:
 	assert_object(Content.attack(&"", false)).is_same(Content.tuning.fists_light)
 	assert_object(Content.attack(&"wood", true)).is_same(Content.tuning.fists_heavy)
 	assert_object(Content.attack(&"club", true)).is_same(Content.item(&"club").heavy)
+
+
+func test_rooms_fit_the_layout() -> void:
+	var kinds := {}
+	for id: StringName in Content.rooms:
+		var room: RoomDef = Content.rooms[id]
+		kinds[room.kind] = true
+		var message := str(id)
+		assert_float(room.size.y).override_failure_message(message).is_greater_equal(
+			Content.tuning.corridor_width
+		)
+		for at in room.spawns:
+			(
+				assert_bool(Rect2(Vector2.ZERO, room.size).has_point(at))
+				. override_failure_message(message)
+				. is_true()
+			)
+	assert_dict(kinds).contains_keys([RoomDef.Kind.START, RoomDef.Kind.MIDDLE, RoomDef.Kind.END])

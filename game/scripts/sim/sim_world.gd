@@ -116,8 +116,8 @@ var spawn_enemies := true
 ## What happened this tick for clients to show, drained by GameServer: ["hit", enemy: bool,
 ## id, amount, position], ["windup", enemy id, position, seconds], ["respawn", player id,
 ## position], ["swing", player id, heavy, aim, position, weapon], ["loot", player id, item,
-## count] for a pickup, ["full", player id] when loot didn't fit, ["dungeon", player id, rooms,
-## exit, position] when a player entered a run or (rooms empty) is back in the overworld.
+## count] for a pickup, ["full", player id] when loot didn't fit, ["dungeon", player id, area,
+## exit, position] when a player entered a run or (area empty) is back in the overworld.
 var events: Array[Array] = []
 ## Seeded by the balance sim for repeatable runs.
 var rng := RandomNumberGenerator.new()
@@ -150,11 +150,13 @@ func tick(delta: float) -> void:
 	_stream_chunks()
 	for player: SimPlayer in players.values():
 		_tick_player(player, delta)
+	for run: Dungeon in dungeons.values():
+		_wake_rooms(run)
 	for enemy: SimEnemy in enemies.values():
 		enemy.tick(self, delta)
 		var run := _run_at(enemy.position)
 		if run:
-			enemy.position = Dungeon.clamp_to(run.rooms, enemy.position)
+			enemy.position = Dungeon.clamp_to(run.area, enemy.position)
 	if spawn_enemies:
 		_spawn(delta)
 	for id: int in enemies.keys():
@@ -424,7 +426,7 @@ func move_player(id: int, position: Vector2) -> bool:
 		allowed += t.dash_distance
 	if player.position.distance_to(position) > allowed:
 		return false
-	if player.run and Dungeon.clamp_to(player.run.rooms, position) != position:
+	if player.run and Dungeon.clamp_to(player.run.area, position) != position:
 		return false
 	player.position = position
 	player.moved_at = time
@@ -457,9 +459,9 @@ func use_portal(id: int) -> bool:
 	player.run = run
 	player.snapshot = player.inventory.to_data()
 	player.position = run.spawn + Vector2(0, (run.players.size() - 1) * SPAWN_SPACING)
-	player.position = Dungeon.clamp_to(run.rooms, player.position)
+	player.position = Dungeon.clamp_to(run.area, player.position)
 	player.moved_at = time
-	events.append(["dungeon", id, run.rooms, run.exit, player.position])
+	events.append(["dungeon", id, run.area, run.exit, player.position])
 	return true
 
 
@@ -473,22 +475,36 @@ func _run_at(at: Vector2) -> Dungeon:
 	return null
 
 
-## A run in the lowest free slot, with its enemies waiting in it.
+## A run in the lowest free slot, with a new layout.
 func _open_run() -> Dungeon:
 	var slot := 0
 	while dungeons.has(slot):
 		slot += 1
-	var run := Dungeon.new(slot, time)
+	var run := Dungeon.new(slot, time, rng)
 	dungeons[slot] = run
-	var t := Content.tuning
-	var room := run.rooms[0]
-	for i in t.dungeon_enemies:
-		var at := Vector2(
-			rng.randf_range(room.position.x + room.size.x / 2, room.end.x),
-			rng.randf_range(room.position.y, room.end.y)
-		)
-		add_enemy(at, t.enemy.health, t.enemy.damage)
 	return run
+
+
+## Spawns the enemies of each room a living player has walked into for the first time, scaled
+## by the players near it, its depth and the minutes the run has been open.
+func _wake_rooms(run: Dungeon) -> void:
+	var deepest := run.reached
+	for id: int in run.players:
+		if players[id].dead_until == 0:
+			deepest = maxi(deepest, run.room_of(players[id].position))
+	var kind := Content.tuning.dungeon_enemy
+	while run.reached < deepest:
+		run.reached += 1
+		var room := run.rooms[run.reached]
+		var scale := Combat.scaled(players_near(room.get_center()))
+		var deeper := Combat.dungeon_scaled(run.reached, run.minutes(time))
+		for at in run.defs[run.reached].spawns:
+			add_enemy(
+				room.position + at,
+				kind.health * scale.health * deeper.health,
+				kind.damage * scale.damage * deeper.damage,
+				kind
+			)
 
 
 ## Out of its run, at the position already set; restore puts back the inventory from entering.

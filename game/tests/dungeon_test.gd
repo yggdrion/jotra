@@ -25,7 +25,7 @@ func test_entering_needs_the_entrance_and_leaving_the_exit() -> void:
 	assert_object(player.run).is_not_null()
 	assert_vector(player.position).is_equal(player.run.spawn)
 	assert_array(world.events.back()).is_equal(
-		["dungeon", 1, player.run.rooms, player.run.exit, player.position]
+		["dungeon", 1, player.run.area, player.run.exit, player.position]
 	)
 	assert_bool(world.use_portal(1)).is_false()  # the exit is across the room
 	player.position = player.run.exit
@@ -34,16 +34,63 @@ func test_entering_needs_the_entrance_and_leaving_the_exit() -> void:
 	assert_vector(player.position).is_equal(Content.tuning.dungeon_entrance)
 
 
-func test_a_run_shows_no_world_chunks_and_spawns_its_own_enemies() -> void:
+func test_a_run_shows_no_world_chunks() -> void:
 	var world := _world()
 	world.use_portal(1)
 	assert_array(world.interest(1)).is_empty()
-	assert_int(world.enemies.size()).is_equal(Content.tuning.dungeon_enemies)
-	var run: Dungeon = world.players[1].run
-	for enemy: SimEnemy in world.enemies.values():
-		assert_bool(run.owns(enemy.position)).is_true()
 	world.tick(TICK)
 	assert_int(world.chunks.size()).is_equal(0)
+
+
+func test_the_layout_chains_start_middle_and_end_rooms() -> void:
+	var t := Content.tuning
+	for i in 20:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = i
+		var run := Dungeon.new(i % 3, 0.0, rng)
+		var middle := run.rooms.size() - 2
+		assert_int(middle).is_between(t.dungeon_rooms_min, t.dungeon_rooms_max)
+		assert_int(run.defs[0].kind).is_equal(RoomDef.Kind.START)
+		assert_int(run.defs[-1].kind).is_equal(RoomDef.Kind.END)
+		assert_int(run.room_of(run.spawn)).is_equal(0)
+		assert_int(run.room_of(run.exit)).is_equal(run.rooms.size() - 1)
+		assert_int(run.area.size()).is_equal(run.rooms.size() * 2 - 1)
+		for rect in run.area:
+			assert_bool(run.owns(rect.position) and run.owns(rect.end)).is_true()
+		# Each corridor joins the room before it to the one after: walk its middle line.
+		for room in range(1, run.rooms.size()):
+			var corridor := run.area[room - 1]
+			var y := corridor.get_center().y
+			assert_int(run.room_of(Vector2(corridor.position.x, y))).is_equal(room - 1)
+			assert_int(run.room_of(Vector2(corridor.end.x, y))).is_equal(room)
+			for step in 9:
+				var at := Vector2(lerpf(corridor.position.x, corridor.end.x, step / 8.0), y)
+				assert_vector(Dungeon.clamp_to(run.area, at)).is_equal(at)
+
+
+func test_rooms_wake_when_walked_into_and_grow_stronger_deeper_and_later() -> void:
+	var world := _world()
+	world.use_portal(1)
+	var run: Dungeon = world.players[1].run
+	assert_dict(world.enemies).is_empty()  # nothing waits in the start room
+	world.tick(120.0)
+	world.players[1].position = run.rooms[2].get_center()
+	world.tick(TICK)
+	assert_int(run.reached).is_equal(2)
+	var kind := Content.tuning.dungeon_enemy
+	var spawns := run.defs[1].spawns.size() + run.defs[2].spawns.size()
+	assert_int(world.enemies.size()).is_equal(spawns)
+	var deeper := Combat.dungeon_scaled(2, run.minutes(world.time))
+	var strongest := 0.0
+	for enemy: SimEnemy in world.enemies.values():
+		assert_int(run.room_of(enemy.home)).is_between(1, 2)
+		strongest = maxf(strongest, enemy.max_health)
+	assert_float(strongest).is_equal_approx(kind.health * deeper.health, 0.01)
+	assert_float(strongest).is_greater(kind.health)
+	# Walking back wakes nothing more.
+	world.players[1].position = run.spawn
+	world.tick(TICK)
+	assert_int(run.reached).is_equal(2)
 
 
 func test_others_join_an_open_run_until_the_window_closes() -> void:
@@ -71,7 +118,7 @@ func test_moves_through_the_walls_are_dropped() -> void:
 	assert_bool(world.move_player(1, start + Vector2(-40, 0))).is_false()
 	assert_bool(world.move_player(1, start + Vector2(20, 0))).is_true()
 	var room := player.run.rooms[0]
-	assert_vector(Dungeon.clamp_to(player.run.rooms, room.position - Vector2(5, 5))).is_equal(
+	assert_vector(Dungeon.clamp_to(player.run.area, room.position - Vector2(5, 5))).is_equal(
 		room.position
 	)
 
@@ -109,6 +156,8 @@ func test_the_last_one_out_closes_the_run() -> void:
 	var run: Dungeon = world.players[1].run
 	var drop := world.add_drop(&"bone", 1, run.exit + Vector2(0, 30))
 	world.players[1].position = run.exit
+	world.tick(TICK)  # the end room wakes
+	assert_dict(world.enemies).is_not_empty()
 	world.use_portal(1)
 	assert_dict(world.dungeons).is_empty()
 	assert_dict(world.enemies).is_empty()

@@ -1,0 +1,9 @@
+[gd_resource type="Resource" script_class="RoomDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/room_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+kind = 2
+size = Vector2(380, 300)
+spawns = Array[Vector2]([Vector2(200, 100), Vector2(200, 200), Vector2(280, 150)])

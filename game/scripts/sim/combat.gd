@@ -14,6 +14,16 @@ static func scaled(nearby_players: int) -> Dictionary:
 	}
 
 
+## Multipliers on enemy health and damage in a dungeon room depth rooms from the start, minutes
+## after its run opened; on top of scaled.
+static func dungeon_scaled(depth: int, minutes: float) -> Dictionary:
+	var t := Content.tuning
+	return {
+		health = 1.0 + t.depth_health * depth + t.minute_health * minutes,
+		damage = 1.0 + t.depth_damage * depth + t.minute_damage * minutes,
+	}
+
+
 ## Whether a swing from origin toward aim, reach long and arc degrees wide, hits target.
 static func in_arc(
 	origin: Vector2, aim: Vector2, target: Vector2, reach: float, arc: float

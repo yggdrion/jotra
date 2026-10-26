@@ -34,7 +34,7 @@ signal inventory_received(data: Dictionary)
 signal looted_received(item: StringName, count: int)
 signal inventory_full_received
 signal room_received(code: String)
-signal dungeon_received(rooms: Array, exit: Vector2, at: Vector2)
+signal dungeon_received(area: Array, exit: Vector2, at: Vector2)
 signal ponged(sent_ms: int)
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
@@ -194,8 +194,8 @@ func room(code: String) -> void:
 	room_received.emit(code)
 
 
-## The receiving player is now at at: inside a dungeon run of these rooms (Array of Rect2) with
-## its exit, or back in the overworld when rooms is empty.
+## The receiving player is now at at: inside a dungeon run whose rooms and corridors are area
+## (Array of Rect2), with its exit, or back in the overworld when area is empty.
 @rpc("authority", "reliable")
-func dungeon(rooms: Array, exit: Vector2, at: Vector2) -> void:
-	dungeon_received.emit(rooms, exit, at)
+func dungeon(area: Array, exit: Vector2, at: Vector2) -> void:
+	dungeon_received.emit(area, exit, at)

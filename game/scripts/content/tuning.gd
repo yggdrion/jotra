@@ -115,5 +115,18 @@ extends Resource
 @export var portal_reach := 40.0
 ## Seconds after a run opens during which others entering join it instead of opening their own.
 @export var dungeon_join_window := 30.0
-## Enemies waiting in a new run's room, scaled like any encounter.
-@export var dungeon_enemies := 3
+## What waits at a room's spawns (RoomDef.spawns).
+@export var dungeon_enemy: EnemyDef
+## Middle rooms between a run's start and end room, picked from res://data/rooms/.
+@export var dungeon_rooms_min := 4
+@export var dungeon_rooms_max := 6
+## The corridors joining one room to the next.
+@export var corridor_length := 64.0
+@export var corridor_width := 48.0
+## Added to the health and damage multipliers of a room's enemies per room from the start
+## (depth) and per minute since the run opened (the Risk of Rain timer, PLAN §5.6), on top of
+## the self-scaling by players nearby.
+@export var depth_health := 0.15
+@export var depth_damage := 0.1
+@export var minute_health := 0.1
+@export var minute_damage := 0.05
