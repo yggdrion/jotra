@@ -1,15 +1,22 @@
 class_name PlayerView
 extends Node2D
-## Placeholder capsule for a player, standing on its position (feet at the origin), with a
-## health bar once hurt, a white flash on hits and the own player's swing arc.
+## A player standing on its position (feet at the origin): a walk sheet facing the way it last
+## moved or swung, a health bar once hurt, a white flash on hits and the own player's swing arc.
 
-const OWN_COLOR := Color("63c74d")
-const OTHER_COLOR := Color("0099db")
-const RADIUS := 6.0
-const HEIGHT := 20.0
+## Sheet columns per facing.
+enum Facing { DOWN, UP, LEFT, RIGHT }
+
+const OWN_SHEET := preload("res://assets/ninja_adventure/characters/hunter_walk.png")
+const OTHER_SHEET := preload("res://assets/ninja_adventure/characters/caveman_walk.png")
+const FRAME := 16
+const FRAME_MS := 150
+## Keeps walking this long after the last move, so frames without one don't flicker to idle.
+const WALK_GRACE_MS := 100
 const FLASH_MS := 100
+const FLASH := Color(4, 4, 4)
 const SWING_MS := 120
 const BAR_WIDTH := 16.0
+const RADIUS := 6.0
 
 var own := false
 ## 0..1, from the snapshots.
@@ -23,6 +30,9 @@ var _flash_until := 0
 var _swing_until := 0
 var _swing_aim := Vector2.RIGHT
 var _swing: AttackDef
+var _facing := Facing.DOWN
+var _walk_until := 0
+var _last_position := Vector2.INF
 
 
 func flash() -> void:
@@ -35,28 +45,43 @@ func swing(aim: Vector2, move: AttackDef) -> void:
 	_swing_aim = aim
 	_swing = move
 	_swing_until = Time.get_ticks_msec() + SWING_MS
+	_face(aim)
 	queue_redraw()
 
 
-func body_color() -> Color:
-	return OWN_COLOR if own else OTHER_COLOR
+func sheet() -> Texture2D:
+	return OWN_SHEET if own else OTHER_SHEET
+
+
+func tint() -> Color:
+	return FLASH if Time.get_ticks_msec() < _flash_until else Color.WHITE
+
+
+func _face(direction: Vector2) -> void:
+	if absf(direction.x) > absf(direction.y):
+		_facing = Facing.RIGHT if direction.x > 0 else Facing.LEFT
+	else:
+		_facing = Facing.DOWN if direction.y > 0 else Facing.UP
 
 
 func _process(_delta: float) -> void:
-	# Redraw once more when a flash or swing runs out.
 	var now := Time.get_ticks_msec()
-	if now < _flash_until + 50 or now < _swing_until + 50:
-		queue_redraw()
+	var moved := position - _last_position if _last_position.is_finite() else Vector2.ZERO
+	_last_position = position
+	if moved.length() > 0.01:
+		_walk_until = now + WALK_GRACE_MS
+		if now >= _swing_until:
+			_face(moved)
+	queue_redraw()
 
 
 func _draw() -> void:
 	var now := Time.get_ticks_msec()
-	var color := Color.WHITE if now < _flash_until else body_color()
-	draw_circle(Vector2(0, -RADIUS), RADIUS, color)
-	draw_rect(Rect2(-RADIUS, -HEIGHT + RADIUS, RADIUS * 2, HEIGHT - RADIUS * 2), color)
-	draw_circle(Vector2(0, -HEIGHT + RADIUS), RADIUS, color)
+	var row := (now / FRAME_MS) % 4 if now < _walk_until else 0
+	var region := Rect2(_facing * FRAME, row * FRAME, FRAME, FRAME)
+	draw_texture_rect_region(sheet(), Rect2(-FRAME / 2.0, -FRAME, FRAME, FRAME), region, tint())
 	if health < 1.0:
-		var bar := Rect2(-BAR_WIDTH / 2, -HEIGHT - 5, BAR_WIDTH, 2)
+		var bar := Rect2(-BAR_WIDTH / 2, -FRAME - 5, BAR_WIDTH, 2)
 		draw_rect(bar, Color.BLACK)
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x * health, bar.size.y)), Color("e43b44"))
 	if now < _swing_until:

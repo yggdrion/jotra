@@ -1,22 +1,27 @@
 class_name DungeonView
 extends Node2D
-## A dungeon run's rooms and corridors on the client: stone floor below everything, a wall
-## around each where no other joins it, the exit and the end chest.
-# ponytail: flat rects until there is tile art for the room chunks.
+## A dungeon run's rooms and corridors on the client: brick floor below everything, a darker
+## wall around each where no other joins it, the exit and the end chest.
+# ponytail: one repeated tile for floor and wall until the room chunks get autotiled edges.
 
-const FLOOR := Color("3e2731")
-const WALL := Color("262b44")
+const BRICK := preload("res://assets/ninja_adventure/tilesets/TilesetInteriorFloor.png")
+const BRICK_REGION := Rect2(192, 208, 16, 16)
+const WALL := Color(0.45, 0.45, 0.55)
 const WALL_WIDTH := 8.0
-
 var area: Array[Rect2] = []
 var exit: Vector2
 var chest: Vector2
 var _chest_view := ChestView.new()
+## BRICK_REGION cut out, as draw_texture_rect only repeats a whole texture.
+var _brick: Texture2D = ImageTexture.create_from_image(
+	BRICK.get_image().get_region(Rect2i(BRICK_REGION))
+)
 
 
 func _ready() -> void:
 	# Floor below everything; the exit's +1 brings it back level with the players.
 	z_index = -1
+	texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	var portal := PortalView.new()
 	portal.label = "Way out"
 	portal.position = exit
@@ -35,6 +40,6 @@ func open_chest() -> void:
 
 func _draw() -> void:
 	for rect in area:
-		draw_rect(rect.grow(WALL_WIDTH), WALL)
+		draw_texture_rect(_brick, rect.grow(WALL_WIDTH), true, WALL)
 	for rect in area:
-		draw_rect(rect, FLOOR)
+		draw_texture_rect(_brick, rect, true)

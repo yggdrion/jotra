@@ -2,17 +2,31 @@ class_name ChunkView
 extends Node2D
 ## One chunk on the client, generated from the seed: biome tiles drawn below everything, props
 ## and built pieces as children y-sorted with the players.
-# ponytail: tiles as flat rects until there is tile art for a TileMapLayer.
+# ponytail: tiles drawn one by one in _draw until the art needs a TileMapLayer (autotiled edges).
+
+const GROUND := preload("res://assets/ninja_adventure/tilesets/TilesetFloor.png")
+## Per biome, the top-left of a row of five ground tiles: plain, then four with tufts.
+const GROUND_ROWS: Array[Vector2] = [
+	Vector2(0, 192), Vector2(176, 192), Vector2(176, 304), Vector2(0, 304)
+]
+## One tile in this many gets tufts.
+const TUFT_EVERY := 5
 
 
-## Placeholder tree or rock, standing on its tile's center.
+## Tree or rock, standing on its tile's center; brighter while E acts on it.
 class PropView:
 	extends Node2D
 
-	const OUTLINE := Color(1, 1, 1, 0.8)
+	const NATURE := preload("res://assets/ninja_adventure/tilesets/TilesetNature.png")
+	## Tree per biome (meadow, forest, marsh, bone hills), 32×32.
+	const TREES: Array[Rect2] = [
+		Rect2(0, 0, 32, 32), Rect2(32, 0, 32, 32), Rect2(64, 0, 32, 32), Rect2(64, 0, 32, 32)
+	]
+	const ROCK := Rect2(288, 144, 16, 16)
+	const HIGHLIGHT := Color(1.6, 1.6, 1.6)
 
 	var kind: WorldGen.Prop
-	## Outlined: the prop E acts on.
+	var biome: WorldGen.Biome
 	var highlighted := false:
 		set(value):
 			if value != highlighted:
@@ -20,16 +34,11 @@ class PropView:
 				queue_redraw()
 
 	func _draw() -> void:
+		var tint := HIGHLIGHT if highlighted else Color.WHITE
 		if kind == WorldGen.Prop.TREE:
-			if highlighted:
-				draw_rect(Rect2(-3, -11, 6, 12), OUTLINE)
-				draw_circle(Vector2(0, -16), 9, OUTLINE)
-			draw_rect(Rect2(-2, -10, 4, 10), Color("733e39"))
-			draw_circle(Vector2(0, -16), 8, Color("193c3e"))
+			draw_texture_rect_region(NATURE, Rect2(-16, -29, 32, 32), TREES[biome], tint)
 		else:
-			if highlighted:
-				draw_circle(Vector2(0, -4), 7, OUTLINE)
-			draw_circle(Vector2(0, -4), 6, Color("5a6988"))
+			draw_texture_rect_region(NATURE, Rect2(-8, -13, 16, 16), ROCK, tint)
 
 
 var coord: Vector2i
@@ -51,6 +60,7 @@ func _init(world_seed: int, chunk_coord: Vector2i, removed: PackedInt32Array) ->
 			continue
 		var prop := PropView.new()
 		prop.kind = data.props[id]
+		prop.biome = _tiles[id] as WorldGen.Biome
 		prop.position = WorldGen.prop_offset(id)
 		prop.z_index = 1
 		add_child(prop)
@@ -114,4 +124,8 @@ func _draw() -> void:
 	for y in WorldGen.CHUNK:
 		for x in WorldGen.CHUNK:
 			var biome := _tiles[y * WorldGen.CHUNK + x]
-			draw_rect(Rect2(Vector2(x, y) * size, size), WorldGen.BIOME_COLORS[biome])
+			# Stable per world tile, so chunk edges don't show.
+			var tuft := hash(coord * WorldGen.CHUNK + Vector2i(x, y)) % (4 * TUFT_EVERY)
+			var column := tuft + 1 if tuft < 4 else 0
+			var region := Rect2(GROUND_ROWS[biome] + Vector2(column * WorldGen.TILE, 0), size)
+			draw_texture_rect_region(GROUND, Rect2(Vector2(x, y) * size, size), region)

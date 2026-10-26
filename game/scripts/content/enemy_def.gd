@@ -3,6 +3,8 @@ extends Resource
 ## An enemy kind, one file per kind in res://data/enemies/; its id is the file name. Health and
 ## damage are before self-scaling (Combat.scaled). Distances in px, times in seconds.
 
+## Walk sheet, 16×16 frames: a column per facing (down, up, left, right), a row per frame.
+@export var sheet: Texture2D
 @export var health := 40.0
 @export var damage := 15.0
 @export var speed := 70.0

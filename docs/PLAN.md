@@ -206,6 +206,7 @@ One formula in one place:
   - Spawns, enemy aggro and "off-screen" logic use world distances, never "is it on my screen".
 - **Placeholders first:** colored shapes/capsules for players and enemies, spheres for loot, flat colored tiles per biome.
 - **Free interim assets** (check each license): Kenney (CC0), Quaternius (CC0), KayKit (CC0), OpenGameArt, itch.io free packs.
+- **In use (M9b):** [Ninja Adventure](https://pixel-boy.itch.io/ninja-adventure-asset-pack) by Pixel-boy and AAA (CC0), only the PNGs we draw copied into `game/assets/ninja_adventure/` with its license. Items and pieces name their sprite in their `.tres` (`icon`, an `AtlasTexture` for tileset regions), the draugr its walk sheet (`sheet`); the ground, trees, rocks, barrow and dungeon regions are constants in their client views. The pack has no armor, so armor keeps its color square. Bright and not Norse: a stopgap until the AI art.
 - AI-generated final art; pipeline decided later (open question 6). Consistent style guide and palette before mass generation.
 
 ---
@@ -264,6 +265,7 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M8 | **Building v1** | Grid placement of a few pieces, persisted and replicated | Done | v0.11.0 |
 | M9 | **10-player test** | 10 headless bot clients for 30 min on the dedicated server: tick time and bandwidth within budget, no errors | Next | |
 | M9a | **Lobby deploy** | Lobby + coturn (`deploy/lobby/`) run on the gvm host at `jotra.r4b2.de`, replacing the retired Two Wards stack; "Host a game" works with the built-in lobby URL; host and friends join by code from different networks, one of them through the TURN relay. Needs SSH access to r4b2.de from the dev machine | | |
+| M9b | **Interim art** | Ground, trees, rocks, players and draugr (4-direction walk), items, pieces, barrow and dungeon drawn with the CC0 Ninja Adventure pack instead of shapes (see 6); content test checks every item and piece has a sprite | In progress | |
 | M10 | **vServer deploy** | CI builds the server image and pushes it to GHCR; it runs on the vServer, friends connect over the internet; vector scrapes its metrics and the dashboard is in the infra Grafana (TLS/metrics stack lives in the separate `infra` repo) | | |
 
 Dedicated (M1) comes before player host (M6) because it is almost free once solo works. It runs locally first; putting it on the vServer waits until the end (M10).

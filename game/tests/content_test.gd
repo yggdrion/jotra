@@ -18,6 +18,9 @@ func test_items_are_complete() -> void:
 		if item.slot == ItemDef.Slot.WEAPON:
 			assert_object(item.light).override_failure_message(str(id)).is_not_null()
 			assert_object(item.heavy).override_failure_message(str(id)).is_not_null()
+		# ponytail: the interim pack has no armor sprites, so armor keeps its color square.
+		if item.slot != ItemDef.Slot.ARMOR:
+			assert_object(item.icon).override_failure_message(str(id)).is_not_null()
 
 
 func test_recipes_and_drop_tables_name_real_items() -> void:
@@ -52,6 +55,9 @@ func test_pieces_are_complete() -> void:
 		var piece := Content.piece(id)
 		assert_str(piece.display_name).override_failure_message(str(id)).is_not_empty()
 		assert_float(piece.health).override_failure_message(str(id)).is_greater(0)
+		assert_object(piece.icon).override_failure_message(str(id)).is_not_null()
+		if piece.door:
+			assert_object(piece.open_icon).override_failure_message(str(id)).is_not_null()
 		assert_bool(piece.cost.is_empty()).override_failure_message(str(id)).is_false()
 		for item: StringName in piece.cost:
 			assert_object(Content.item(item)).override_failure_message(str(id)).is_not_null()

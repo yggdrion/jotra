@@ -14,7 +14,9 @@ const RARITY_COLORS: Array[Color] = [
 @export var display_name := ""
 @export var rarity := Rarity.COMMON
 @export var max_stack := 1
-## The placeholder sprite's color (a square on the ground and in slots).
+## Its sprite on the ground and in slots, at most 16×16.
+@export var icon: Texture2D
+## The placeholder square's color where there is no icon.
 @export var color := Color.WHITE
 @export var slot := Slot.NONE
 ## Hunger restored by eating one; 0: not food.

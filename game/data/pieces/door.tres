@@ -1,11 +1,21 @@
 [gd_resource type="Resource" script_class="PieceDef" format=3]
 
 [ext_resource type="Script" path="res://scripts/content/piece_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/tilesets/TilesetHouse.png" id="sheet"]
+
+[sub_resource type="AtlasTexture" id="icon"]
+atlas = ExtResource("sheet")
+region = Rect2(128, 48, 16, 16)
+
+[sub_resource type="AtlasTexture" id="open_icon"]
+atlas = ExtResource("sheet")
+region = Rect2(144, 48, 16, 16)
 
 [resource]
 script = ExtResource("1")
+icon = SubResource("icon")
+open_icon = SubResource("open_icon")
 display_name = "Door"
-color = Color(0.45, 0.3, 0.18, 1)
 cost = {&"wood": 6}
 health = 200.0
 blocks = true

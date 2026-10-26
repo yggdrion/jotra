@@ -5,8 +5,10 @@ extends Resource
 ## removing it gives the cost back.
 
 @export var display_name := ""
-## The placeholder shape's color.
-@export var color := Color.WHITE
+## Its sprite, standing on the tile's bottom edge; the build ghost draws it tinted.
+@export var icon: Texture2D
+## A door's sprite while open.
+@export var open_icon: Texture2D
 ## {item id: count} used up.
 @export var cost: Dictionary
 ## Enemies break it down to 0.

@@ -1,7 +1,7 @@
 class_name DropView
 extends Node2D
-## Placeholder for an item on the ground: a small square in the item's color, outlined in its
-## rarity's, bobbing a little over a shadow; a buff orb is a pulsing ball in its rarity's color.
+## An item on the ground: its icon (or a square in its color, outlined in its rarity's) bobbing a
+## little over a shadow; a buff orb is a pulsing ball in its rarity's color.
 ## Glides toward target as the server moves it.
 
 const SIZE := 8.0
@@ -28,6 +28,10 @@ func _draw() -> void:
 		var pulse := 0.5 + 0.5 * sin(Time.get_ticks_msec() / 150.0)
 		draw_circle(Vector2(0, -SIZE + bob), SIZE * 0.8, Color(color, 0.25 + 0.25 * pulse))
 		draw_circle(Vector2(0, -SIZE + bob), SIZE / 2, color)
+		return
+	if item.icon:
+		var size := item.icon.get_size()
+		draw_texture(item.icon, Vector2(-size.x / 2, -size.y - 3 + bob).round())
 		return
 	var rect := Rect2(-SIZE / 2, -SIZE - 3 + bob, SIZE, SIZE)
 	draw_rect(rect, item.color)

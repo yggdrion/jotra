@@ -32,7 +32,7 @@ const STATUS_TEXT := {
 }
 
 
-## One slot: the item as a square in its color, outlined in its rarity's, with the count.
+## One slot: the item's icon (or a square in its color), outlined in its rarity's, with the count.
 ## index is its backpack slot, or -1 for an equipment slot of kind worn.
 class SlotView:
 	extends Control
@@ -94,7 +94,12 @@ class SlotView:
 			)
 			return
 		var icon := Rect2(Vector2(4, 4), size - Vector2(8, 8))
-		draw_rect(icon, def.color)
+		if def.icon:
+			# Up to 16px in a 20px slot: the rarity outline goes just inside the slot's.
+			icon = Rect2(Vector2.ONE, size - Vector2(2, 2))
+			draw_texture(def.icon, ((size - def.icon.get_size()) / 2).floor())
+		else:
+			draw_rect(icon, def.color)
 		draw_rect(icon, ItemDef.RARITY_COLORS[def.rarity], false, 1)
 		if count > 1:
 			var at := Vector2(0, size.y - 1)

@@ -1,9 +1,11 @@
 [gd_resource type="Resource" script_class="ItemDef" format=3]
 
 [ext_resource type="Script" path="res://scripts/content/item_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/items/trail_ration.png" id="icon"]
 
 [resource]
 script = ExtResource("1")
+icon = ExtResource("icon")
 display_name = "Trail ration"
 rarity = 1
 max_stack = 20

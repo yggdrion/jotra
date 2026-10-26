@@ -2,6 +2,7 @@
 
 [ext_resource type="Script" path="res://scripts/content/item_def.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/content/attack_def.gd" id="2"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/items/bone_sword.png" id="icon"]
 
 [sub_resource type="Resource" id="light"]
 script = ExtResource("2")
@@ -23,6 +24,7 @@ knock = 28.0
 
 [resource]
 script = ExtResource("1")
+icon = ExtResource("icon")
 display_name = "Bone sword"
 rarity = 2
 color = Color(0.95, 0.93, 0.85, 1)

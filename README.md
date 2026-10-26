@@ -105,3 +105,7 @@ Its deployment with coturn (STUN + TURN) is `deploy/lobby/` (see its README).
     python tools/balance_sim.py --dungeon --quick     # bots take dungeon runs: clears, deaths, depth, buffs
 
 CI runs the same scripts on every push and uploads Linux and Windows builds as artifacts.
+
+## Credits
+
+Interim art: [Ninja Adventure Asset Pack](https://pixel-boy.itch.io/ninja-adventure-asset-pack) by Pixel-boy and AAA, CC0 (`game/assets/ninja_adventure/LICENSE.txt`).
