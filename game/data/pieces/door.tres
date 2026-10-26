@@ -20,3 +20,4 @@ cost = {&"wood": 6}
 health = 200.0
 blocks = true
 door = true
+category = "Defence"

@@ -7,3 +7,4 @@ script = ExtResource("1")
 result = &"trail_ration"
 inputs = {&"berries": 4, &"bone": 1}
 station = &""
+category = "Food"

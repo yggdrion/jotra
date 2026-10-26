@@ -6,8 +6,15 @@ class_name Building
 ## Why a piece can or can't be built on a tile; the client colors its ghost by it.
 enum Status { OK, REPAIR, FAR, PROP, TAKEN, IN_THE_WAY, MISSING_ITEMS }
 
+## Indexes into PieceDef.parts.
+enum JoinPart { POST, CAP, MID }
+
 ## Half the side of the square players and enemies take up when walking into pieces.
 const BODY := 6.0
+## N, E, S, W, the bits of join_mask.
+const JOIN_DIRS: Array[Vector2i] = [
+	Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)
+]
 
 
 class Piece:
@@ -105,6 +112,32 @@ static func can_build(
 	if not inventory.has_all(def.cost):
 		return Status.MISSING_ITEMS
 	return Status.OK
+
+
+## Which of the four neighbours of a tile hold the same piece id: N 1, E 2, S 4, W 8.
+static func join_mask(pieces: Dictionary, tile: Vector2i, id: StringName) -> int:
+	var mask := 0
+	for i in JOIN_DIRS.size():
+		var there: Piece = pieces.get(tile + JOIN_DIRS[i])
+		if there and there.id == id:
+			mask |= 1 << i
+	return mask
+
+
+## What a joining piece with that join_mask draws, in order: [part index into PieceDef.parts
+## (POST, CAP, MID), flipped] each. A run along E-W gets a cap at each end and middles between,
+## a run along N-S or a lone piece a post, a corner or junction both.
+static func join_parts(mask: int) -> Array:
+	var east := mask & 2 != 0
+	var west := mask & 8 != 0
+	var out := []
+	if east and west:
+		out.append([JoinPart.MID, false])
+	elif east or west:
+		out.append([JoinPart.CAP, west])
+	if mask & 5 != 0 or not (east or west):
+		out.append([JoinPart.POST, false])
+	return out
 
 
 ## {piece id: true} of the station pieces within station_reach of a position.

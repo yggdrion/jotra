@@ -7,3 +7,4 @@ script = ExtResource("1")
 result = &"club"
 inputs = {&"wood": 4}
 station = &""
+category = "Weapons"

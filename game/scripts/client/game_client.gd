@@ -107,6 +107,7 @@ var _pieces := {}
 var _build := BuildMode.new()
 var _hud := Hud.new()
 var _inventory_ui := InventoryUi.new()
+var _craft_menu := CraftMenu.new()
 var _map := MapView.new()
 ## The server's copy of our inventory, for finding food to eat.
 var _inventory := Inventory.new(Content.tuning.inventory_size)
@@ -209,6 +210,9 @@ func _ready() -> void:
 	_inventory_ui.craft_requested.connect(
 		func(recipe: StringName) -> void: net.craft.rpc_id(1, recipe)
 	)
+	_craft_menu.craft_requested.connect(
+		func(recipe: StringName) -> void: net.craft.rpc_id(1, recipe)
+	)
 	_inventory_ui.eat_requested.connect(func(index: int) -> void: net.eat.rpc_id(1, index))
 	_inventory_ui.chest_move_requested.connect(
 		func(from_chest: bool, index: int) -> void: net.chest_move.rpc_id(1, from_chest, index)
@@ -218,6 +222,7 @@ func _ready() -> void:
 	add_child(_hud)
 	add_child(_map)
 	add_child(_inventory_ui)
+	add_child(_craft_menu)
 	var overlay := DebugOverlay.new()
 	overlay.client = self
 	add_child(overlay)
@@ -445,6 +450,20 @@ func _on_piece(coord: Vector2i, index: int, data: Array) -> void:
 	else:
 		_pieces.erase(tile)
 	_chunks[coord].set_piece(index, piece)
+	_refresh_joins(tile)
+
+
+## Redraws the piece on a tile and its four neighbours by what stands next to each (walls join).
+func _refresh_joins(tile: Vector2i) -> void:
+	var tiles: Array[Vector2i] = [tile]
+	for dir in Building.JOIN_DIRS:
+		tiles.append(tile + dir)
+	for at in tiles:
+		var there: Building.Piece = _pieces.get(at)
+		var view: ChunkView = _chunks.get(Building.chunk_of_tile(at))
+		if there and view:
+			var mask := Building.join_mask(_pieces, at, there.id)
+			view.set_join_mask(Building.index_in_chunk(at), mask)
 
 
 func _forget_pieces(coord: Vector2i) -> void:
@@ -466,7 +485,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if _me == null or _health <= 0:
 		return
 	var mouse := event as InputEventMouseButton
-	if mouse and _inventory_ui.visible:
+	if mouse and (_inventory_ui.visible or _craft_menu.visible):
 		return
 	if mouse and mouse.pressed and _build.visible:
 		_build_click(mouse.button_index)
@@ -484,6 +503,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_inventory_ui.toggle()
 	elif key.keycode == KEY_ESCAPE and _inventory_ui.visible:
 		_inventory_ui.toggle()
+	elif key.keycode in [KEY_ESCAPE, KEY_E] and _craft_menu.visible:
+		_craft_menu.toggle()
 	elif key.keycode == KEY_B and _area.is_empty():
 		_build.visible = not _build.visible
 	elif key.keycode == KEY_ESCAPE and _build.visible:
@@ -492,8 +513,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		_map.toggle_big()
 	elif key.keycode == KEY_ESCAPE and _map.is_big():
 		_map.toggle_big()
-	elif _build.visible and digit >= 0 and digit < Content.piece_ids.size():
-		_build.select(digit)
+	elif _build.visible and digit >= 0 and digit < BuildMenu.HOTBAR:
+		_build.select_slot(digit)
 	elif key.keycode == KEY_E:
 		if _use_tile != null:
 			net.use_piece.rpc_id(1, _use_tile)
@@ -501,6 +522,8 @@ func _unhandled_input(event: InputEvent) -> void:
 			net.remove_prop.rpc_id(1, _target[0], _target[1])
 		elif _interaction().begins_with("[E]"):
 			net.interact.rpc_id(1)
+		elif not _inventory_ui.stations.is_empty():
+			_craft_menu.toggle()
 	elif key.keycode == KEY_SPACE:
 		_dash()
 	elif key.keycode == KEY_F:
@@ -631,7 +654,7 @@ func _update_target() -> void:
 		prompt = _interaction()
 	elif not _inventory_ui.stations.is_empty():
 		var station: StringName = _inventory_ui.stations.keys()[0]
-		prompt = "[Tab] Craft at the %s" % Content.piece(station).display_name.to_lower()
+		prompt = "[E] Craft at the %s" % Content.piece(station).display_name.to_lower()
 	_hud.show_prompt(prompt)
 
 
@@ -768,6 +791,10 @@ func _process(delta: float) -> void:
 	)
 	_map.refresh()
 	_inventory_ui.stations = Building.stations_near(_pieces, _me.position)
+	_craft_menu.stations = _inventory_ui.stations
+	_craft_menu.inventory = _inventory
+	if _craft_menu.visible and _craft_menu.stations.is_empty():
+		_craft_menu.toggle()
 	if _build.visible:
 		var bodies: Array[Vector2] = [_me.position]
 		for view: Node2D in _views.values() + _enemy_views.values():
@@ -808,6 +835,8 @@ func _input_direction() -> Vector2:
 		return Vector2.from_angle(_bot_bearing + Time.get_ticks_msec() / 1000.0 / BOT_ROAM_TURN)
 	if bot:
 		return Vector2.from_angle(Time.get_ticks_msec() / 500.0)
+	if _craft_menu.typing():
+		return Vector2.ZERO
 	var dir := Vector2(
 		int(Input.is_physical_key_pressed(KEY_D)) - int(Input.is_physical_key_pressed(KEY_A)),
 		int(Input.is_physical_key_pressed(KEY_S)) - int(Input.is_physical_key_pressed(KEY_W))

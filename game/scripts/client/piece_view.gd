@@ -22,6 +22,12 @@ var ghost := Color.TRANSPARENT:
 	set(value):
 		ghost = value
 		queue_redraw()
+## Which neighbours hold the same piece, for pieces drawn in parts (Building.join_mask).
+var mask := 0:
+	set(value):
+		if value != mask:
+			mask = value
+			queue_redraw()
 var _light: PointLight2D
 
 
@@ -54,10 +60,18 @@ func _draw() -> void:
 		return
 	var def := piece.def()
 	var tint := ghost if ghost.a > 0 else (HIGHLIGHT if highlighted else Color.WHITE)
-	var icon := def.open_icon if def.door and piece.open else def.icon
-	var size := icon.get_size()
-	# Standing on the tile's bottom edge, so tall pieces rise above their tile.
-	draw_texture(icon, Vector2(-size.x / 2, HALF - size.y), tint)
+	if not def.parts.is_empty():
+		for part: Array in Building.join_parts(mask):
+			# The parts are 16x16 and the left cap is flipped for a run's right end.
+			draw_set_transform(Vector2.ZERO, 0, Vector2(-1 if part[1] else 1, 1))
+			draw_texture(def.parts[part[0]], Vector2(-HALF, -HALF), tint)
+		draw_set_transform(Vector2.ZERO)
+	else:
+		var icon := def.open_icon if def.door and piece.open else def.icon
+		# Standing on the tile's bottom edge, tall pieces rise above their tile; wide ones
+		# (the workbench, the fire) are scaled down to the tile's width.
+		var size := icon.get_size() * minf(1.0, WorldGen.TILE / icon.get_width())
+		draw_texture_rect(icon, Rect2(Vector2(-size.x / 2, HALF - size.y), size), false, tint)
 	if ghost.a == 0 and piece.health < def.health:
 		var share := piece.health / def.health
 		draw_rect(Rect2(-HALF, HALF + 1, WorldGen.TILE, 2), Color(0, 0, 0, 0.6))

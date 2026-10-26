@@ -5,12 +5,22 @@
 
 [sub_resource type="AtlasTexture" id="icon"]
 atlas = ExtResource("sheet")
-region = Rect2(160, 128, 16, 32)
+region = Rect2(176, 144, 16, 16)
+
+[sub_resource type="AtlasTexture" id="post"]
+atlas = ExtResource("sheet")
+region = Rect2(176, 128, 16, 16)
+
+[sub_resource type="AtlasTexture" id="cap"]
+atlas = ExtResource("sheet")
+region = Rect2(160, 144, 16, 16)
 
 [resource]
 script = ExtResource("1")
 icon = SubResource("icon")
+parts = Array[Texture2D]([SubResource("post"), SubResource("cap"), SubResource("icon")])
 display_name = "Wall"
 cost = {&"wood": 4}
 health = 250.0
 blocks = true
+category = "Defence"

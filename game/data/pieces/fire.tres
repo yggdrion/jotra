@@ -14,3 +14,4 @@ display_name = "Fire"
 cost = {&"wood": 4, &"stone": 4}
 health = 100.0
 light = 96.0
+category = "Stations"

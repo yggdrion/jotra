@@ -7,6 +7,12 @@ extends Resource
 @export var display_name := ""
 ## Its sprite, standing on the tile's bottom edge; the build ghost draws it tinted.
 @export var icon: Texture2D
+## The build menu's heading it is listed under.
+@export var category := ""
+## Joining pieces (walls) draw these by what stands next to them, see Building.join_parts: a
+## post, a cap (the left end of a run, flipped for the right) and a middle, all 16x16. Empty:
+## just icon.
+@export var parts: Array[Texture2D]
 ## A door's sprite while open.
 @export var open_icon: Texture2D
 ## {item id: count} used up.

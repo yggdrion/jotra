@@ -7,3 +7,4 @@ script = ExtResource("1")
 result = &"stone_axe"
 inputs = {&"wood": 4, &"stone": 8}
 station = &"workbench"
+category = "Weapons"

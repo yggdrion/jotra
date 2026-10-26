@@ -15,3 +15,4 @@ cost = {&"wood": 8, &"stone": 2}
 health = 150.0
 blocks = true
 storage = 12
+category = "Furnishing"

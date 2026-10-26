@@ -198,3 +198,31 @@ func _clear(world: SimWorld, tile: Vector2i) -> Vector2i:
 	var chunk: SimWorld.SimChunk = world.chunks[Building.chunk_of_tile(tile)]
 	chunk.removed[Building.index_in_chunk(tile)] = true
 	return tile
+
+
+func test_walls_pick_parts_by_neighbours() -> void:
+	var pieces := {}
+	for x in 3:
+		pieces[Vector2i(x, 0)] = Building.Piece.new(&"wall")
+	pieces[Vector2i(1, 1)] = Building.Piece.new(&"wall")
+	pieces[Vector2i(5, 5)] = Building.Piece.new(&"floor")
+	assert_int(Building.join_mask(pieces, Vector2i(0, 0), &"wall")).is_equal(2)
+	assert_int(Building.join_mask(pieces, Vector2i(1, 0), &"wall")).is_equal(2 | 4 | 8)
+	assert_int(Building.join_mask(pieces, Vector2i(5, 5), &"wall")).is_equal(0)
+	var cap := Building.JoinPart.CAP
+	var mid := Building.JoinPart.MID
+	var post := Building.JoinPart.POST
+	assert_array(Building.join_parts(2)).is_equal([[cap, false]])
+	assert_array(Building.join_parts(8)).is_equal([[cap, true]])
+	assert_array(Building.join_parts(2 | 8)).is_equal([[mid, false]])
+	assert_array(Building.join_parts(0)).is_equal([[post, false]])
+	assert_array(Building.join_parts(1 | 4)).is_equal([[post, false]])
+	assert_array(Building.join_parts(2 | 4)).is_equal([[cap, false], [post, false]])
+
+
+func test_pieces_have_a_category_and_whole_tile_parts() -> void:
+	for id in Content.piece_ids:
+		var def := Content.piece(id)
+		assert_str(def.category).override_failure_message(str(id)).is_not_empty()
+		for part in def.parts:
+			assert_int(part.get_width()).is_equal(WorldGen.TILE)

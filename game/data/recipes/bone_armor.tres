@@ -7,3 +7,4 @@ script = ExtResource("1")
 result = &"bone_armor"
 inputs = {&"bone": 20, &"grave_cloth": 6}
 station = &"workbench"
+category = "Armor"

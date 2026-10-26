@@ -85,6 +85,11 @@ func set_piece(index: int, piece: Building.Piece) -> void:
 	view.piece = piece
 
 
+func set_join_mask(index: int, mask: int) -> void:
+	if _pieces.has(index):
+		_pieces[index].mask = mask
+
+
 func highlight_piece(index: int, on: bool) -> void:
 	if _pieces.has(index):
 		_pieces[index].highlighted = on

@@ -9,3 +9,5 @@ extends Resource
 @export var inputs: Dictionary
 ## Empty: by hand anywhere. Otherwise the station piece (PieceDef.station) the player must stand at.
 @export var station: StringName
+## The craft menu's heading it is listed under.
+@export var category := ""

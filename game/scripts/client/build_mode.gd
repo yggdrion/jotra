@@ -2,7 +2,8 @@ class_name BuildMode
 extends Node2D
 ## Build mode (B): a ghost of the chosen piece on the tile under the mouse, green where it can be
 ## built (or repaired) and red where not, and the HUD line for it. GameClient turns the clicks
-## into requests; 1-6 or the mouse wheel choose the piece.
+## into requests; the BuildMenu (shown with it), 1-6 for its hotbar or the mouse wheel choose
+## the piece.
 
 const GOOD := Color(0.4, 0.9, 0.4, 0.6)
 const BAD := Color(0.9, 0.25, 0.25, 0.6)
@@ -21,6 +22,7 @@ var selected := 0
 var tile := Vector2i.ZERO
 var status := Building.Status.OK
 var _ghost := PieceView.new()
+var _menu := BuildMenu.new()
 
 
 func _ready() -> void:
@@ -28,6 +30,21 @@ func _ready() -> void:
 	z_index = 5
 	_ghost.ghost = GOOD
 	add_child(_ghost)
+	add_child(_menu)
+	_menu.picked.connect(func(id: StringName) -> void: select(Content.piece_ids.find(id)))
+	_menu.choose(piece_id())
+
+
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_VISIBILITY_CHANGED:
+		_menu.visible = visible
+
+
+## Chooses the piece on a hotbar slot (0-5), if there is one.
+func select_slot(slot: int) -> void:
+	var id := _menu.hotbar_piece(slot)
+	if id != &"":
+		select(Content.piece_ids.find(id))
 
 
 func piece_id() -> StringName:
@@ -37,6 +54,7 @@ func piece_id() -> StringName:
 ## By index into Content.piece_ids, wrapping around.
 func select(index: int) -> void:
 	selected = posmod(index, Content.piece_ids.size())
+	_menu.choose(piece_id())
 
 
 ## Puts the ghost on the tile under mouse and checks the chosen piece there; chunks are the
@@ -49,6 +67,7 @@ func update(
 	at: Vector2,
 	bodies: Array[Vector2]
 ) -> void:
+	_menu.refresh(inventory)
 	tile = Building.tile_of(mouse)
 	var chunk: ChunkView = chunks.get(Building.chunk_of_tile(tile))
 	var prop := chunk == null or chunk.has_prop(Building.index_in_chunk(tile))
@@ -57,6 +76,7 @@ func update(
 	_ghost.ghost = GOOD if status in [Building.Status.OK, Building.Status.REPAIR] else BAD
 	if _ghost.piece == null or _ghost.piece.id != piece_id():
 		_ghost.piece = Building.Piece.new(piece_id())
+	_ghost.mask = Building.join_mask(pieces, tile, piece_id())
 
 
 ## The chosen piece, its cost against what the inventory holds, why it can't go here, and the
@@ -69,11 +89,11 @@ func prompt(inventory: Inventory) -> String:
 		costs.append("%d %s (%d)" % [def.cost[item], name, inventory.count_of(item)])
 	var reason: String = REASONS[status]
 	return (
-		"%s: %s%s   [LMB] build  [RMB] remove  [1-%d] piece  [B] done"
+		"%s: %s%s   [LMB] build  [RMB] remove  [1-%d] hotbar  [B] done"
 		% [
 			def.display_name,
 			", ".join(costs),
 			"  - " + reason if reason != "" else "",
-			Content.piece_ids.size(),
+			BuildMenu.HOTBAR,
 		]
 	)

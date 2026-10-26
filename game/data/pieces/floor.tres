@@ -14,3 +14,4 @@ display_name = "Floor"
 cost = {&"wood": 2}
 health = 100.0
 flat = true
+category = "Furnishing"
