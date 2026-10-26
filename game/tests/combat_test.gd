@@ -80,6 +80,16 @@ func test_dead_player_cannot_move_and_respawns() -> void:
 	assert_array(world.events[-1]).is_equal(["respawn", 1, Content.tuning.respawn_at])
 
 
+func test_respawn_far_away_loads_the_chunks_around_the_respawn() -> void:
+	var world := _world()
+	world.players[1].position = Vector2(5000, 5000)
+	world.tick(TICK)
+	world.damage_player(1, Content.tuning.max_health)
+	world.tick(Content.tuning.respawn_delay)
+	for coord in world.interest(1):
+		assert_bool(world.chunks.has(coord)).is_true()
+
+
 func test_enemy_led_too_far_walks_home_and_heals() -> void:
 	var world := _world()
 	world.players[1].position = Vector2(30, 0)

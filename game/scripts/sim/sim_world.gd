@@ -168,9 +168,10 @@ func tick(delta: float) -> void:
 	if players.is_empty():
 		return
 	time += delta
-	_stream_chunks()
 	for player: SimPlayer in players.values():
 		_tick_player(player, delta)
+	# After the players: a respawn moves one, and its new view must be loaded before it is sent.
+	_stream_chunks()
 	for run: Dungeon in dungeons.values():
 		_wake_rooms(run)
 	for enemy: SimEnemy in enemies.values():
