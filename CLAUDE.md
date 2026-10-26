@@ -8,11 +8,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Keep this section current: update it in the same push that finishes a milestone or changes what's next, so a new session can pick up from here.
 
-- **Done:** M0 skeleton + solo (`v0.1.0`), M0a F3 debug overlay and M0b fullscreen + any resolution (`v0.2.0`), M1 dedicated mode, local (`v0.3.0`), M2 world + persistence (`v0.4.0`). Status per milestone: `docs/PLAN.md` §8.
+- **Done:** M0 skeleton + solo (`v0.1.0`), M0a F3 debug overlay and M0b fullscreen + any resolution (`v0.2.0`), M1 dedicated mode, local (`v0.3.0`), M2 world + persistence (`v0.4.0`), M3 combat (`v0.5.0`). Status per milestone: `docs/PLAN.md` §8.
 - **Screen rules** (`docs/PLAN.md` §6): the visible world area differs per player (aspect `expand`), so UI uses anchors and gameplay never depends on what is on someone's screen.
 - **Dedicated server:** a local Docker image via `deploy/docker-compose.yml` (built from the Linux export, no registry); `--metrics-port` serves Prometheus metrics, dashboard in `deploy/grafana/jotra.json`. The world pauses while nobody is online. vServer, GHCR and the `infra` wiring are the last milestone, M10.
 - **World:** `world/world_gen.gd` generates chunks from the seed on both sides; `SimWorld` loads the chunks around players and streams each one's delta (removed props, E in game); `world/world_store.gd` saves meta, chunk deltas and players (by name) as JSON in `--world=DIR`.
-- **Combat (M3, built, waiting for its playtest):** numbers and the scaling formula in `sim/combat.gd`, enemy AI in `sim/sim_enemy.gd`, attacks/dash/death in `SimWorld`. Clients report what their swing hit and the server checks it with slack; enemy hits are server-side, dodged by dash i-frames. After the playtest: mark M3 Done in `docs/PLAN.md` §8, tag `v0.5.0`, then M4 loot + inventory (which also moves the combat constants into `.tres` data).
+- **Combat:** numbers and the scaling formula in `sim/combat.gd`, enemy AI in `sim/sim_enemy.gd`, attacks/dash/death in `SimWorld`. Clients report what their swing hit and the server checks it with slack; enemy hits are server-side, dodged by dash i-frames. Other players' swings are relayed for display.
+- **Next: M4 loot + inventory** (`docs/PLAN.md` §5.3): drop tables, pickup, inventory, equipment changing stats, crafting at a station. Moves the combat constants into `.tres` data along with weapons and items.
 - **Known gotchas:** `OS.is_process_running` only sees processes the same Godot instance spawned, so a solo server can't watch its parent; it exits when its player disconnects instead. Run the game through `python tools/godot.py` (it imports first), or new `class_name` scripts fail to resolve.
 
 ## Git workflow (early phase)
