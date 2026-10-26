@@ -257,8 +257,8 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M4 | **Loot + inventory** | Drop tables, pickup, inventory, equipment changes stats, crafting at a station | Done | v0.6.0 |
 | M4a | **Loot + inventory UX** | A new player finds out unaided how to gather, loot, equip and craft: on-screen prompts near trees, rocks and the labeled workbench; drops pulled in when walked near, an "inventory full" notice; drag-and-drop inventory with an item info panel, equipped stats and a controls line; recipes show have/need per input and why one can't be crafted | Done | v0.7.0 |
 | M5 | **Survival** | Hunger, eating, day/night with stronger nights; penalties at zero | Done | v0.8.0 |
-| M6 | **Player host** | Bun lobby + coturn as a deployable stack; server opens a room; host and friends join by code via WebRTC through a lobby (local or LAN for now); rooms stay open while the server runs | Playtest | |
-| M7 | **Dungeon v1** | Entrance in the world; generated instance; ~15 buffs; inventory snapshot rule; end chest; time/depth scaling | | |
+| M6 | **Player host** | Bun lobby + coturn as a deployable stack; server opens a room; host and friends join by code via WebRTC through a lobby (local or LAN for now); rooms stay open while the server runs | Done | v0.9.0 |
+| M7 | **Dungeon v1** | Entrance in the world; generated instance; ~15 buffs; inventory snapshot rule; end chest; time/depth scaling | Next | |
 | M8 | **Building v1** | Grid placement of a few pieces, persisted and replicated | | |
 | M9 | **10-player test** | 10 headless bot clients for 30 min on the dedicated server: tick time and bandwidth within budget, no errors | | |
 | M9a | **Lobby deploy** | Lobby + coturn (`deploy/lobby/`) run on the gvm host at `jotra.r4b2.de`, replacing the retired Two Wards stack; "Host a game" works with the built-in lobby URL; host and friends join by code from different networks, one of them through the TURN relay. Needs SSH access to r4b2.de from the dev machine | | |
