@@ -4,7 +4,7 @@ extends CanvasLayer
 ## died" in the middle while dead, announcements like nightfall at the top, a prompt for what
 ## the player can do right here above the bottom edge, and the inventory key in the
 ## bottom-right corner, the room code friends join with in the top-right one when hosting,
-## and the dungeon buffs held in the top-left one.
+## and the dungeon buffs held in the top-left one. The minimap sits above the key hint.
 ## Anchored to the screen, as the visible area differs per player
 ## (PLAN §6).
 
@@ -56,7 +56,7 @@ func _ready() -> void:
 	_prompt.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_prompt.offset_top = -40
 	_prompt.offset_bottom = -28
-	_keys.text = "[Tab] Inventory and crafting"
+	_keys.text = "[Tab] Inventory and crafting  [M] Map"
 	_keys.modulate = Color(1, 1, 1, 0.6)
 	_keys.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	_keys.set_anchors_and_offsets_preset(

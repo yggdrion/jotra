@@ -14,7 +14,8 @@ extends Node2D
 ## way out comes back. Buffs picked up inside are listed in the HUD and speed up walking and
 ## swinging here as on the server. B toggles build mode (BuildMode) in the overworld: clicks
 ## build and remove pieces, which block walking here as on the server; E opens doors and chests,
-## and crafting needs a station piece nearby.
+## and crafting needs a station piece nearby. A minimap shows the chunks we have been near,
+## M opens a big map of them (MapView).
 ##
 ## Reaches the server over ENet by address (join) or over WebRTC by lobby room code
 ## (join_room). A player who can't get in, is rejected or loses the server gets `left` with the
@@ -96,6 +97,7 @@ var _pieces := {}
 var _build := BuildMode.new()
 var _hud := Hud.new()
 var _inventory_ui := InventoryUi.new()
+var _map := MapView.new()
 ## The server's copy of our inventory, for finding food to eat.
 var _inventory := Inventory.new(Content.tuning.inventory_size)
 var _tint := CanvasModulate.new()
@@ -204,6 +206,7 @@ func _ready() -> void:
 	add_child(_tint)
 	add_child(_build)
 	add_child(_hud)
+	add_child(_map)
 	add_child(_inventory_ui)
 	var overlay := DebugOverlay.new()
 	overlay.client = self
@@ -328,6 +331,7 @@ func _on_welcomed(spawn: Vector2, world_seed: int) -> void:
 	print("client: joined as %s (%d)" % [player_name, multiplayer.get_unique_id()])
 	joined.emit()
 	_world_seed = world_seed
+	_map.load_world(world_seed)
 	_me = PlayerView.new()
 	_me.own = true
 	_me.position = spawn
@@ -349,6 +353,7 @@ func _on_dungeon(area: Array, exit: Vector2, chest: Vector2, at: Vector2) -> voi
 	_chest_opened = false
 	_me.position = at
 	_dash_left = 0.0
+	_map.visible = _area.is_empty()
 	if _dungeon_view:
 		_dungeon_view.queue_free()
 		_dungeon_view = null
@@ -413,6 +418,7 @@ func _on_chunk(coord: Vector2i, removed: PackedInt32Array, pieces: Array) -> voi
 		_chunks[coord].queue_free()
 		_forget_pieces(coord)
 	_chunks[coord] = ChunkView.new(_world_seed, coord, removed)
+	_map.explore(coord)
 	add_child(_chunks[coord])
 	for entry: Array in pieces:
 		_on_piece(coord, entry[0], entry.slice(1))
@@ -472,6 +478,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_build.visible = not _build.visible
 	elif key.keycode == KEY_ESCAPE and _build.visible:
 		_build.visible = false
+	elif key.keycode == KEY_M and _area.is_empty():
+		_map.toggle_big()
+	elif key.keycode == KEY_ESCAPE and _map.is_big():
+		_map.toggle_big()
 	elif _build.visible and digit >= 0 and digit < Content.piece_ids.size():
 		_build.select(digit)
 	elif key.keycode == KEY_E:
@@ -730,6 +740,11 @@ func _process(delta: float) -> void:
 	var at := Time.get_ticks_msec() - INTERP_DELAY_MS
 	_show_enemies(Interpolation.sample(_snapshots, at, "enemies"))
 	_show_remote_players(Interpolation.sample(_snapshots, at))
+	_map.me = _me.position
+	_map.players.assign(
+		_views.values().map(func(view: PlayerView) -> Vector2: return view.position)
+	)
+	_map.refresh()
 	_inventory_ui.stations = Building.stations_near(_pieces, _me.position)
 	if _build.visible:
 		var bodies: Array[Vector2] = [_me.position]
