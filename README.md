@@ -21,10 +21,13 @@ Installs gdtoolkit and pre-commit, the pinned Godot (`.godot-version`, checked a
 Move with WASD, E removes the nearest tree or rock. Left mouse is a light attack, right mouse a
 heavy one (both toward the mouse), Space dashes through hits; attacks and dashes cost stamina.
 Enemies (red; orange while winding up a hit) spawn around players, more and tougher when players
-stand together. On death you respawn at the world spawn after 3 s. Felled trees, broken rocks
-and slain enemies drop items; walk over them to pick them up. Tab or I opens the inventory:
-left click picks a slot up and puts it down elsewhere, right click wears or takes off a weapon
-or armor, and the recipe list crafts (most recipes need the workbench next to the spawn). The game starts fullscreen; F11 or Alt+Enter toggles a window (or start with
+stand together. On death you respawn at the world spawn after 3 s. E fells the outlined tree
+or breaks the outlined rock in reach (a prompt at the bottom says which). Trees, rocks and slain
+enemies drop items, which slide to you when you walk near. Tab or I opens the inventory: drag
+items to move, stack, wear or take them off, right click to wear or take off at once, and point
+at anything for what it is, where it comes from and what it makes. Recipes show what you have
+against what they need and why one can't be made yet; most need the labeled workbench at the
+spawn. The mouse doesn't swing while the inventory is open. The game starts fullscreen; F11 or Alt+Enter toggles a window (or start with
 `-- --windowed`). F3 toggles the debug overlay (fps, build, server, ping, snapshot rate,
 player count, position, world seed, chunk); release builds have it too. Command line roles (after `--`):
 `--server --port=N [--solo] [--world=DIR] [--metrics-port=N]`, `--connect=host:port [--name=NAME]`,
