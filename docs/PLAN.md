@@ -168,7 +168,7 @@ Players, enemies, dropped items, resource nodes, buildings, projectiles. Stable 
 
 - Drop tables with rarity tiers. Items on the ground, pickup, grid inventory, equipment slots, stacking.
 - Gear with random affixes (dungeon drops). Crafting from materials at stations.
-- M4 built: all game data in `game/data/` (`tuning.tres`, `items/`, `recipes/`, `enemies/`; an item's or recipe's id is its file name), loaded by `content/content.gd`. Drop tables roll each entry on its own (`sim/loot.gd`); drops lie on the ground for 5 min and are picked up by walking over them (server side, not saved yet). 24-slot inventory plus a weapon and an armor slot (`sim/inventory.gd`); the weapon sets the light/heavy attacks, armor takes a flat amount off each hit and adds max health. Crafting by hand or at the one workbench at the spawn (`sim/crafting.gd`; player-built stations come with M8). Random affixes wait for dungeons (M7).
+- M4 built: all game data in `game/data/` (`tuning.tres`, `items/`, `recipes/`, `enemies/`; an item's or recipe's id is its file name), loaded by `content/content.gd`. Drop tables roll each entry on its own (`sim/loot.gd`); drops lie on the ground for 5 min and are picked up by walking over them (server side, not saved yet). 24-slot inventory plus a weapon and an armor slot (`sim/inventory.gd`); the weapon sets the light/heavy attacks, armor takes a flat amount off each hit and adds max health. Crafting by hand or at a station (`sim/crafting.gd`; since M8 a workbench players build). Random affixes wait for dungeons (M7).
 
 ### 5.4 Survival
 
@@ -178,6 +178,7 @@ Players, enemies, dropped items, resource nodes, buildings, projectiles. Stable 
 ### 5.5 Building
 
 - Grid placement of a few pieces (wall, floor, door, workbench, chest, fire). Place/remove, persisted, replicated.
+- M8 built: pieces are data (`game/data/pieces/`, `content/piece_def.gd`: cost, health, blocks, door, station, storage, light) placed one per 16 px tile, keyed by global tile. `sim/building.gd` holds the rules both sides share (reach, props and bodies in the way, cost, blocking, stations near a position), so the client's green/red ghost predicts the server. Build mode (B) takes the cost from the inventory, removing a piece gives it all back. Walls and closed doors block players (client prediction, server move check) and enemies; an enemy walking into one winds up and hits it instead, and a piece at 0 health breaks (a chest spills its contents). Repair is building the same piece again, refused while an enemy is near. Chests are 12 shared slots, opened with E; doors open and close with E. Fires carry a `PointLight2D`. Pieces are saved in the chunk files (format 2) and sent with each chunk plus a `piece` RPC per change. Crafting stations are built workbenches; the fixed one at the spawn is gone. No pathing around walls yet: enemies break through.
 
 ### 5.6 Self-scaling
 
@@ -260,7 +261,7 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M5 | **Survival** | Hunger, eating, day/night with stronger nights; penalties at zero | Done | v0.8.0 |
 | M6 | **Player host** | Bun lobby + coturn as a deployable stack; server opens a room; host and friends join by code via WebRTC through a lobby (local or LAN for now); rooms stay open while the server runs | Done | v0.9.0 |
 | M7 | **Dungeon v1** | Entrance in the world; generated instance; ~15 buffs; inventory snapshot rule; end chest; time/depth scaling | Done | v0.10.0 |
-| M8 | **Building v1** | Grid placement of a few pieces, persisted and replicated | Next | |
+| M8 | **Building v1** | Grid placement of a few pieces, persisted and replicated | Playtest | |
 | M9 | **10-player test** | 10 headless bot clients for 30 min on the dedicated server: tick time and bandwidth within budget, no errors | | |
 | M9a | **Lobby deploy** | Lobby + coturn (`deploy/lobby/`) run on the gvm host at `jotra.r4b2.de`, replacing the retired Two Wards stack; "Host a game" works with the built-in lobby URL; host and friends join by code from different networks, one of them through the TURN relay. Needs SSH access to r4b2.de from the dev machine | | |
 | M10 | **vServer deploy** | CI builds the server image and pushes it to GHCR; it runs on the vServer, friends connect over the internet; vector scrapes its metrics and the dashboard is in the infra Grafana (TLS/metrics stack lives in the separate `infra` repo) | | |

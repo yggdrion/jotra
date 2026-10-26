@@ -38,8 +38,13 @@ or breaks the outlined rock in reach (a prompt at the bottom says which). Trees,
 enemies drop items, which slide to you when you walk near. Tab or I opens the inventory: drag
 items to move, stack, wear or take them off, right click to wear or take off at once, and point
 at anything for what it is, where it comes from and what it makes. Recipes show what you have
-against what they need and why one can't be made yet; most need the labeled workbench at the
-spawn. The mouse doesn't swing while the inventory is open. Hunger (the brown bar) drains over
+against what they need and why one can't be made yet; most need a workbench you build nearby.
+The mouse doesn't swing while the inventory is open. B toggles build mode: 1-6 or the mouse
+wheel pick a wall, floor, door, workbench, chest or fire, left click builds it on the tile under
+the mouse (green ghost; costs wood and stone) or repairs a damaged one, right click takes a piece
+down and gives its cost back. Walls and closed doors stop players and enemies; enemies hit what
+is in their way until it breaks. E opens and closes doors and opens chests: right click puts a
+stack from the backpack in, a click on the chest takes it out. Fires light up the night. Hunger (the brown bar) drains over
 time: while it is above zero you slowly heal, at zero you lose health and stamina comes back
 slower. Trees drop berries; F or a right click in the inventory eats. Days last 8 minutes and
 nights 4; at night the world darkens and more, tougher enemies spawn. E at the Barrow left of the
