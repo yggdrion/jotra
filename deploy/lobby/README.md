@@ -12,8 +12,6 @@ Cloudflare proxy, since TURN is UDP.
 | `lobby` (built from `lobby/`) | `/ws`, `/healthz` through gvm's Caddy | `/metrics` stays internal |
 | `coturn` | 3478 TCP/UDP, relay UDP 49160–49259 | credentials minted by the lobby from `TURN_SECRET` |
 
-Shipping the lobby's and coturn's metrics to VictoriaMetrics comes with the vServer milestone (M10).
-
 ## First setup
 
     cd /root && git clone https://github.com/yggdrion/jotra.git

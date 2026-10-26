@@ -77,7 +77,6 @@ is online. The world lives in the `world` volume (`/data/world`), so it survives
 `docker compose stop` has the server save before it exits.
 Prometheus metrics (`jotra_*`: players, enemies, drops, tick time, bandwidth, loaded chunks, save time, build) are on
 `127.0.0.1:9310/metrics`; a Grafana dashboard for them is `deploy/grafana/jotra.json`.
-Deploying to the vServer is the last milestone (`docs/PLAN.md` §8).
 
 ## Lobby (player host)
 

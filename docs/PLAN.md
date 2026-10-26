@@ -223,7 +223,7 @@ One formula in one place:
 | Tests | gdUnit4 for unit tests; headless multi-process network tests with bot clients |
 | Tooling | Python, one cross-platform script per tool (no `.sh`/`.ps1` twins) |
 | CI | GitHub Actions (hosted): lint, unit tests, headless network test, lobby tests, Linux + Windows exports |
-| Deploy | Docker Compose on the vServer: dedicated game server, lobby, coturn, vector; TLS via the existing Caddy |
+| Deploy | Docker Compose: lobby + coturn on the gvm host (TLS via its Caddy); the dedicated server runs locally |
 | Monitoring | Prometheus metrics → vector → VictoriaMetrics → Grafana |
 
 ### Repo layout
@@ -254,7 +254,7 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M0 | **Skeleton + solo** | Tooling installs pinned Godot; client spawns a local headless server, connects via ENet localhost; capsule players move with client-authoritative movement and interpolation; server exits when the client closes; `tools/dev.py` starts server + N clients; headless net test (server + 2 bots) passes in CI | Done | v0.1.0 |
 | M0a | **Debug overlay** | F3 overlay in every build: fps, build commit, server address, player id and count, ping, snapshot rate, position. Server polls the network well above its 30 Hz tick, so localhost ping stays ~10 ms | Done | v0.2.0 |
 | M0b | **Fullscreen + any resolution** | Starts borderless fullscreen, F11 / Alt+Enter toggles a window; any window size or aspect works with crisp integer pixel scaling, wider/taller screens see more world instead of black bars (see 6) | Done | v0.2.0 |
-| M1 | **Dedicated mode (local)** | Same server as a locally built Docker image via compose; clients connect by address; pause when empty; protocol version check; Prometheus metrics endpoint and a Grafana dashboard JSON (vServer deploy is M10) | Done | v0.3.0 |
+| M1 | **Dedicated mode (local)** | Same server as a locally built Docker image via compose; clients connect by address; pause when empty; protocol version check; Prometheus metrics endpoint and a Grafana dashboard JSON | Done | v0.3.0 |
 | M2 | **World + persistence** | Seeded chunk generation with placeholder biomes; chunk streaming with interest management; deltas, players and world meta survive a server restart | Done | v0.4.0 |
 | M3 | **Combat** | Enemies spawn and use simple AI; light/heavy/dash with stamina; damage, death, respawn; self-scaling by nearby player count | Done | v0.5.0 |
 | M4 | **Loot + inventory** | Drop tables, pickup, inventory, equipment changes stats, crafting at a station | Done | v0.6.0 |
@@ -266,9 +266,10 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M9 | **10-player test** | 10 headless bot clients for 30 min on the dedicated server: tick time and bandwidth within budget, no errors (§9 load budgets; 2026-10-26: mean 1.65 ms, no slow ticks, max 40 ms, peak 12.9 KB/s sent per player) | Done | v0.12.0 |
 | M9a | **Lobby deploy** | Lobby + coturn (`deploy/lobby/`) run on the gvm host at `lobby.r4b2.de`, replacing the retired Two Wards stack; "Host a game" works with the built-in lobby URL; host and friends join by code from different networks, one of them through the TURN relay (2026-10-26: playtest passed) | Done | v0.14.0 |
 | M9b | **Interim art** | Ground, trees, rocks, players and draugr (4-direction walk), items, pieces, barrow and dungeon drawn with the CC0 Ninja Adventure pack instead of shapes (see 6); content test checks every item and piece has a sprite | Done | v0.13.0 |
-| M10 | **vServer deploy** | CI builds the server image and pushes it to GHCR; it runs on the vServer, friends connect over the internet; vector scrapes its metrics and the dashboard is in the infra Grafana (TLS/metrics stack lives in the separate `infra` repo) | Next | |
+| M10 | **vServer deploy** | CI builds the server image and pushes it to GHCR; it runs on the vServer, friends connect over the internet; vector scrapes its metrics and the dashboard is in the infra Grafana (TLS/metrics stack lives in the separate `infra` repo). Dropped 2026-10-26: gvm runs only the lobby, the dedicated server stays local (M1) | Dropped | |
+| M11 | **Boss** | The end room of every run holds one boss, the barrow king, at the end chest: a telegraphed area slam besides its swing, scaled like the other dungeon enemies, a boss health bar while in view, a guaranteed drop with raised rare chance; the chest stays locked until it is dead; `balance_sim.py --dungeon` reports boss kills within the targets | Next | |
 
-Dedicated (M1) comes before player host (M6) because it is almost free once solo works. It runs locally first; putting it on the vServer waits until the end (M10).
+Dedicated (M1) comes before player host (M6) because it is almost free once solo works. It runs locally only; hosting it publicly (M10) was dropped.
 
 **First prototype scope (after M9):** one biome, one dungeon type, ~15 buffs, one boss, basic building, all placeholders, 1–10 player co-op in all three modes.
 
