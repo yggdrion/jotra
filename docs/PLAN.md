@@ -140,6 +140,7 @@ Written from scratch, same proven design as the Two Wards lobby:
 - Differences from Two Wards: up to 9 guests per room; **rooms stay open while the game server runs** (heartbeat from the server, dropped when it stops) so friends can join any time; star topology (each guest connects only to the server, peer id 1; the server creates one offer per guest).
 - coturn as STUN + TURN relay fallback; `total-quota` sized for 10-player rooms.
 - WebRTC in Godot via the pinned webrtc-native GDExtension, installed by a tool script and shipped in every export.
+- M6 built: `lobby/` (rooms in `src/rooms.ts`, lobby protocol 1), `net/lobby_client.gd` for both sides, `--server --lobby=URL` in `GameServer`. The host's client spawns the server on its solo world with `--owner=<name> --room-file=<path>`, reads the code from the file and joins by code. The server pings the lobby every 20 s and opens a new room if it loses the lobby (players already in stay). The start menu (`client/start_menu.gd`) offers solo, host and join; a failed or ended game returns to it with the reason. Deploy: `deploy/lobby/` (lobby + coturn on 3479 next to Two Wards' on the gvm host, `jotra.r4b2.de`).
 
 ### 4.10 Observability
 
@@ -256,7 +257,7 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M4 | **Loot + inventory** | Drop tables, pickup, inventory, equipment changes stats, crafting at a station | Done | v0.6.0 |
 | M4a | **Loot + inventory UX** | A new player finds out unaided how to gather, loot, equip and craft: on-screen prompts near trees, rocks and the labeled workbench; drops pulled in when walked near, an "inventory full" notice; drag-and-drop inventory with an item info panel, equipped stats and a controls line; recipes show have/need per input and why one can't be crafted | Done | v0.7.0 |
 | M5 | **Survival** | Hunger, eating, day/night with stronger nights; penalties at zero | Done | v0.8.0 |
-| M6 | **Player host** | Bun lobby + coturn deployed; server opens a room; host and friends join by code via WebRTC on different networks; rooms stay open while the server runs | Next | |
+| M6 | **Player host** | Bun lobby + coturn deployed; server opens a room; host and friends join by code via WebRTC on different networks; rooms stay open while the server runs | Playtest | |
 | M7 | **Dungeon v1** | Entrance in the world; generated instance; ~15 buffs; inventory snapshot rule; end chest; time/depth scaling | | |
 | M8 | **Building v1** | Grid placement of a few pieces, persisted and replicated | | |
 | M9 | **10-player test** | 10 headless bot clients for 30 min on the dedicated server: tick time and bandwidth within budget, no errors | | |

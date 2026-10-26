@@ -10,13 +10,21 @@ Needs Python 3.12+ and git. Safe to re-run:
     python tools/setup.py
 
 Installs gdtoolkit and pre-commit, the pinned Godot (`.godot-version`, checked against
-`tools/godot-<version>.sha512`, into `.tools/`), gdUnit4 and the pre-push hook.
+`tools/godot-<version>.sha512`, into `.tools/`), the webrtc-native GDExtension, gdUnit4, the
+pinned Bun (for the lobby) and the pre-push hook.
 
 ## Run
 
-    python tools/godot.py --path game        # solo: spawns a local headless server and joins it
+    python tools/godot.py --path game        # start menu: play solo, host a game, join by code
     python tools/godot.py --path game -e     # editor
     python tools/dev.py 3                    # headless server + 3 windowed clients on localhost
+
+The start menu offers three ways in. **Play solo** spawns a local headless server and joins it.
+**Host a game** spawns the same server on the same world, which opens a room in the lobby; its
+four-letter code shows in the top-right corner, and friends type it under **Join** to play in
+your world over WebRTC from their own networks (through a TURN relay when a direct connection
+fails). Friends can join and leave any time; the game ends for everyone when the host leaves.
+If a game can't be reached or ends, you are back in the menu with the reason.
 
 Move with WASD, E removes the nearest tree or rock. Left mouse is a light attack, right mouse a
 heavy one (both toward the mouse), Space dashes through hits; attacks and dashes cost stamina.
@@ -32,8 +40,11 @@ time: while it is above zero you slowly heal, at zero you lose health and stamin
 slower. Trees drop berries; F or a right click in the inventory eats. Days last 8 minutes and
 nights 4; at night the world darkens and more, tougher enemies spawn. The game starts fullscreen; F11 or Alt+Enter toggles a window (or start with
 `-- --windowed`). F3 toggles the debug overlay (fps, build, server, ping, snapshot rate,
-player count, position, world seed, chunk); release builds have it too. Command line roles (after `--`):
-`--server --port=N [--solo] [--world=DIR] [--metrics-port=N]`, `--connect=host:port [--name=NAME]`,
+player count, position, world seed, chunk; in a room also the ICE candidates the host offered);
+release builds have it too. Command line roles (after `--`, all in `game/scripts/boot/main.gd`):
+`--server --port=N [--solo] [--world=DIR] [--metrics-port=N]`, `--server --lobby=URL
+[--room-file=PATH] [--owner=NAME]` (a server in a lobby room), `--connect=host:port`,
+`--join=CODE`, `--host`, `--lobby=URL` (default `wss://jotra.r4b2.de/ws`), `--name=NAME`,
 `--bot --expect=N` (headless test client).
 
 Worlds are saved in `user://worlds/` (`default` for servers, `solo` for solo games; on Windows
@@ -54,12 +65,23 @@ Prometheus metrics (`jotra_*`: players, enemies, drops, tick time, bandwidth, lo
 `127.0.0.1:9310/metrics`; a Grafana dashboard for them is `deploy/grafana/jotra.json`.
 Deploying to the vServer is the last milestone (`docs/PLAN.md` §8).
 
+## Lobby (player host)
+
+`lobby/` is the Bun lobby that hands out room codes and relays WebRTC signaling; it never sees
+gameplay. Locally:
+
+    .tools/bun/1.4.4/bun lobby/src/server.ts                       # PORT=8080 by default
+    python tools/godot.py --path game -- --host --lobby=ws://127.0.0.1:8080/ws
+
+Its deployment with coturn (STUN + TURN) is `deploy/lobby/` (see its README).
+
 ## Check
 
-    python tools/check.py            # lint, format, gdUnit4 tests, network test (also the pre-push hook)
+    python tools/check.py            # lint, format, lobby tests, gdUnit4 tests, network test (also the pre-push hook)
     python tools/check.py --quick    # lint + format only
     python tools/run_tests.py -a res://tests/sim_world_test.gd
-    python tools/run_network_test.py # headless server + bots over ENet
+    python tools/run_lobby_tests.py  # bun test in lobby/
+    python tools/run_network_test.py # headless server + bots over ENet, then over WebRTC via a local lobby
     python tools/export.py windows   # release build to build/windows/
     python tools/balance_sim.py --quick --players 1   # bots play the sim headless: deaths, damage, gear times
 
