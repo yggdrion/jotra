@@ -129,6 +129,7 @@ The server's simulation (world, entities, combat, loot, survival) is plain objec
 - Entering a dungeon moves the party into an instance. First version: a separate area inside the same server process (far-off coordinates or a separate sim space). Later option: its own process/container.
 - On entry the server snapshots each player's inventory; death restores that snapshot, exit keeps everything.
 - Buffs live on the player only while in the instance; removed on exit or death.
+- M7 so far (`sim/dungeon.gd`): each run lies in a slot of its own far below the overworld (y 200 000, slots 20 000 px apart), so no run sees another or the world's chunks. E at the barrow by the spawn (`Tuning.dungeon_entrance`) enters the run opened in the last `dungeon_join_window` seconds or a new one; rooms are rects whose union is walkable, kept by `Dungeon.clamp_to` on both sides. Dying inside, leaving the game inside and every save made inside put the player back at the entrance with the snapshot; the exit keeps everything. The last one out closes the run with its enemies and drops. For now one fixed test room with `dungeon_enemies` draugr; generated layouts, buffs, end chest and scaling follow.
 
 ### 4.9 Lobby and NAT traversal (player host)
 

@@ -83,13 +83,14 @@
     },
     {
       "type": "timeseries",
-      "title": "Enemies and drops",
+      "title": "Enemies, drops and dungeon runs",
       "gridPos": { "x": 0, "y": 29, "w": 12, "h": 8 },
       "datasource": { "type": "prometheus", "uid": "victoriametrics" },
       "fieldConfig": { "defaults": { "decimals": 0, "min": 0 } },
       "targets": [
         { "refId": "A", "expr": "sum(jotra_enemies)", "legendFormat": "enemies" },
-        { "refId": "B", "expr": "sum(jotra_drops)", "legendFormat": "items on the ground" }
+        { "refId": "B", "expr": "sum(jotra_drops)", "legendFormat": "items on the ground" },
+        { "refId": "C", "expr": "sum(jotra_dungeon_runs)", "legendFormat": "dungeon runs" }
       ]
     }
   ]

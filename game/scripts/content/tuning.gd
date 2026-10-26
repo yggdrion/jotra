@@ -107,3 +107,13 @@ extends Resource
 @export var stations: Dictionary
 ## How close to a station a player must stand to craft there.
 @export var station_reach := 40.0
+
+@export_group("Dungeon")
+## Where the barrow's entrance stands in the overworld; players respawn here after dying inside.
+@export var dungeon_entrance := Vector2(-96, -16)
+## How close to the entrance or a run's exit a player must stand to use it.
+@export var portal_reach := 40.0
+## Seconds after a run opens during which others entering join it instead of opening their own.
+@export var dungeon_join_window := 30.0
+## Enemies waiting in a new run's room, scaled like any encounter.
+@export var dungeon_enemies := 3

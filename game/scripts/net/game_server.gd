@@ -115,6 +115,7 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 		func(id: int, index: int) -> void:
 			_act(id, func(p: SimWorld.SimPlayer) -> void: p.eat(index))
 	)
+	net.portal_used.connect(func(id: int) -> void: world.use_portal(id))
 	net.pinged.connect(func(id: int, sent_ms: int) -> void: net.pong.rpc_id(id, sent_ms))
 	if lobby_url == "":
 		print("server: listening on %d" % port)
@@ -256,6 +257,10 @@ func _send_events() -> void:
 				net.looted.rpc_id(event[1], event[2], event[3])
 			"full":
 				net.inventory_full.rpc_id(event[1])
+			"dungeon":
+				# Also sent for one who left the game inside a run, who is gone by now.
+				if world.players.has(event[1]):
+					net.dungeon.rpc_id(event[1], event[2], event[3], event[4])
 	world.events.clear()
 
 
@@ -294,6 +299,7 @@ func metrics_text() -> String:
 		["loaded_chunks", "gauge", "", world.chunks.size()],
 		["enemies", "gauge", "", world.enemies.size()],
 		["drops", "gauge", "", world.drops.size()],
+		["dungeon_runs", "gauge", "", world.dungeons.size()],
 		["save_seconds", "gauge", "", _save_usec / 1e6],
 		["ticks_total", "counter", "", _ticks],
 		["tick_seconds_total", "counter", "", _tick_usec / 1e6],

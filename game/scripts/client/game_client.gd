@@ -9,7 +9,9 @@ extends Node2D
 ## here first, the server has the last word. Tab or I opens the inventory and crafting screen;
 ## while it is open the mouse is for the screen, not for swinging. Items on the ground slide
 ## to a player walking near and are picked up (server side). F eats; the world darkens at night
-## by the server's clock, which the HUD shows and announces.
+## by the server's clock, which the HUD shows and announces. E at the barrow near the spawn
+## goes into a dungeon run, whose rooms the player can't walk out of; E at its way out comes
+## back.
 ##
 ## Reaches the server over ENet by address (join) or over WebRTC by lobby room code
 ## (join_room). A player who can't get in, is rejected or loses the server gets `left` with the
@@ -46,6 +48,8 @@ const NAME_FILE := "user://player.txt"
 const HUNGRY := 0.25
 ## The world's tint at full night; day is untinted.
 const NIGHT_TINT := Color("3a4466")
+## The tint inside a dungeon, whatever the time of day.
+const DUNGEON_TINT := Color("8b9bb4")
 ## Chunks are freed this far out, one further than the server forgets them, so a chunk the
 ## server sends again is never one the client already dropped.
 const KEEP_CHUNKS := SimWorld.VIEW_CHUNKS + 2
@@ -100,6 +104,10 @@ var _attack_ready_ms := 0
 var _dash_ready_ms := 0
 var _dash_left := 0.0
 var _dash_dir := Vector2.ZERO
+## The rooms of the dungeon run we are in, empty in the overworld, and its way out.
+var _rooms: Array[Rect2] = []
+var _exit := Vector2.ZERO
+var _dungeon_view: DungeonView
 
 
 func _ready() -> void:
@@ -151,6 +159,7 @@ func _ready() -> void:
 			_inventory_ui.show_inventory(data)
 	)
 	net.looted_received.connect(_on_looted)
+	net.dungeon_received.connect(_on_dungeon)
 	net.inventory_full_received.connect(
 		func() -> void:
 			if _me:
@@ -303,6 +312,38 @@ func _on_welcomed(spawn: Vector2, world_seed: int) -> void:
 		view.station = station
 		view.position = Content.tuning.stations[station]
 		add_child(view)
+	var entrance := PortalView.new()
+	entrance.label = "Barrow"
+	entrance.position = Content.tuning.dungeon_entrance
+	add_child(entrance)
+
+
+## rooms empty: back in the overworld, else in a run of these rooms with its way out.
+func _on_dungeon(rooms: Array, exit: Vector2, at: Vector2) -> void:
+	_rooms.assign(rooms)
+	_exit = exit
+	_me.position = at
+	_dash_left = 0.0
+	if _dungeon_view:
+		_dungeon_view.queue_free()
+		_dungeon_view = null
+	if _rooms.is_empty():
+		if _health <= 0:
+			_hud.announce("What you found in the barrow is lost", Color("e43b44"))
+		else:
+			_hud.announce("Back in the open", Color("feae34"))
+		return
+	_dungeon_view = DungeonView.new()
+	_dungeon_view.rooms = _rooms
+	_dungeon_view.exit = exit
+	add_child(_dungeon_view)
+	_hud.announce("Die in here and you lose what you found", Color("e43b44"))
+
+
+## Whether we stand close enough to the entrance, or in a run to its way out, to use it.
+func _at_portal() -> bool:
+	var portal := _exit if not _rooms.is_empty() else Content.tuning.dungeon_entrance
+	return _me.position.distance_to(portal) <= Content.tuning.portal_reach
 
 
 func _on_chunk(coord: Vector2i, removed: PackedInt32Array) -> void:
@@ -340,6 +381,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif key.keycode == KEY_E:
 		if not _target.is_empty():
 			net.remove_prop.rpc_id(1, _target[0], _target[1])
+		elif _at_portal():
+			net.use_portal.rpc_id(1)
 	elif key.keycode == KEY_SPACE:
 		_dash()
 	elif key.keycode == KEY_F:
@@ -417,6 +460,8 @@ func _update_target() -> void:
 	elif not _target.is_empty():
 		var tree: bool = _chunks[_target[0]].kind_of(_target[1]) == WorldGen.Prop.TREE
 		prompt = "[E] Fell tree" if tree else "[E] Break rock"
+	elif _at_portal():
+		prompt = "[E] Enter the barrow" if _rooms.is_empty() else "[E] Leave with your loot"
 	else:
 		var station := Crafting.nearest_station(_me.position)
 		if not station.is_empty() and Crafting.at_station(_me.position, station[0]):
@@ -523,6 +568,8 @@ func _process(delta: float) -> void:
 		_me.position += _dash_dir * t.dash_distance / t.dash_time * step
 	elif _health > 0:
 		_me.position += _input_direction() * Content.tuning.walk_speed * delta
+	if not _rooms.is_empty():
+		_me.position = Dungeon.clamp_to(_rooms, _me.position)
 	_send_due -= delta
 	if _send_due <= 0.0:
 		_send_due += 1.0 / SEND_RATE
@@ -545,6 +592,8 @@ func _process(delta: float) -> void:
 ## Tints the world by daylight and shows the day in the HUD.
 func _show_clock() -> void:
 	_tint.color = NIGHT_TINT.lerp(Color.WHITE, Survival.daylight(_time))
+	if not _rooms.is_empty():
+		_tint.color = DUNGEON_TINT
 	var night := Survival.is_night(_time)
 	var left := ceili(Survival.until_change(_time))
 	_hud.show_clock(

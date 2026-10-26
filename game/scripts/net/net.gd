@@ -16,6 +16,7 @@ signal equip_requested(peer_id: int, index: int)
 signal unequip_requested(peer_id: int, kind: int, to: int)
 signal craft_requested(peer_id: int, recipe: StringName)
 signal eat_requested(peer_id: int, index: int)
+signal portal_used(peer_id: int)
 signal pinged(peer_id: int, sent_ms: int)
 # Client side.
 signal welcomed(spawn: Vector2, world_seed: int)
@@ -33,11 +34,12 @@ signal inventory_received(data: Dictionary)
 signal looted_received(item: StringName, count: int)
 signal inventory_full_received
 signal room_received(code: String)
+signal dungeon_received(rooms: Array, exit: Vector2, at: Vector2)
 signal ponged(sent_ms: int)
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 8
+const PROTOCOL_VERSION := 9
 
 @rpc("any_peer", "reliable")
 func hello(version: int, player_name: String) -> void:
@@ -92,6 +94,12 @@ func craft(recipe: StringName) -> void:
 @rpc("any_peer", "reliable")
 func eat(index: int) -> void:
 	eat_requested.emit(multiplayer.get_remote_sender_id(), index)
+
+
+## E at the dungeon entrance or the run's exit.
+@rpc("any_peer", "reliable")
+func use_portal() -> void:
+	portal_used.emit(multiplayer.get_remote_sender_id())
 
 
 ## The client's own clock, echoed back by pong: the round trip for the debug overlay where the
@@ -184,3 +192,10 @@ func inventory_full() -> void:
 @rpc("authority", "reliable")
 func room(code: String) -> void:
 	room_received.emit(code)
+
+
+## The receiving player is now at at: inside a dungeon run of these rooms (Array of Rect2) with
+## its exit, or back in the overworld when rooms is empty.
+@rpc("authority", "reliable")
+func dungeon(rooms: Array, exit: Vector2, at: Vector2) -> void:
+	dungeon_received.emit(rooms, exit, at)
