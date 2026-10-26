@@ -13,15 +13,15 @@ func test_move_within_speed_is_accepted() -> void:
 	var world := SimWorld.new()
 	world.add_player(1, "p1")
 	world.tick(1.0)
-	assert_bool(world.move_player(1, Vector2(SimWorld.MAX_SPEED, 0))).is_true()
-	assert_vector(world.players[1].position).is_equal(Vector2(SimWorld.MAX_SPEED, 0))
+	assert_bool(world.move_player(1, Vector2(Content.tuning.walk_speed, 0))).is_true()
+	assert_vector(world.players[1].position).is_equal(Vector2(Content.tuning.walk_speed, 0))
 
 
 func test_teleport_is_dropped() -> void:
 	var world := SimWorld.new()
 	world.add_player(1, "p1")
 	world.tick(1.0)
-	var far := Vector2(SimWorld.MAX_SPEED * (1.0 + SimWorld.MOVE_SLACK) + 1, 0)
+	var far := Vector2(Content.tuning.walk_speed * (1.0 + SimWorld.MOVE_SLACK) + 1, 0)
 	assert_bool(world.move_player(1, far)).is_false()
 	assert_vector(world.players[1].position).is_equal(Vector2.ZERO)
 

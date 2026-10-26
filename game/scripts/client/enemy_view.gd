@@ -8,8 +8,8 @@ const WINDUP_COLOR := Color("feae34")
 var _windup_until := 0
 
 
-func windup() -> void:
-	_windup_until = Time.get_ticks_msec() + int(Combat.WINDUP * 1000)
+func windup(seconds: float) -> void:
+	_windup_until = Time.get_ticks_msec() + int(seconds * 1000)
 	queue_redraw()
 
 

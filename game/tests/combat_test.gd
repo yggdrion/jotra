@@ -10,17 +10,19 @@ func test_attack_spends_stamina_and_cools_down() -> void:
 	var enemy := world.add_enemy(Vector2(20, 0), 100, 0)
 	var hits := PackedInt32Array([enemy.id])
 	assert_array(Array(world.attack(1, false, Vector2.RIGHT, hits))).is_equal([enemy.id])
-	assert_float(world.players[1].stamina).is_equal(Combat.MAX_STAMINA - Combat.LIGHT.cost)
-	assert_array(world.events[0]).is_equal(["swing", 1, false, Vector2.RIGHT, Vector2.ZERO])
+	assert_float(world.players[1].stamina).is_equal(
+		Content.tuning.max_stamina - Content.tuning.fists_light.cost
+	)
+	assert_array(world.events[0]).is_equal(["swing", 1, false, Vector2.RIGHT, Vector2.ZERO, &""])
 	assert_array(Array(world.attack(1, false, Vector2.RIGHT, hits))).is_empty()
 	(
 		assert_int(world.events.filter(func(e: Array) -> bool: return e[0] == "swing").size())
 		. is_equal(1)
 	)
-	world.tick(Combat.LIGHT.cooldown)
-	world.players[1].stamina = Combat.LIGHT.cost - 1
+	world.tick(Content.tuning.fists_light.cooldown)
+	world.players[1].stamina = Content.tuning.fists_light.cost - 1
 	assert_array(Array(world.attack(1, false, Vector2.RIGHT, hits))).is_empty()
-	assert_float(enemy.health).is_equal(100.0 - Combat.LIGHT.damage)
+	assert_float(enemy.health).is_equal(100.0 - Content.tuning.fists_light.damage)
 
 
 func test_hits_only_what_is_in_the_arc() -> void:
@@ -30,13 +32,13 @@ func test_hits_only_what_is_in_the_arc() -> void:
 	var far := world.add_enemy(Vector2(100, 0), 100, 0)
 	var hits := PackedInt32Array([front.id, behind.id, far.id])
 	assert_array(Array(world.attack(1, true, Vector2.RIGHT, hits))).is_equal([front.id])
-	assert_float(front.health).is_equal(100.0 - Combat.HEAVY.damage)
+	assert_float(front.health).is_equal(100.0 - Content.tuning.fists_heavy.damage)
 	assert_bool(front.position.x > 20).is_true()  # knocked back
 
 
 func test_enemy_dies_and_leaves_the_snapshot() -> void:
 	var world := _world()
-	var enemy := world.add_enemy(Vector2(20, 0), Combat.LIGHT.damage, 0)
+	var enemy := world.add_enemy(Vector2(20, 0), Content.tuning.fists_light.damage, 0)
 	assert_int(world.snapshot_for(1).enemies.size()).is_equal(1)
 	world.attack(1, false, Vector2.RIGHT, PackedInt32Array([enemy.id]))
 	assert_dict(world.snapshot_for(1).enemies).is_empty()
@@ -47,35 +49,35 @@ func test_enemy_chases_and_hits_after_the_windup() -> void:
 	var world := _world()
 	var enemy := world.add_enemy(Vector2(100, 0), 100, 15)
 	_tick_until_windup(world)
-	assert_bool(enemy.position.x <= Combat.ATTACK_RANGE).is_true()
-	assert_float(world.players[1].health).is_equal(Combat.MAX_HEALTH)
-	world.tick(Combat.WINDUP)
-	assert_float(world.players[1].health).is_equal(Combat.MAX_HEALTH - 15)
+	assert_bool(enemy.position.x <= Content.tuning.enemy.attack_range).is_true()
+	assert_float(world.players[1].health).is_equal(Content.tuning.max_health)
+	world.tick(Content.tuning.enemy.windup)
+	assert_float(world.players[1].health).is_equal(Content.tuning.max_health - 15)
 
 
 func test_dash_at_the_right_moment_avoids_the_hit() -> void:
 	var world := _world()
 	world.add_enemy(Vector2(100, 0), 100, 15)
 	_tick_until_windup(world)
-	world.tick(Combat.WINDUP - TICK)
+	world.tick(Content.tuning.enemy.windup - TICK)
 	assert_bool(world.dash(1)).is_true()
 	world.tick(2 * TICK)
-	assert_float(world.players[1].health).is_equal(Combat.MAX_HEALTH)
+	assert_float(world.players[1].health).is_equal(Content.tuning.max_health)
 
 
 func test_dead_player_cannot_move_and_respawns() -> void:
 	var world := _world()
 	world.players[1].position = Vector2(50, 0)
-	world.damage_player(1, Combat.MAX_HEALTH)
+	world.damage_player(1, Content.tuning.max_health)
 	assert_float(world.players[1].dead_until).is_greater(0.0)
 	assert_bool(world.move_player(1, Vector2(51, 0))).is_false()
 	assert_bool(world.dash(1)).is_false()
-	world.tick(Combat.RESPAWN_DELAY)
+	world.tick(Content.tuning.respawn_delay)
 	var player: SimWorld.SimPlayer = world.players[1]
 	assert_float(player.dead_until).is_equal(0.0)
-	assert_float(player.health).is_equal(Combat.MAX_HEALTH)
-	assert_vector(player.position).is_equal(Combat.RESPAWN_AT)
-	assert_array(world.events[-1]).is_equal(["respawn", 1, Combat.RESPAWN_AT])
+	assert_float(player.health).is_equal(Content.tuning.max_health)
+	assert_vector(player.position).is_equal(Content.tuning.respawn_at)
+	assert_array(world.events[-1]).is_equal(["respawn", 1, Content.tuning.respawn_at])
 
 
 func test_enemy_led_too_far_walks_home_and_heals() -> void:
@@ -97,22 +99,24 @@ func test_more_players_nearby_bring_more_and_stronger_enemies() -> void:
 	assert_dict(Combat.scaled(1)).is_equal({health = 1.0, damage = 1.0, count = 1.0})
 	var solo := _spawned(1)
 	var duo := _spawned(2)
-	assert_int(solo.size()).is_equal(Combat.ENEMIES_PER_PLAYER)
+	assert_int(solo.size()).is_equal(Content.tuning.enemies_per_player)
 	assert_int(duo.size()).is_greater(solo.size())
 	for enemy: SimEnemy in solo:
-		assert_float(enemy.max_health).is_equal(Combat.ENEMY_HEALTH)
+		assert_float(enemy.max_health).is_equal(Content.tuning.enemy.health)
 	for enemy: SimEnemy in duo:
-		assert_float(enemy.max_health).is_equal(Combat.ENEMY_HEALTH * Combat.scaled(2).health)
+		assert_float(enemy.max_health).is_equal(
+			Content.tuning.enemy.health * Combat.scaled(2).health
+		)
 
 
 func test_dash_allows_its_distance_once() -> void:
 	var world := _world()
-	var far := Vector2(SimWorld.MAX_SPEED * (TICK + SimWorld.MOVE_SLACK) + 30, 0)
+	var far := Vector2(Content.tuning.walk_speed * (TICK + SimWorld.MOVE_SLACK) + 30, 0)
 	assert_bool(world.move_player(1, far)).is_false()
 	world.dash(1)
 	assert_bool(world.move_player(1, far)).is_true()
 	world.tick(1.0)
-	var further := far + Vector2(SimWorld.MAX_SPEED * (1.0 + SimWorld.MOVE_SLACK) + 30, 0)
+	var further := far + Vector2(Content.tuning.walk_speed * (1.0 + SimWorld.MOVE_SLACK) + 30, 0)
 	assert_bool(world.move_player(1, further)).is_false()
 
 

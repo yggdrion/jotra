@@ -22,7 +22,7 @@ var health := 1.0:
 var _flash_until := 0
 var _swing_until := 0
 var _swing_aim := Vector2.RIGHT
-var _swing: Dictionary
+var _swing: AttackDef
 
 
 func flash() -> void:
@@ -30,8 +30,8 @@ func flash() -> void:
 	queue_redraw()
 
 
-## Shows a Combat.LIGHT or HEAVY swing toward aim.
-func swing(aim: Vector2, move: Dictionary) -> void:
+## Shows a swing toward aim.
+func swing(aim: Vector2, move: AttackDef) -> void:
 	_swing_aim = aim
 	_swing = move
 	_swing_until = Time.get_ticks_msec() + SWING_MS

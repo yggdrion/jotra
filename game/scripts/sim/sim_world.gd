@@ -2,7 +2,8 @@ class_name SimWorld
 extends RefCounted
 ## The server's simulation. Plain objects, no scene tree: tests build one directly and step it
 ## with tick(delta); GameServer drives the same path. Keeps the chunks around players loaded,
-## runs combat and enemies, and, with a store, saves what changed against the seed.
+## runs combat and enemies, drops loot that players walk over to pick up, handles inventories
+## and crafting, and, with a store, saves what changed against the seed and the players.
 
 
 class SimPlayer:
@@ -11,8 +12,9 @@ class SimPlayer:
 	var position: Vector2
 	## Sim time of the last accepted move, for the speed check.
 	var moved_at: float
-	var health := Combat.MAX_HEALTH
-	var stamina := Combat.MAX_STAMINA
+	var health := Content.tuning.max_health
+	var stamina := Content.tuning.max_stamina
+	var inventory := Inventory.new(Content.tuning.inventory_size)
 	var stamina_used_at := -INF
 	var cooldown_until := -INF
 	var dashed_at := -INF
@@ -25,6 +27,34 @@ class SimPlayer:
 		position = spawn
 		moved_at = now
 
+	## Base health plus what the worn gear adds.
+	func max_health() -> float:
+		return Content.tuning.max_health + inventory.worn("health")
+
+	## Wears the item in an inventory slot.
+	func equip(index: int) -> bool:
+		if not inventory.equip(index):
+			return false
+		health = minf(health, max_health())
+		return true
+
+	## Takes off what is worn in an ItemDef.Slot.
+	func unequip(kind: int) -> bool:
+		if not inventory.unequip(kind):
+			return false
+		health = minf(health, max_health())
+		return true
+
+
+## Items lying on the ground.
+class SimDrop:
+	var id: int
+	var item: StringName
+	var count: int
+	var position: Vector2
+	## Sim time it vanishes.
+	var until: float
+
 
 class SimChunk:
 	## {id: WorldGen.Prop} as generated from the seed.
@@ -34,9 +64,6 @@ class SimChunk:
 	var dirty := false
 
 
-## Player walk speed in px/s. Client movement uses the same number.
-# ponytail: one constant until M4 moves gameplay numbers into .tres data.
-const MAX_SPEED := 120.0
 ## Extra time allowed per move, so packets that arrive bunched up still pass.
 const MOVE_SLACK := 0.5
 const SPAWN_SPACING := 24.0
@@ -55,13 +82,16 @@ var time := 0.0
 var players := {}  # id -> SimPlayer
 var chunks := {}  # Vector2i -> SimChunk
 var enemies := {}  # id -> SimEnemy
+var drops := {}  # id -> SimDrop
 ## Off in tests that place their own enemies.
 var spawn_enemies := true
 ## What happened this tick for clients to show, drained by GameServer: ["hit", enemy: bool,
-## id, amount, position], ["windup", enemy id, position], ["respawn", player id, position],
-## ["swing", player id, heavy, aim, position].
+## id, amount, position], ["windup", enemy id, position, seconds], ["respawn", player id,
+## position], ["swing", player id, heavy, aim, position, weapon], ["loot", player id, item,
+## count] for a pickup.
 var events: Array[Array] = []
 var _next_enemy_id := 1
+var _next_drop_id := 1
 var _spawn_due := 0.0
 var _rng := RandomNumberGenerator.new()
 
@@ -95,59 +125,110 @@ func tick(delta: float) -> void:
 	if spawn_enemies:
 		_spawn(delta)
 	for id: int in enemies.keys():
-		if nearest_player(enemies[id].position, Combat.DESPAWN_RADIUS, false) == 0:
+		if nearest_player(enemies[id].position, Content.tuning.despawn_radius, false) == 0:
 			enemies.erase(id)
+	_tick_drops()
+
+
+## Living players pick up what they walk over, as much as fits. Drops vanish when their time is
+## up or their chunk unloads.
+# ponytail: drops are not saved; a restart or an unloaded chunk loses them.
+func _tick_drops() -> void:
+	for id: int in drops.keys():
+		var drop: SimDrop = drops[id]
+		if time >= drop.until or not chunks.has(WorldGen.chunk_of(drop.position)):
+			drops.erase(id)
+			continue
+		var player: SimPlayer = players.get(
+			nearest_player(drop.position, Content.tuning.pickup_radius)
+		)
+		if player == null:
+			continue
+		var left := player.inventory.add(drop.item, drop.count)
+		if left < drop.count:
+			events.append(["loot", player.id, drop.item, drop.count - left])
+		drop.count = left
+		if left == 0:
+			drops.erase(id)
+
+
+## Rolls a drop table and scatters what it gives around at.
+func _drop_loot(table: Array, at: Vector2) -> void:
+	var scatter := Content.tuning.drop_scatter
+	for got in Loot.roll(table, _rng):
+		var offset := Vector2(
+			_rng.randf_range(-scatter, scatter), _rng.randf_range(-scatter, scatter)
+		)
+		add_drop(got[0], got[1], at + offset)
+
+
+func add_drop(item: StringName, count: int, at: Vector2) -> SimDrop:
+	var drop := SimDrop.new()
+	drop.id = _next_drop_id
+	drop.item = item
+	drop.count = count
+	drop.position = at
+	drop.until = time + Content.tuning.drop_lifetime
+	drops[drop.id] = drop
+	_next_drop_id += 1
+	return drop
 
 
 func _tick_player(player: SimPlayer, delta: float) -> void:
 	if player.dead_until > 0:
 		if time >= player.dead_until:
 			player.dead_until = 0.0
-			player.health = Combat.MAX_HEALTH
-			player.stamina = Combat.MAX_STAMINA
-			player.position = Combat.RESPAWN_AT
+			player.health = player.max_health()
+			player.stamina = Content.tuning.max_stamina
+			player.position = Content.tuning.respawn_at
 			player.moved_at = time
 			events.append(["respawn", player.id, player.position])
 		return
-	if time - player.stamina_used_at >= Combat.STAMINA_DELAY:
-		player.stamina = minf(player.stamina + Combat.STAMINA_REGEN * delta, Combat.MAX_STAMINA)
+	var t := Content.tuning
+	if time - player.stamina_used_at >= t.stamina_delay:
+		player.stamina = minf(player.stamina + t.stamina_regen * delta, t.max_stamina)
 
 
-## Tops up the enemies around each living player, one per player per SPAWN_INTERVAL, in number
+## Tops up the enemies around each living player, one per player per spawn_interval, in number
 ## and strength scaled by the players near that one.
 func _spawn(delta: float) -> void:
 	_spawn_due -= delta
 	if _spawn_due > 0.0:
 		return
-	_spawn_due = Combat.SPAWN_INTERVAL
+	var t := Content.tuning
+	_spawn_due = t.spawn_interval
 	for player: SimPlayer in players.values():
 		if player.dead_until > 0:
 			continue
 		var scale := Combat.scaled(players_near(player.position))
-		var want := roundi(Combat.ENEMIES_PER_PLAYER * scale.count)
+		var want := roundi(t.enemies_per_player * scale.count)
 		var have := 0
 		for enemy: SimEnemy in enemies.values():
-			if enemy.position.distance_to(player.position) <= Combat.SPAWN_RADIUS:
+			if enemy.position.distance_to(player.position) <= t.spawn_radius:
 				have += 1
 		if have >= want:
 			continue
-		var distance := _rng.randf_range(Combat.SPAWN_RING_MIN, Combat.SPAWN_RING_MAX)
+		var distance := _rng.randf_range(t.spawn_ring_min, t.spawn_ring_max)
 		var at := player.position + Vector2.from_angle(_rng.randf() * TAU) * distance
-		add_enemy(at, Combat.ENEMY_HEALTH * scale.health, Combat.ENEMY_DAMAGE * scale.damage)
+		add_enemy(at, t.enemy.health * scale.health, t.enemy.damage * scale.damage)
 
 
-func add_enemy(at: Vector2, health: float, damage: float) -> SimEnemy:
-	var enemy := SimEnemy.new(_next_enemy_id, at, health, damage)
+## An enemy of kind (Tuning.enemy by default) with health and damage already scaled.
+func add_enemy(at: Vector2, health: float, damage: float, kind: EnemyDef = null) -> SimEnemy:
+	var enemy := SimEnemy.new(
+		_next_enemy_id, kind if kind else Content.tuning.enemy, at, health, damage
+	)
 	enemies[enemy.id] = enemy
 	_next_enemy_id += 1
 	return enemy
 
 
-## Living players within SCALE_RADIUS of a position.
+## Living players within scale_radius of a position.
 func players_near(at: Vector2) -> int:
 	var count := 0
 	for player: SimPlayer in players.values():
-		if player.dead_until == 0 and player.position.distance_to(at) <= Combat.SCALE_RADIUS:
+		var near := player.position.distance_to(at) <= Content.tuning.scale_radius
+		if player.dead_until == 0 and near:
 			count += 1
 	return count
 
@@ -209,21 +290,31 @@ func save() -> void:
 
 func _save_player(player: SimPlayer) -> void:
 	if store:
-		store.save_player(
-			player.name, {x = player.position.x, y = player.position.y, health = player.health}
+		(
+			store
+			. save_player(
+				player.name,
+				{
+					x = player.position.x,
+					y = player.position.y,
+					health = player.health,
+					inventory = player.inventory.to_data(),
+				}
+			)
 		)
 
 
-## Joins at the saved position of that name, or at a fresh spawn.
+## Joins at the saved position of that name with its saved inventory, or fresh at the spawn.
 func add_player(id: int, player_name: String) -> SimPlayer:
 	var spawn := Vector2(players.size() * SPAWN_SPACING, 0)
 	var saved := store.load_player(player_name) if store else {}
 	if not saved.is_empty():
 		spawn = Vector2(saved.x, saved.y)
 	var player := SimPlayer.new(id, player_name, spawn, time)
+	player.inventory.load_data(saved.get("inventory", {}))
 	# Someone who left while dead comes back alive.
-	var health := float(saved.get("health", Combat.MAX_HEALTH))
-	player.health = health if health > 0 else Combat.MAX_HEALTH
+	var health := minf(float(saved.get("health", player.max_health())), player.max_health())
+	player.health = health if health > 0 else player.max_health()
 	players[id] = player
 	return player
 
@@ -246,9 +337,10 @@ func move_player(id: int, position: Vector2) -> bool:
 	var player: SimPlayer = players.get(id)
 	if player == null or player.dead_until > 0:
 		return false
-	var allowed := MAX_SPEED * (time - player.moved_at + MOVE_SLACK)
-	if time - player.dashed_at <= Combat.DASH_TIME + MOVE_SLACK:
-		allowed += Combat.DASH_DISTANCE
+	var t := Content.tuning
+	var allowed := t.walk_speed * (time - player.moved_at + MOVE_SLACK)
+	if time - player.dashed_at <= t.dash_time + MOVE_SLACK:
+		allowed += t.dash_distance
 	if player.position.distance_to(position) > allowed:
 		return false
 	player.position = position
@@ -256,7 +348,8 @@ func move_player(id: int, position: Vector2) -> bool:
 	return true
 
 
-## Removes a prop the player stands next to. Returns whether it was removed.
+## Removes a prop the player stands next to; it drops what it is made of. Returns whether it
+## was removed.
 func remove_prop(id: int, coord: Vector2i, prop_id: int) -> bool:
 	var player: SimPlayer = players.get(id)
 	var chunk: SimChunk = chunks.get(coord)
@@ -269,22 +362,30 @@ func remove_prop(id: int, coord: Vector2i, prop_id: int) -> bool:
 		return false
 	chunk.removed[prop_id] = true
 	chunk.dirty = true
+	var t := Content.tuning
+	_drop_loot(
+		t.tree_drops if chunk.props[prop_id] == WorldGen.Prop.TREE else t.rock_drops,
+		WorldGen.prop_position(coord, prop_id)
+	)
 	return true
 
 
 ## A light or heavy swing toward aim. The client reports the enemies it saw hit (PLAN §4.4); the
-## server checks them against its own copy with some slack. Returns the enemies damaged, empty
-## if the swing itself was refused (dead, cooling down, out of stamina).
+## server checks them against its own copy with some slack. The equipped weapon decides the
+## swing. Returns the enemies damaged, empty if the swing itself was refused (dead, cooling
+## down, out of stamina). Enemies killed drop their loot.
 func attack(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> PackedInt32Array:
 	var player: SimPlayer = players.get(id)
-	var move: Dictionary = Combat.HEAVY if heavy else Combat.LIGHT
 	var damaged := PackedInt32Array()
-	if player == null or time < player.cooldown_until or not _spend(player, move.cost):
+	if player == null:
+		return damaged
+	var move := Content.attack(player.inventory.weapon(), heavy)
+	if time < player.cooldown_until or not _spend(player, move.cost):
 		return damaged
 	player.cooldown_until = time + move.cooldown
-	events.append(["swing", id, heavy, aim, player.position])
-	var reach: float = move.reach + Combat.HIT_SLACK
-	var arc: float = move.arc + Combat.ARC_SLACK
+	events.append(["swing", id, heavy, aim, player.position, player.inventory.weapon()])
+	var reach := move.reach + Content.tuning.hit_slack
+	var arc := move.arc + Content.tuning.arc_slack
 	for enemy_id in hits:
 		var enemy: SimEnemy = enemies.get(enemy_id)
 		if enemy == null or not Combat.in_arc(player.position, aim, enemy.position, reach, arc):
@@ -296,15 +397,16 @@ func attack(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> Packe
 		damaged.append(enemy.id)
 		if enemy.health <= 0:
 			enemies.erase(enemy.id)
+			_drop_loot(enemy.def.drops, enemy.position)
 	return damaged
 
 
 ## Starts a dash: i-frames now, and the next moves may cover its distance.
 func dash(id: int) -> bool:
 	var player: SimPlayer = players.get(id)
-	if player == null or time - player.dashed_at < Combat.DASH_COOLDOWN:
+	if player == null or time - player.dashed_at < Content.tuning.dash_cooldown:
 		return false
-	if not _spend(player, Combat.DASH_COST):
+	if not _spend(player, Content.tuning.dash_cost):
 		return false
 	player.dashed_at = time
 	return true
@@ -319,17 +421,19 @@ func _spend(player: SimPlayer, cost: float) -> bool:
 	return true
 
 
-## An enemy hit lands, unless the player is dead or dashing. Returns whether it did.
+## An enemy hit lands, less the player's armor, unless the player is dead or dashing. Returns
+## whether it did.
 func damage_player(id: int, amount: float) -> bool:
 	var player: SimPlayer = players.get(id)
 	if player == null or player.dead_until > 0:
 		return false
-	if time - player.dashed_at <= Combat.IFRAMES + Combat.IFRAME_SLACK:
+	if time - player.dashed_at <= Content.tuning.iframes + Content.tuning.iframe_slack:
 		return false
-	player.health = maxf(player.health - amount, 0.0)
-	events.append(["hit", false, id, amount, player.position])
+	var taken := Combat.after_armor(amount, player.inventory.worn("armor"))
+	player.health = maxf(player.health - taken, 0.0)
+	events.append(["hit", false, id, taken, player.position])
 	if player.health == 0:
-		player.dead_until = time + Combat.RESPAWN_DELAY
+		player.dead_until = time + Content.tuning.respawn_delay
 	return true
 
 
@@ -351,14 +455,14 @@ func sees(id: int, at: Vector2) -> bool:
 
 
 ## What one player's client is sent: {players: {id: Vector3(x, y, health 0..1)}, enemies: the
-## same, me: Vector2(health, stamina)}, with only the players (itself included) and enemies
-## near it.
+## same, drops: {id: Vector3(x, y, Content.item_index)}, me: Vector3(health, stamina, max
+## health)}, with only the players (itself included), enemies and drops near it.
 func snapshot_for(id: int) -> Dictionary:
 	var near := {}
 	for other: SimPlayer in players.values():
 		if sees(id, other.position):
 			near[other.id] = Vector3(
-				other.position.x, other.position.y, other.health / Combat.MAX_HEALTH
+				other.position.x, other.position.y, other.health / other.max_health()
 			)
 	var near_enemies := {}
 	for enemy: SimEnemy in enemies.values():
@@ -366,5 +470,16 @@ func snapshot_for(id: int) -> Dictionary:
 			near_enemies[enemy.id] = Vector3(
 				enemy.position.x, enemy.position.y, enemy.health / enemy.max_health
 			)
+	var near_drops := {}
+	for drop: SimDrop in drops.values():
+		if sees(id, drop.position):
+			near_drops[drop.id] = Vector3(
+				drop.position.x, drop.position.y, Content.item_index(drop.item)
+			)
 	var me: SimPlayer = players[id]
-	return {players = near, enemies = near_enemies, me = Vector2(me.health, me.stamina)}
+	return {
+		players = near,
+		enemies = near_enemies,
+		drops = near_drops,
+		me = Vector3(me.health, me.stamina, me.max_health()),
+	}

@@ -1,0 +1,64 @@
+[gd_resource type="Resource" script_class="Tuning" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/tuning.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/content/attack_def.gd" id="2"]
+[ext_resource type="Resource" path="res://data/enemies/draugr.tres" id="3"]
+
+[sub_resource type="Resource" id="fists_light"]
+script = ExtResource("2")
+damage = 10.0
+reach = 28.0
+arc = 100.0
+cooldown = 0.35
+cost = 12.0
+knock = 10.0
+
+[sub_resource type="Resource" id="fists_heavy"]
+script = ExtResource("2")
+damage = 25.0
+reach = 34.0
+arc = 150.0
+cooldown = 0.8
+cost = 30.0
+knock = 28.0
+
+[resource]
+script = ExtResource("1")
+max_health = 100.0
+max_stamina = 100.0
+walk_speed = 120.0
+stamina_regen = 35.0
+stamina_delay = 0.6
+respawn_delay = 3.0
+respawn_at = Vector2(0, 0)
+fists_light = SubResource("fists_light")
+fists_heavy = SubResource("fists_heavy")
+hit_slack = 24.0
+arc_slack = 60.0
+point_blank = 8.0
+min_damage = 1.0
+dash_distance = 64.0
+dash_time = 0.15
+dash_cost = 25.0
+dash_cooldown = 0.4
+iframes = 0.25
+iframe_slack = 0.1
+enemy = ExtResource("3")
+enemies_per_player = 3
+spawn_interval = 2.0
+spawn_radius = 500.0
+spawn_ring_min = 300.0
+spawn_ring_max = 450.0
+despawn_radius = 900.0
+scale_radius = 400.0
+scale_health = 0.5
+scale_damage = 0.25
+scale_count = 0.75
+inventory_size = 24
+pickup_radius = 16.0
+drop_lifetime = 300.0
+drop_scatter = 10.0
+tree_drops = [{"item": &"wood", "chance": 1.0, "min": 2, "max": 3}]
+rock_drops = [{"item": &"stone", "chance": 1.0, "min": 1, "max": 3}, {"item": &"amber", "chance": 0.08, "min": 1, "max": 1}]
+stations = {&"workbench": Vector2(0, -48)}
+station_reach = 40.0

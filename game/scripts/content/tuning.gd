@@ -1,0 +1,77 @@
+class_name Tuning
+extends Resource
+## The gameplay numbers not tied to an item or enemy (res://data/tuning.tres), shared by server
+## and client. Distances in px, times in seconds.
+
+@export_group("Player")
+@export var max_health := 100.0
+@export var max_stamina := 100.0
+## Walk speed; the client moves at it, the server checks moves against it.
+@export var walk_speed := 120.0
+## Stamina per second, once stamina_delay has passed since it was last spent.
+@export var stamina_regen := 35.0
+@export var stamina_delay := 0.6
+@export var respawn_delay := 3.0
+@export var respawn_at := Vector2.ZERO
+
+@export_group("Attacks")
+## Swings without a weapon.
+@export var fists_light: AttackDef
+@export var fists_heavy: AttackDef
+## The server's copies of attacker and target lag the client's view, so it accepts hits a bit
+## further and wider than the client reports them.
+@export var hit_slack := 24.0
+@export var arc_slack := 60.0
+## Targets this close count as hit whatever the aim.
+@export var point_blank := 8.0
+## No hit does less than this, whatever the armor.
+@export var min_damage := 1.0
+
+@export_group("Dash")
+@export var dash_distance := 64.0
+@export var dash_time := 0.15
+@export var dash_cost := 25.0
+@export var dash_cooldown := 0.4
+## I-frames from the start of a dash, plus a latency tolerance (PLAN §4.4).
+@export var iframes := 0.25
+@export var iframe_slack := 0.1
+
+@export_group("Spawning")
+## Each living player is topped up to enemies_per_player × count scaling enemies within
+## spawn_radius, one spawn per player every spawn_interval, on a ring around them.
+@export var enemy: EnemyDef
+@export var enemies_per_player := 3
+@export var spawn_interval := 2.0
+@export var spawn_radius := 500.0
+@export var spawn_ring_min := 300.0
+@export var spawn_ring_max := 450.0
+## Enemies with no player this close are dropped.
+@export var despawn_radius := 900.0
+
+@export_group("Scaling")
+## Players this close to an encounter count for its scaling (PLAN §5.6).
+@export var scale_radius := 400.0
+## Added per extra nearby player to the health, damage and count multipliers.
+@export var scale_health := 0.5
+@export var scale_damage := 0.25
+@export var scale_count := 0.75
+
+@export_group("Loot")
+## Slots in a player's inventory.
+@export var inventory_size := 24
+## Items on the ground within this of a living player go into their inventory.
+@export var pickup_radius := 16.0
+## Items left on the ground vanish after this long.
+@export var drop_lifetime := 300.0
+## Spread of a drop's items around where it fell.
+@export var drop_scatter := 10.0
+## What removing a tree or a rock gives, see Loot.roll.
+@export var tree_drops: Array
+@export var rock_drops: Array
+
+@export_group("Crafting")
+## {station id: position} of the fixed crafting stations.
+# ponytail: one workbench at the spawn until M8 lets players build their own.
+@export var stations: Dictionary
+## How close to a station a player must stand to craft there.
+@export var station_reach := 40.0

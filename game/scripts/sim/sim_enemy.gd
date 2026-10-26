@@ -7,6 +7,7 @@ extends RefCounted
 enum State { IDLE, CHASE, WINDUP, LEASH }
 
 var id: int
+var def: EnemyDef
 var position: Vector2
 var home: Vector2
 var health: float
@@ -18,8 +19,12 @@ var target := 0
 var _until := 0.0
 
 
-func _init(enemy_id: int, at: Vector2, enemy_health: float, enemy_damage: float) -> void:
+## Health and damage come scaled; the rest is from def.
+func _init(
+	enemy_id: int, kind: EnemyDef, at: Vector2, enemy_health: float, enemy_damage: float
+) -> void:
 	id = enemy_id
+	def = kind
 	position = at
 	home = at
 	health = enemy_health
@@ -30,32 +35,32 @@ func _init(enemy_id: int, at: Vector2, enemy_health: float, enemy_damage: float)
 func tick(world: SimWorld, delta: float) -> void:
 	match state:
 		State.IDLE:
-			target = world.nearest_player(position, Combat.NOTICE_RADIUS)
+			target = world.nearest_player(position, def.notice_radius)
 			if target != 0:
 				state = State.CHASE
 		State.CHASE:
 			var player: SimWorld.SimPlayer = world.players.get(target)
-			if player == null or player.dead_until > 0 or position.distance_to(home) > Combat.LEASH:
+			if player == null or player.dead_until > 0 or position.distance_to(home) > def.leash:
 				state = State.LEASH
 				target = 0
 				return
-			if position.distance_to(player.position) > Combat.ATTACK_RANGE:
-				position = position.move_toward(player.position, Combat.ENEMY_SPEED * delta)
+			if position.distance_to(player.position) > def.attack_range:
+				position = position.move_toward(player.position, def.speed * delta)
 			elif world.time >= _until:
 				state = State.WINDUP
-				_until = world.time + Combat.WINDUP
-				world.events.append(["windup", id, position])
+				_until = world.time + def.windup
+				world.events.append(["windup", id, position, def.windup])
 		State.WINDUP:
 			if world.time < _until:
 				return
 			var player: SimWorld.SimPlayer = world.players.get(target)
-			var reach := Combat.ATTACK_RANGE + Combat.ATTACK_SLACK
+			var reach := def.attack_range + def.attack_slack
 			if player != null and position.distance_to(player.position) <= reach:
 				world.damage_player(target, damage)
-			_until = world.time + Combat.ENEMY_COOLDOWN
+			_until = world.time + def.cooldown
 			state = State.CHASE
 		State.LEASH:
-			position = position.move_toward(home, Combat.ENEMY_SPEED * delta)
+			position = position.move_toward(home, def.speed * delta)
 			if position == home:
 				health = max_health
 				state = State.IDLE

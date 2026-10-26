@@ -69,6 +69,22 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 			world.attack(id, heavy, aim, hits)
 	)
 	net.dashed.connect(func(id: int) -> void: world.dash(id))
+	net.item_moved.connect(
+		func(id: int, from: int, to: int) -> void:
+			_act(id, func(p: SimWorld.SimPlayer) -> void: p.inventory.move(from, to))
+	)
+	net.equip_requested.connect(
+		func(id: int, index: int) -> void:
+			_act(id, func(p: SimWorld.SimPlayer) -> void: p.equip(index))
+	)
+	net.unequip_requested.connect(
+		func(id: int, kind: int) -> void:
+			_act(id, func(p: SimWorld.SimPlayer) -> void: p.unequip(kind))
+	)
+	net.craft_requested.connect(
+		func(id: int, recipe: StringName) -> void:
+			_act(id, func(p: SimWorld.SimPlayer) -> void: Crafting.craft(p, recipe))
+	)
 	print("server: listening on %d" % port)
 	if metrics_port > 0:
 		var metrics := MetricsServer.new()
@@ -82,6 +98,12 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 			get_tree().quit(1)
 			return
 		print("server: metrics on %d" % metrics_port)
+
+
+## Runs action on a player's SimPlayer, if that peer has joined.
+func _act(id: int, action: Callable) -> void:
+	if world.players.has(id):
+		action.call(world.players[id])
 
 
 func _physics_process(delta: float) -> void:
@@ -108,7 +130,7 @@ func _physics_process(delta: float) -> void:
 		for id: int in world.players:
 			_send_chunks(id)
 			var snap := world.snapshot_for(id)
-			net.snapshot.rpc_id(id, snap.players, snap.enemies, snap.me)
+			net.snapshot.rpc_id(id, snap.players, snap.enemies, snap.drops, snap.me)
 	_save_due -= delta
 	if _save_due <= 0.0:
 		_save_due = SAVE_INTERVAL
@@ -132,8 +154,13 @@ func _send_chunks(id: int) -> void:
 
 
 ## Forwards what happened in the sim, including attacks handled between ticks, to the clients
-## that see it.
+## that see it, and changed inventories to their owners.
 func _send_events() -> void:
+	for id: int in world.players:
+		var inventory: Inventory = world.players[id].inventory
+		if inventory.changed:
+			inventory.changed = false
+			net.inventory.rpc_id(id, inventory.to_data())
 	for event in world.events:
 		match event[0]:
 			"respawn":
@@ -145,12 +172,14 @@ func _send_events() -> void:
 			"windup":
 				for id: int in world.players:
 					if world.sees(id, event[2]):
-						net.windup.rpc_id(id, event[1])
+						net.windup.rpc_id(id, event[1], event[3])
 			"swing":
 				# The swinging client has drawn its own already.
 				for id: int in world.players:
 					if id != event[1] and world.sees(id, event[4]):
-						net.swing.rpc_id(id, event[1], event[2], event[3])
+						net.swing.rpc_id(id, event[1], event[2], event[3], event[5])
+			"loot":
+				net.looted.rpc_id(event[1], event[2], event[3])
 	world.events.clear()
 
 
@@ -183,6 +212,7 @@ func metrics_text() -> String:
 		["players", "gauge", "", world.players.size()],
 		["loaded_chunks", "gauge", "", world.chunks.size()],
 		["enemies", "gauge", "", world.enemies.size()],
+		["drops", "gauge", "", world.drops.size()],
 		["save_seconds", "gauge", "", _save_usec / 1e6],
 		["ticks_total", "counter", "", _ticks],
 		["tick_seconds_total", "counter", "", _tick_usec / 1e6],

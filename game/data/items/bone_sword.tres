@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/item_def.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/content/attack_def.gd" id="2"]
+
+[sub_resource type="Resource" id="light"]
+script = ExtResource("2")
+damage = 22
+reach = 34.0
+arc = 110.0
+cooldown = 0.3
+cost = 12.0
+knock = 10.0
+
+[sub_resource type="Resource" id="heavy"]
+script = ExtResource("2")
+damage = 45
+reach = 40.0
+arc = 160.0
+cooldown = 0.8
+cost = 30.0
+knock = 28.0
+
+[resource]
+script = ExtResource("1")
+display_name = "Bone sword"
+rarity = 2
+color = Color(0.95, 0.93, 0.85, 1)
+slot = 1
+light = SubResource("light")
+heavy = SubResource("heavy")

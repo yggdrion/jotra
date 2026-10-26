@@ -3,14 +3,15 @@ extends Node2D
 ## The client: moves its own player at once (client-authoritative), sends the position to the
 ## server at SEND_RATE and draws everyone else INTERP_DELAY_MS in the past, blended from the
 ## server's snapshots, enemies the same way. Builds the chunks the server streams from the world
-## seed; E removes the nearest prop. Left/right mouse swing light/heavy toward the mouse and
-## report what they hit; Space dashes. Stamina and cooldowns are checked here first, the server
-## has the last word.
+## seed; E removes the nearest prop. Left/right mouse swing the equipped weapon light/heavy
+## toward the mouse and report what they hit; Space dashes. Stamina and cooldowns are checked
+## here first, the server has the last word. Tab or I opens the inventory and crafting screen;
+## items on the ground are picked up by walking over them (server side).
 ##
 ## Bot mode (run headless by the network test) walks in a circle instead of reading the
-## keyboard and exits 0 once it has chunks, has seen an enemy, the server echoes its own
-## position and bot_expect other players have been seen moving; 1 on timeout or a lost server,
-## 2 if it never connects.
+## keyboard and exits 0 once it has chunks and its inventory, has seen an enemy, the server
+## echoes its own position and bot_expect other players have been seen moving; 1 on timeout
+## or a lost server, 2 if it never connects.
 
 const SEND_RATE := 20
 const INTERP_DELAY_MS := 100
@@ -48,14 +49,20 @@ var _send_due := 0.0
 var _bot_start := {}  # peer id -> first seen position
 var _bot_echoed := false
 var _bot_saw_enemy := false
+var _bot_inventory := false
 var _bot_done := false
 var _world_seed := 0
 var _chunks := {}  # Vector2i -> ChunkView
 var _enemy_views := {}  # enemy id -> EnemyView
+var _drop_views := {}  # drop id -> DropView
 var _hud := Hud.new()
+var _inventory_ui := InventoryUi.new()
 ## From the server's snapshots, spent ahead of them here.
-var _health := Combat.MAX_HEALTH
-var _stamina := Combat.MAX_STAMINA
+var _health := Content.tuning.max_health
+var _max_health := Content.tuning.max_health
+var _stamina := Content.tuning.max_stamina
+## The equipped weapon, from the server's inventory; "" bare-handed.
+var _weapon := &""
 var _attack_ready_ms := 0
 var _dash_ready_ms := 0
 var _dash_left := 0.0
@@ -82,22 +89,38 @@ func _ready() -> void:
 	)
 	net.hit_received.connect(_on_hit)
 	net.windup_received.connect(
-		func(id: int) -> void:
+		func(id: int, seconds: float) -> void:
 			if _enemy_views.has(id):
-				_enemy_views[id].windup()
+				_enemy_views[id].windup(seconds)
 	)
 	net.respawned_received.connect(
 		func(at: Vector2) -> void:
 			_me.position = at
 			_dash_left = 0.0
-			_health = Combat.MAX_HEALTH
+			_health = _max_health
 	)
 	net.swing_received.connect(
-		func(id: int, heavy: bool, aim: Vector2) -> void:
+		func(id: int, heavy: bool, aim: Vector2, weapon: StringName) -> void:
 			if _views.has(id):
-				_views[id].swing(aim, Combat.HEAVY if heavy else Combat.LIGHT)
+				_views[id].swing(aim, Content.attack(weapon, heavy))
+	)
+	net.inventory_received.connect(
+		func(data: Dictionary) -> void:
+			_bot_inventory = true
+			_weapon = StringName(data.get("weapon", ""))
+			_inventory_ui.show_inventory(data)
+	)
+	net.looted_received.connect(_on_looted)
+	_inventory_ui.move_requested.connect(
+		func(from: int, to: int) -> void: net.move_item.rpc_id(1, from, to)
+	)
+	_inventory_ui.equip_requested.connect(func(index: int) -> void: net.equip.rpc_id(1, index))
+	_inventory_ui.unequip_requested.connect(func(kind: int) -> void: net.unequip.rpc_id(1, kind))
+	_inventory_ui.craft_requested.connect(
+		func(recipe: StringName) -> void: net.craft.rpc_id(1, recipe)
 	)
 	add_child(_hud)
+	add_child(_inventory_ui)
 	var overlay := DebugOverlay.new()
 	overlay.client = self
 	add_child(overlay)
@@ -121,7 +144,12 @@ func debug_lines() -> PackedStringArray:
 		)
 	)
 	var players: Dictionary = _snapshots[-1].players if not _snapshots.is_empty() else {}
-	lines.append("Players %d  enemies %d" % [players.size(), _enemy_views.size()])
+	lines.append(
+		(
+			"Players %d  enemies %d  drops %d"
+			% [players.size(), _enemy_views.size(), _drop_views.size()]
+		)
+	)
 	lines.append("Pos  %d, %d" % [_me.position.x, _me.position.y])
 	var chunk := WorldGen.chunk_of(_me.position)
 	lines.append(
@@ -191,6 +219,10 @@ func _on_welcomed(spawn: Vector2, world_seed: int) -> void:
 	_me.position = spawn
 	_me.add_child(Camera2D.new())
 	add_child(_me)
+	for station: StringName in Content.tuning.stations:
+		var view := StationView.new()
+		view.position = Content.tuning.stations[station]
+		add_child(view)
 
 
 func _on_chunk(coord: Vector2i, removed: PackedInt32Array) -> void:
@@ -219,7 +251,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
 	if key == null or not key.pressed or key.echo:
 		return
-	if key.keycode == KEY_E:
+	if key.keycode in [KEY_TAB, KEY_I]:
+		_inventory_ui.toggle()
+	elif key.keycode == KEY_ESCAPE and _inventory_ui.visible:
+		_inventory_ui.toggle()
+	elif key.keycode == KEY_E:
 		_remove_nearest_prop()
 	elif key.keycode == KEY_SPACE:
 		_dash()
@@ -230,7 +266,7 @@ func _unhandled_input(event: InputEvent) -> void:
 
 ## Swings at once and tells the server which enemies, as drawn here, the swing hit.
 func _attack(heavy: bool) -> void:
-	var move: Dictionary = Combat.HEAVY if heavy else Combat.LIGHT
+	var move := Content.attack(_weapon, heavy)
 	var now := Time.get_ticks_msec()
 	if now < _attack_ready_ms or _stamina < move.cost:
 		return
@@ -248,13 +284,14 @@ func _attack(heavy: bool) -> void:
 ## Dashes in the walking direction, or toward the mouse when standing still.
 func _dash() -> void:
 	var now := Time.get_ticks_msec()
-	if now < _dash_ready_ms or _stamina < Combat.DASH_COST:
+	var t := Content.tuning
+	if now < _dash_ready_ms or _stamina < t.dash_cost:
 		return
-	_dash_ready_ms = now + int(Combat.DASH_COOLDOWN * 1000)
-	_stamina -= Combat.DASH_COST
+	_dash_ready_ms = now + int(t.dash_cooldown * 1000)
+	_stamina -= t.dash_cost
 	var dir := _input_direction()
 	_dash_dir = dir if dir != Vector2.ZERO else _aim().normalized()
-	_dash_left = Combat.DASH_TIME
+	_dash_left = t.dash_time
 	net.dash.rpc_id(1)
 
 
@@ -276,16 +313,43 @@ func _remove_nearest_prop() -> void:
 		net.remove_prop.rpc_id(1, best_coord, best[0])
 
 
-func _on_snapshot(players: Dictionary, enemies: Dictionary, me: Vector2) -> void:
+func _on_snapshot(players: Dictionary, enemies: Dictionary, drops: Dictionary, me: Vector3) -> void:
 	var now := Time.get_ticks_msec()
 	_snapshots.append({ms = now, players = players, enemies = enemies})
 	while _snapshots[0].ms < now - BUFFER_MS:
 		_snapshots.pop_front()
 	_health = me.x
 	_stamina = me.y
-	_hud.show_stats(_health / Combat.MAX_HEALTH, _stamina / Combat.MAX_STAMINA)
+	_max_health = me.z
+	_hud.show_stats(_health / _max_health, _stamina / Content.tuning.max_stamina)
 	if _me:
-		_me.health = _health / Combat.MAX_HEALTH
+		_me.health = _health / _max_health
+	_show_drops(drops)
+
+
+## drops: {id: Vector3(x, y, item index)}. They lie still, so no interpolation.
+func _show_drops(drops: Dictionary) -> void:
+	for id: int in _drop_views.keys():
+		if not drops.has(id):
+			_drop_views[id].queue_free()
+			_drop_views.erase(id)
+	for id: int in drops:
+		if _drop_views.has(id):
+			continue
+		var drop: Vector3 = drops[id]
+		var view := DropView.new()
+		view.item = Content.item(Content.item_ids[int(drop.z)])
+		view.position = Vector2(drop.x, drop.y)
+		add_child(view)
+		_drop_views[id] = view
+
+
+func _on_looted(item: StringName, count: int) -> void:
+	var def := Content.item(item)
+	if _me and def:
+		_float_text(
+			"+%d %s" % [count, def.display_name], ItemDef.RARITY_COLORS[def.rarity], _me.position
+		)
 
 
 func _on_hit(enemy: bool, id: int, amount: int) -> void:
@@ -297,11 +361,16 @@ func _on_hit(enemy: bool, id: int, amount: int) -> void:
 	if view == null:
 		return
 	view.flash()
+	_float_text(str(amount), Color.WHITE if enemy else Color("e43b44"), view.position)
+
+
+## A number or note rising from above a position and fading out.
+func _float_text(text: String, color: Color, at: Vector2) -> void:
 	var label := Label.new()
-	label.text = str(amount)
+	label.text = text
 	label.add_theme_font_size_override("font_size", 8)
-	label.modulate = Color.WHITE if enemy else Color("e43b44")
-	label.position = view.position + Vector2(-4, -36)
+	label.modulate = color
+	label.position = at + Vector2(-4, -36)
 	label.z_index = 10
 	add_child(label)
 	var tween := label.create_tween()
@@ -314,8 +383,8 @@ func _process(delta: float) -> void:
 	if bot and not _bot_done and Time.get_ticks_msec() > BOT_TIMEOUT_MS:
 		push_error(
 			(
-				"client: bot timed out (echoed %s, enemy %s, saw %s)"
-				% [_bot_echoed, _bot_saw_enemy, _bot_start]
+				"client: bot timed out (echoed %s, enemy %s, inventory %s, saw %s)"
+				% [_bot_echoed, _bot_saw_enemy, _bot_inventory, _bot_start]
 			)
 		)
 		get_tree().quit(1)
@@ -325,9 +394,10 @@ func _process(delta: float) -> void:
 	if _dash_left > 0.0:
 		var step := minf(delta, _dash_left)
 		_dash_left -= step
-		_me.position += _dash_dir * Combat.DASH_DISTANCE / Combat.DASH_TIME * step
+		var t := Content.tuning
+		_me.position += _dash_dir * t.dash_distance / t.dash_time * step
 	elif _health > 0:
-		_me.position += _input_direction() * SimWorld.MAX_SPEED * delta
+		_me.position += _input_direction() * Content.tuning.walk_speed * delta
 	_send_due -= delta
 	if _send_due <= 0.0:
 		_send_due += 1.0 / SEND_RATE
@@ -336,6 +406,12 @@ func _process(delta: float) -> void:
 	var at := Time.get_ticks_msec() - INTERP_DELAY_MS
 	_show_enemies(Interpolation.sample(_snapshots, at, "enemies"))
 	_show_remote_players(Interpolation.sample(_snapshots, at))
+	if _inventory_ui.visible:
+		var here := {}
+		for station: StringName in Content.tuning.stations:
+			if Crafting.at_station(_me.position, station):
+				here[station] = true
+		_inventory_ui.stations = here
 
 
 func _input_direction() -> Vector2:
@@ -398,7 +474,7 @@ func _bot_check(positions: Dictionary) -> void:
 			_bot_start[id] = positions[id]
 		if positions[id].distance_to(_bot_start[id]) > BOT_MOVE_PX:
 			moving += 1
-	var seen_all := _bot_echoed and _bot_saw_enemy and not _chunks.is_empty()
+	var seen_all := _bot_echoed and _bot_saw_enemy and _bot_inventory and not _chunks.is_empty()
 	if seen_all and moving >= bot_expect and not _bot_done:
 		_bot_done = true
 		print(

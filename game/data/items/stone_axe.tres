@@ -1,0 +1,31 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/item_def.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/content/attack_def.gd" id="2"]
+
+[sub_resource type="Resource" id="light"]
+script = ExtResource("2")
+damage = 18
+reach = 30.0
+arc = 110.0
+cooldown = 0.4
+cost = 14.0
+knock = 12.0
+
+[sub_resource type="Resource" id="heavy"]
+script = ExtResource("2")
+damage = 40
+reach = 36.0
+arc = 150.0
+cooldown = 0.9
+cost = 32.0
+knock = 30.0
+
+[resource]
+script = ExtResource("1")
+display_name = "Stone axe"
+rarity = 0
+color = Color(0.5, 0.55, 0.6, 1)
+slot = 1
+light = SubResource("light")
+heavy = SubResource("heavy")
