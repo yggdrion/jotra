@@ -214,7 +214,16 @@ func _physics_process(delta: float) -> void:
 		for id: int in world.players:
 			_send_chunks(id)
 			var snap := world.snapshot_for(id)
-			net.snapshot.rpc_id(id, snap.players, snap.enemies, snap.drops, snap.me, snap.time)
+			var at: Vector2 = world.players[id].position
+			net.snapshot.rpc_id(
+				id,
+				at,
+				Net.pack_entities(snap.players, at),
+				Net.pack_entities(snap.enemies, at),
+				Net.pack_entities(snap.drops, at),
+				snap.me,
+				snap.time
+			)
 	_save_due -= delta
 	if _save_due <= 0.0:
 		_save_due = SAVE_INTERVAL

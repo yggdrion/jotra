@@ -47,7 +47,8 @@ signal ponged(sent_ms: int)
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 12
+const PROTOCOL_VERSION := 13
+const ENTITY_BYTES := 10
 
 @rpc("any_peer", "reliable")
 func hello(version: int, player_name: String) -> void:
@@ -158,12 +159,51 @@ func reject(reason: String) -> void:
 ## players and enemies: {id: Vector3(x, y, health 0..1)}, drops: {id: Vector3(x, y,
 ## Content.item_index, or -1 - the buff's index in Content.buff_ids for a buff orb)}, only
 ## those near the receiving player; me: its own Vector4(health, stamina, max health, hunger);
-## time: the world's time, for the day/night clock.
+## time: the world's time, for the day/night clock. Sent packed (pack_entities) around at, the
+## receiving player's position on the server.
 @rpc("authority", "unreliable_ordered")
 func snapshot(
-	players: Dictionary, enemies: Dictionary, drops: Dictionary, me: Vector4, time: float
+	at: Vector2,
+	players: PackedByteArray,
+	enemies: PackedByteArray,
+	drops: PackedByteArray,
+	me: Vector4,
+	time: float
 ) -> void:
-	snapshot_received.emit(players, enemies, drops, me, time)
+	snapshot_received.emit(
+		unpack_entities(players, at),
+		unpack_entities(enemies, at),
+		unpack_entities(drops, at),
+		me,
+		time
+	)
+
+
+## {id: Vector3(x, y, z)} in ENTITY_BYTES each, a third of a Dictionary: the id, x and y in
+## quarter pixels from origin as int16 (8191 px either way, farther than any view) and z as a
+## half float (exact for drop kinds, health to 0.001).
+static func pack_entities(entities: Dictionary, origin: Vector2) -> PackedByteArray:
+	var bytes := PackedByteArray()
+	bytes.resize(entities.size() * ENTITY_BYTES)
+	var at := 0
+	for id: int in entities:
+		var e: Vector3 = entities[id]
+		var offset := ((Vector2(e.x, e.y) - origin) * 4).round().clampf(-32768, 32767)
+		bytes.encode_s32(at, id)
+		bytes.encode_s16(at + 4, int(offset.x))
+		bytes.encode_s16(at + 6, int(offset.y))
+		bytes.encode_half(at + 8, e.z)
+		at += ENTITY_BYTES
+	return bytes
+
+
+static func unpack_entities(bytes: PackedByteArray, origin: Vector2) -> Dictionary:
+	var out := {}
+	for at in range(0, bytes.size(), ENTITY_BYTES):
+		var x := origin.x + bytes.decode_s16(at + 4) / 4.0
+		var y := origin.y + bytes.decode_s16(at + 6) / 4.0
+		out[bytes.decode_s32(at)] = Vector3(x, y, bytes.decode_half(at + 8))
+	return out
 
 
 ## A chunk entered the player's view: the client generates it from the seed, leaves out the

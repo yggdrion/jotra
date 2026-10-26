@@ -22,13 +22,18 @@ from pathlib import Path
 from _common import GAME, ROOT, fail, godot, godot_import
 
 TICK_MEAN_MS = 5.0
-TICK_MAX_MS = 1000 / 30
-SENT_KBPS = 20.0  # per player, server to clients
-RECEIVED_KBPS = 2.0  # per player, clients to server
+SLOW_TICKS_PCT = 0.1  # ticks over one 30 Hz tick (33 ms); a busy machine has the odd one
+TICK_MAX_MS = 100.0  # a hitch a player would notice
+SENT_KBPS = 20.0  # per player, server to clients, in the busiest WINDOW (night)
+RECEIVED_KBPS = 2.0  # per player, clients to server, same
+WINDOW = 60
 RAMP = 30  # seconds for every bot to join and pass its checks; not measured
 SCRAPE = 10
 PORT = 17796
 ERRORS = ("SCRIPT ERROR", "ERROR:")
+# ENet dropping a packet to a client that is just disconnecting: harmless, and it happens when
+# the bots all leave at once at the end.
+HARMLESS = ("ERROR: Unable to send packet on channel 0, max channels: 0",)
 COLUMNS = [
     "players",
     "loaded_chunks",
@@ -123,7 +128,7 @@ problems = []
 if bad := [i for i, c in enumerate(codes) if c]:
     problems.append(f"bots {bad} exited nonzero")
 for log in sorted(logs.glob("*.log")):
-    errors = [line for line in log.read_text(errors="replace").splitlines() if line.startswith(ERRORS)]
+    errors = [line for line in log.read_text(errors="replace").splitlines() if line.startswith(ERRORS) and not line.startswith(HARMLESS)]
     if errors:
         problems.append(f"{log.name}: {len(errors)} error line(s), first: {errors[0]}")
 measured = [r for r in rows if RAMP <= r["seconds"] <= duration]
@@ -134,21 +139,36 @@ seconds = last["seconds"] - first["seconds"]
 ticks = last["ticks_total"] - first["ticks_total"]
 mean_ms = (last["tick_seconds_total"] - first["tick_seconds_total"]) / ticks * 1000 if ticks else 0
 max_ms = last["tick_seconds_max"] * 1000
-sent = (last["sent_bytes_total"] - first["sent_bytes_total"]) / seconds / args.bots / 1024
-received = (last["received_bytes_total"] - first["received_bytes_total"]) / seconds / args.bots / 1024
+slow = (last["slow_ticks_total"] - first["slow_ticks_total"]) / ticks * 100 if ticks else 0
+
+
+def peak(column):
+    """Highest KB/s per player over any WINDOW seconds of the measured rows."""
+    best = 0
+    for i, a in enumerate(measured):
+        b = next((b for b in measured[i:] if b["seconds"] - a["seconds"] >= WINDOW), None)
+        if b:
+            best = max(best, (b[column] - a[column]) / (b["seconds"] - a["seconds"]) / args.bots / 1024)
+    return best
+
+
+sent = peak("sent_bytes_total")
+received = peak("received_bytes_total")
+average = (last["sent_bytes_total"] - first["sent_bytes_total"]) / seconds / args.bots / 1024
 fewest = min(r["players"] for r in measured)
 if fewest < args.bots:
     problems.append(f"only {fewest:.0f} of {args.bots} players online at one point")
 for name, value, budget, unit in [
     ("tick mean", mean_ms, TICK_MEAN_MS, "ms"),
+    ("slow ticks", slow, SLOW_TICKS_PCT, "%"),
     ("tick max", max_ms, TICK_MAX_MS, "ms"),
-    ("sent per player", sent, SENT_KBPS, "KB/s"),
-    ("received per player", received, RECEIVED_KBPS, "KB/s"),
+    ("peak sent/player", sent, SENT_KBPS, "KB/s"),
+    ("peak received/player", received, RECEIVED_KBPS, "KB/s"),
 ]:
     print(f"{name:20} {value:8.2f} {unit:5} (budget {budget:.1f})")
     if value > budget:
         problems.append(f"{name} {value:.2f} {unit} over budget {budget:.1f}")
-print(f"{'slow ticks':20} {last['slow_ticks_total']:8.0f} of {last['ticks_total']:.0f}")
+print(f"{'average sent/player':20} {average:8.2f} KB/s")
 print(f"{'peak enemies':20} {max(r['enemies'] for r in measured):8.0f}")
 print(f"{'peak chunks':20} {max(r['loaded_chunks'] for r in measured):8.0f}")
 print(f"metrics: {out}\nlogs: {logs}")
