@@ -5,6 +5,8 @@ extends GdUnitTestSuite
 func test_everything_loads() -> void:
 	assert_object(Content.tuning).is_not_null()
 	assert_object(Content.tuning.enemy).is_not_null()
+	assert_object(Content.tuning.dungeon_boss).is_not_null()
+	assert_str(Content.tuning.dungeon_boss.display_name).is_not_empty()
 	assert_int(Content.items.size()).is_greater(0)
 	assert_int(Content.recipes.size()).is_greater(0)
 	assert_int(Content.item_ids.size()).is_equal(Content.items.size())

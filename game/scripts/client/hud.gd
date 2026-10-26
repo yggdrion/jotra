@@ -4,11 +4,13 @@ extends CanvasLayer
 ## died" in the middle while dead, announcements like nightfall at the top, a prompt for what
 ## the player can do right here above the bottom edge, and the inventory key in the
 ## bottom-right corner, the room code friends join with in the top-right one when hosting,
-## and the dungeon buffs held in the top-left one. The minimap sits above the key hint.
+## the dungeon buffs held in the top-left one and a boss's name and health bar at the top
+## while one is in view. The minimap sits above the key hint.
 ## Anchored to the screen, as the visible area differs per player
 ## (PLAN §6).
 
 const BAR := Vector2(80, 5)
+const BOSS_BAR := Vector2(160, 4)
 const MARGIN := 6
 const HEALTH_COLOR := Color("e43b44")
 const STAMINA_COLOR := Color("feae34")
@@ -24,6 +26,9 @@ var _clock := Label.new()
 var _announce := Label.new()
 var _room := Label.new()
 var _buffs := VBoxContainer.new()
+var _boss := Label.new()
+var _boss_bar := Control.new()
+var _boss_health := 0.0
 var _health := 1.0
 var _stamina := 1.0
 var _hunger := 1.0
@@ -45,7 +50,7 @@ func _ready() -> void:
 	_died.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_died.visible = false
 	add_child(_died)
-	for label: Label in [_prompt, _keys, _clock, _announce, _room]:
+	for label: Label in [_prompt, _keys, _clock, _announce, _room, _boss]:
 		label.add_theme_font_size_override("font_size", 8)
 		label.add_theme_constant_override("outline_size", 2)
 		label.add_theme_color_override("font_outline_color", Color.BLACK)
@@ -78,6 +83,19 @@ func _ready() -> void:
 		Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, MARGIN
 	)
 	_room.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+	_boss.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_boss.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
+	_boss.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_boss.offset_top = MARGIN
+	_boss.visible = false
+	_boss_bar.size = BOSS_BAR
+	_boss_bar.set_anchors_and_offsets_preset(
+		Control.PRESET_CENTER_TOP, Control.PRESET_MODE_KEEP_SIZE, MARGIN + 13
+	)
+	_boss_bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_boss_bar.draw.connect(_draw_boss_bar)
+	_boss_bar.visible = false
+	add_child(_boss_bar)
 	_buffs.set_anchors_and_offsets_preset(
 		Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE, MARGIN
 	)
@@ -110,6 +128,23 @@ func show_clock(text: String, night: bool) -> void:
 ## The lobby room code, "" for none.
 func show_room(code: String) -> void:
 	_room.text = "Room %s" % code if code != "" else ""
+
+
+## The boss in view and its health 0..1; "" hides the bar.
+func show_boss(boss_name: String, health: float) -> void:
+	_boss.text = boss_name
+	_boss.visible = boss_name != ""
+	_boss_bar.visible = _boss.visible
+	if health != _boss_health:
+		_boss_health = health
+		_boss_bar.queue_redraw()
+
+
+func _draw_boss_bar() -> void:
+	_boss_bar.draw_rect(Rect2(Vector2.ZERO, BOSS_BAR), Color(0, 0, 0, 0.6))
+	_boss_bar.draw_rect(
+		Rect2(Vector2.ZERO, Vector2(BOSS_BAR.x * _boss_health, BOSS_BAR.y)), HEALTH_COLOR
+	)
 
 
 ## The buffs held, one line each: [text, color].

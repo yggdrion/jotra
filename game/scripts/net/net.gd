@@ -33,7 +33,7 @@ signal piece_received(coord: Vector2i, index: int, data: Array)
 signal storage_received(data: Dictionary)
 signal prop_removed_received(coord: Vector2i, prop_id: int)
 signal hit_received(enemy: bool, id: int, amount: int)
-signal windup_received(enemy_id: int, seconds: float)
+signal windup_received(enemy_id: int, seconds: float, slam_radius: float)
 signal respawned_received(position: Vector2)
 signal swing_received(player_id: int, heavy: bool, aim: Vector2, weapon: StringName)
 signal inventory_received(data: Dictionary)
@@ -47,7 +47,7 @@ signal ponged(sent_ms: int)
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 13
+const PROTOCOL_VERSION := 14
 const ENTITY_BYTES := 10
 
 @rpc("any_peer", "reliable")
@@ -156,11 +156,11 @@ func reject(reason: String) -> void:
 	rejected.emit(reason)
 
 
-## players and enemies: {id: Vector3(x, y, health 0..1)}, drops: {id: Vector3(x, y,
-## Content.item_index, or -1 - the buff's index in Content.buff_ids for a buff orb)}, only
-## those near the receiving player; me: its own Vector4(health, stamina, max health, hunger);
-## time: the world's time, for the day/night clock. Sent packed (pack_entities) around at, the
-## receiving player's position on the server.
+## players: {id: Vector3(x, y, health 0..1)}, enemies: the same with z = enemy_z (kind and
+## health), drops: {id: Vector3(x, y, Content.item_index, or -1 - the buff's index in
+## Content.buff_ids for a buff orb)}, only those near the receiving player; me: its own
+## Vector4(health, stamina, max health, hunger); time: the world's time, for the day/night
+## clock. Sent packed (pack_entities) around at, the receiving player's position on the server.
 @rpc("authority", "unreliable_ordered")
 func snapshot(
 	at: Vector2,
@@ -177,6 +177,20 @@ func snapshot(
 		me,
 		time
 	)
+
+
+## An enemy's kind (Content.enemy_index) and health 0..1 in one snapshot z, split by
+## enemy_kind and enemy_health. The 0.99 keeps full health below the next kind.
+static func enemy_z(kind: int, health: float) -> float:
+	return kind * 2 + health * 0.99
+
+
+static func enemy_kind(z: float) -> int:
+	return floori(z / 2)
+
+
+static func enemy_health(z: float) -> float:
+	return (z - enemy_kind(z) * 2) / 0.99
 
 
 ## {id: Vector3(x, y, z)} in ENTITY_BYTES each, a third of a Dictionary: the id, x and y in
@@ -236,10 +250,11 @@ func hit(enemy: bool, id: int, amount: int) -> void:
 	hit_received.emit(enemy, id, amount)
 
 
-## An enemy in view started an attack that lands in seconds: the telegraph to dash from.
+## An enemy in view started an attack that lands in seconds: the telegraph to dash from. A
+## slam_radius above 0 hits everyone that close.
 @rpc("authority", "reliable")
-func windup(enemy_id: int, seconds: float) -> void:
-	windup_received.emit(enemy_id, seconds)
+func windup(enemy_id: int, seconds: float, slam_radius: float) -> void:
+	windup_received.emit(enemy_id, seconds, slam_radius)
 
 
 ## Another player in view swung weapon (or "" bare-handed): draw it.

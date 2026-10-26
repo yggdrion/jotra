@@ -184,3 +184,29 @@ func test_dungeon_enemies_grow_with_depth_and_time() -> void:
 	assert_float(group.count).is_greater(shallow.count)
 	assert_float(group.health).is_greater(shallow.health)
 	assert_float(group.damage).is_equal(shallow.damage)
+
+
+func test_a_slam_hits_everyone_in_its_ring_but_the_dashing() -> void:
+	var world := _world()
+	var boss_def := Content.tuning.dungeon_boss
+	var radius := boss_def.slam_radius
+	world.add_player(2, "p2").position = Vector2(0, radius * 0.5)
+	world.add_player(3, "p3").position = Vector2(0, radius * 3)
+	world.add_player(4, "p4").position = Vector2(0, -radius * 0.5)
+	var boss := world.add_enemy(Vector2(boss_def.attack_range * 0.5, 0), 1000, 30, boss_def)
+	boss.provoke(1)
+	world.tick(TICK)
+	assert_int(boss.state).is_equal(SimEnemy.State.WINDUP)
+	var windup: Array = world.events.filter(func(e: Array) -> bool: return e[0] == "windup")[0]
+	assert_float(windup[4]).is_equal(radius)
+	var health := {}
+	for id: int in world.players:
+		health[id] = world.players[id].health
+	world.tick(boss_def.windup - TICK)
+	assert_bool(world.dash(4)).is_true()
+	world.tick(TICK * 2)
+	assert_int(boss.state).is_equal(SimEnemy.State.CHASE)
+	assert_float(world.players[1].health).is_less(health[1])
+	assert_float(world.players[2].health).is_less(health[2])
+	assert_float(world.players[3].health).is_equal(health[3])
+	assert_float(world.players[4].health).is_equal(health[4])

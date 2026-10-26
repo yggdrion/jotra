@@ -13,6 +13,8 @@ static var synergies := _load("res://data/synergies/")
 static var pieces := _load("res://data/pieces/")
 ## Item ids in a fixed order, so snapshots can send an item as its index.
 static var item_ids: Array[StringName] = _sorted_ids(items)
+## Enemy ids the same way, for each enemy's kind in snapshots.
+static var enemy_ids: Array[StringName] = _sorted_ids(enemies)
 ## Buff ids the same way, for buff orbs in snapshots.
 static var buff_ids: Array[StringName] = _sorted_ids(buffs)
 ## Building pieces the same way, also the order of the build menu.
@@ -25,6 +27,10 @@ static func item(id: StringName) -> ItemDef:
 
 static func item_index(id: StringName) -> int:
 	return item_ids.find(id)
+
+
+static func enemy_index(def: EnemyDef) -> int:
+	return enemy_ids.find(enemies.find_key(def))
 
 
 static func piece(id: StringName) -> PieceDef:

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/enemy_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/characters/skeleton_walk.png" id="sheet"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Barrow King"
+sheet = ExtResource("sheet")
+size = 2.0
+health = 325.0
+damage = 16.0
+speed = 75.0
+notice_radius = 260.0
+attack_range = 30.0
+attack_slack = 8.0
+windup = 1.1
+windup_speed = 0.3
+cooldown = 1.4
+slam_radius = 48.0
+leash = 2000.0
+drops = [{"item": &"amber", "chance": 1.0, "min": 3, "max": 5}, {"item": &"bone_sword", "chance": 0.5, "min": 1, "max": 1}, {"item": &"bone_armor", "chance": 0.5, "min": 1, "max": 1}]

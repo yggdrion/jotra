@@ -19,6 +19,8 @@ var entered := false
 ## Walked out through the exit.
 var cleared := false
 var opened_chest := false
+## Saw its run's boss die, by its own hand or another's.
+var boss_down := false
 ## Deepest room index reached and the rooms in its run.
 var deepest := 0
 var rooms := 0
@@ -28,6 +30,7 @@ var most_synergies := 0
 ## Sim time it entered and its run ended, -1 until then.
 var entered_at := -1.0
 var ended_at := -1.0
+var _boss_id := 0
 
 
 ## Its run is over: it walked out or died.
@@ -42,6 +45,7 @@ func act(delta: float) -> void:
 	most_buffs = maxi(most_buffs, _stacks())
 	most_synergies = maxi(most_synergies, me.buffs.synergies().size())
 	deepest = maxi(deepest, me.run.room_of(me.position))
+	_watch_boss()
 	if _dodge():
 		_spend("fight", delta)
 		return
@@ -111,6 +115,15 @@ func _delve(delta: float) -> void:
 		if Dungeon.clamp_to([corridor] as Array[Rect2], me.position) == me.position:
 			_walk_to(Vector2(corridor.end.x + STEP_IN, corridor.get_center().y), delta)
 			return
+
+
+func _watch_boss() -> void:
+	if _boss_id == 0:
+		for enemy: SimEnemy in world.enemies.values():
+			if enemy.def == Content.tuning.dungeon_boss and player().run.owns(enemy.position):
+				_boss_id = enemy.id
+	elif not world.enemies.has(_boss_id):
+		boss_down = true
 
 
 func _nearest_orb() -> SimWorld.SimDrop:

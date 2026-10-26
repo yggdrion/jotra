@@ -2,7 +2,7 @@ class_name SimEnemy
 extends RefCounted
 ## An enemy on the server. AI v1 (PLAN §5.2): idle until a player comes near, chase, wind up
 ## an attack that lands at the end if the target is still in range and not dashing (closing
-## in at windup_speed meanwhile), and walk
+## in at windup_speed meanwhile; a slam hits everyone near instead), and walk
 ## home to heal when led too far away. It walks straight at its target; a blocking piece in the
 ## way gets the attack instead, until it breaks.
 # ponytail: no pathing around walls; enemies break through. Add it if bases feel too fragile.
@@ -62,7 +62,7 @@ func tick(world: SimWorld, delta: float) -> void:
 				return
 			state = State.WINDUP
 			_until = world.time + def.windup
-			world.events.append(["windup", id, position, def.windup])
+			world.events.append(["windup", id, position, def.windup, def.slam_radius])
 		State.WINDUP:
 			var player: SimWorld.SimPlayer = world.players.get(target)
 			if player != null and siege == null:
@@ -74,6 +74,10 @@ func tick(world: SimWorld, delta: float) -> void:
 			if siege != null:
 				world.damage_piece(siege, damage)
 				siege = null
+			elif def.slam_radius > 0:
+				for other: SimWorld.SimPlayer in world.players.values():
+					if position.distance_to(other.position) <= def.slam_radius:
+						world.damage_player(other.id, damage, self)
 			elif player != null and position.distance_to(player.position) <= reach:
 				world.damage_player(target, damage, self)
 			_until = world.time + def.cooldown

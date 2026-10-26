@@ -163,9 +163,9 @@ func _ready() -> void:
 	)
 	net.hit_received.connect(_on_hit)
 	net.windup_received.connect(
-		func(id: int, seconds: float) -> void:
+		func(id: int, seconds: float, slam_radius: float) -> void:
 			if _enemy_views.has(id):
-				_enemy_views[id].windup(seconds)
+				_enemy_views[id].windup(seconds, slam_radius)
 	)
 	net.respawned_received.connect(
 		func(at: Vector2) -> void:
@@ -837,19 +837,25 @@ func _show_remote_players(players: Dictionary) -> void:
 		_bot_check(positions)
 
 
-## enemies: {id: Vector3(x, y, health)}.
+## enemies: {id: Vector3(x, y, Net.enemy_z)}. The HUD's boss bar follows the first boss in view.
 func _show_enemies(enemies: Dictionary) -> void:
 	for id: int in _enemy_views.keys():
 		if not enemies.has(id):
 			_enemy_views[id].queue_free()
 			_enemy_views.erase(id)
+	var boss: EnemyView = null
 	for id: int in enemies:
+		var enemy: Vector3 = enemies[id]
 		if not _enemy_views.has(id):
 			_enemy_views[id] = EnemyView.new()
+			_enemy_views[id].def = Content.enemies[Content.enemy_ids[Net.enemy_kind(enemy.z)]]
 			add_child(_enemy_views[id])
-		var enemy: Vector3 = enemies[id]
-		_enemy_views[id].position = Vector2(enemy.x, enemy.y)
-		_enemy_views[id].health = enemy.z
+		var view: EnemyView = _enemy_views[id]
+		view.position = Vector2(enemy.x, enemy.y)
+		view.health = Net.enemy_health(enemy.z)
+		if boss == null and view.def.size > 1:
+			boss = view
+	_hud.show_boss(boss.def.display_name if boss else "", boss.health if boss else 0.0)
 	_bot_saw_enemy = _bot_saw_enemy or not enemies.is_empty()
 
 

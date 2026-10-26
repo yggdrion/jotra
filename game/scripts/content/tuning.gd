@@ -124,6 +124,8 @@ extends Resource
 @export var chest_drops: Array
 ## What waits at a room's spawns (RoomDef.spawns).
 @export var dungeon_enemy: EnemyDef
+## What waits at the end chest, one per run, scaled like the end room's enemies.
+@export var dungeon_boss: EnemyDef
 ## Middle rooms between a run's start and end room, picked from res://data/rooms/.
 @export var dungeon_rooms_min := 4
 @export var dungeon_rooms_max := 6

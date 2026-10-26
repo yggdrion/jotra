@@ -3,6 +3,7 @@
 [ext_resource type="Script" path="res://scripts/content/tuning.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/content/attack_def.gd" id="2"]
 [ext_resource type="Resource" path="res://data/enemies/draugr.tres" id="3"]
+[ext_resource type="Resource" path="res://data/enemies/barrow_king.tres" id="boss"]
 
 [sub_resource type="Resource" id="fists_light"]
 script = ExtResource("2")
@@ -83,6 +84,7 @@ dungeon_entrance = Vector2(-96, -16)
 portal_reach = 40.0
 dungeon_join_window = 30.0
 dungeon_enemy = ExtResource("3")
+dungeon_boss = ExtResource("boss")
 dungeon_rooms_min = 4
 dungeon_rooms_max = 6
 corridor_length = 64.0

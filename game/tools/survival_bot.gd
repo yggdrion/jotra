@@ -13,7 +13,7 @@ const GEAR: Array[StringName] = [
 ]
 ## Enemies this close are fought.
 const ENGAGE := 150.0
-## Seconds from a windup's start to the dash, when it dodges.
+## Seconds from a windup's start to the dash at the earliest, when it dodges.
 const REACT := 0.2
 ## Eats below this share of max hunger; forages while carrying less food than FOOD_STOCK.
 const EAT_BELOW := 0.5
@@ -93,7 +93,8 @@ func observe(delta: float) -> void:
 				damage_day += event[3]
 		elif event[0] == "windup" and _targets_me(event[1]):
 			if _rng.randf() < dodge:
-				_dash_at.append(world.time + REACT)
+				# As the telegraph ends, so the i-frames cover the hit even on a long windup.
+				_dash_at.append(world.time + maxf(REACT, event[3] - Content.tuning.iframes))
 	var dead := me.dead_until > 0
 	if dead and not _was_dead:
 		if me.hunger <= 0 and not _hit_this_tick:
@@ -164,9 +165,14 @@ func _spend(activity: String, delta: float) -> void:
 	time_in[activity] = time_in.get(activity, 0.0) + delta
 
 
+## Its windup is aimed at this bot, or is a slam that reaches it.
 func _targets_me(enemy_id: int) -> bool:
 	var enemy: SimEnemy = world.enemies.get(enemy_id)
-	return enemy != null and enemy.target == id
+	if enemy == null:
+		return false
+	if enemy.def.slam_radius > 0:
+		return enemy.position.distance_to(player().position) <= enemy.def.slam_radius
+	return enemy.target == id
 
 
 ## Dashes away from the nearest enemy when a planned dodge is due.

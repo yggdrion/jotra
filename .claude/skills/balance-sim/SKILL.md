@@ -69,9 +69,9 @@ Co-op scaling sweep (groups of 4, 2 days, 6 seeds; average bot deaths/day): coun
 
 `python tools/balance_sim.py --dungeon [--quick] [--players 1]` puts `DelveBot`s (`game/tools/delve_bot.gd`, a `SurvivalBot` that dodges the same way) at the barrow with one of three gear tiers and 5 trail rations, and they take one run together: fight what comes within 220 px, walk over buff orbs, follow the corridors, open the end chest, leave. They never back off inside (nothing heals but a cleared room). A run ends when a bot walks out or dies; 20 minutes counts as stuck. Tiers: `fresh` (nothing), `crafted` (club, cloth tunic), `best` (bone sword, bone armor). `--quick` is 8 seeds (~1 min per group size), the default 20.
 
-Columns: cleared, died and stuck as shares; chest opened; deepest room reached of the rooms after the start; the median room deaths happened in; median minutes to clear; most buff stacks held at once; kills; lowest health.
+Columns: cleared, died and stuck as shares; chest opened; boss (the barrow king) seen dying; deepest room reached of the rooms after the start; the median room deaths happened in; median minutes to clear; most buff stacks held at once; kills; lowest health.
 
-The bot clears much faster than a person (1–2 min: no hesitating, no looking around), and skill barely matters inside: dashing away in a crowded room costs it as much as the hit. Read gear tiers and group sizes, not skill.
+The bot clears much faster than a person (1–2 min: no hesitating, no looking around). It dashes as a telegraph ends (`REACT` at the earliest), so the i-frames cover the slam's long windup too; since then skill matters inside (expert dodges 85%).
 
 To try several values at once, copy `game/` into the scratchpad once per value (symlink `addons/`), edit `data/tuning.tres` or `data/rooms/*.tres` in each copy, and run `balance_sim.gd -- --players=N --seeds=S --dungeon` against each with `--path`, in parallel.
 
@@ -84,14 +84,16 @@ To try several values at once, copy `game/` into the scratchpad once per value (
 | best gear, solo | clears most runs (60–90%), but with close calls: lowest health under 35% |
 | deaths | in the deeper rooms (median room of death ≥ 3 with best gear), not at the door |
 | groups | clear at least as often as solo; may be easier, but not a walk (lowest health under ~75%) |
+| boss | the barrow king is what kills best-gear solo runs that die: deaths in the end room |
 
 ### Levers that mattered (2026-10-26)
 
 - Spawns per room (`game/data/rooms/*.tres`): 3–4 draugr waking at once killed every bot by room 3–4 whatever its gear; 2–3 per room is what best gear can take.
 - `room_clear_heal`: without healing inside, every run was a war of attrition nobody won. 0.3 vs 0.6 changes less than spawns or depth scaling.
 - `depth_damage` against `depth_health`: damage per room decides whether the last rooms kill; 0.1 → 0.075 took best-gear solo clears from ~25% to ~80%.
+- The boss (2026-10-26): on top of the end room's draugr even 200 hp killed nearly every bot; the end room is now the boss alone. With the old dodge timing (dash 0.2 s in) no bot survived a 1.1 s slam. 300 → 350 health at 16 damage took best-gear solo clears (all skills) from 79% to 62%.
 - `room_count` / `room_health`: the overworld's group scaling (count 0.3) let groups of 4 clear with 90%+ health left; rooms scale on their own, count 1.0 and health 0.25 per extra player. Still easier in groups: four bone swords on one room kill it fast.
 
-### Last full dungeon result (2026-10-26, 20 seeds; rooms of 2–3 spawns, room_clear_heal 0.4, depth health/damage 0.15/0.075, room count/health 1.0/0.25)
+### Last full dungeon result (2026-10-26, 20 seeds; rooms of 2–3 spawns, room_clear_heal 0.4, depth health/damage 0.15/0.075, room count/health 1.0/0.25; barrow king 325 hp, 16 damage, alone in the end room; bots dodge at the telegraph's end)
 
-Cleared (novice / average / expert): fresh gear 0% everywhere but 5% for expert pairs; crafted solo 0 / 0 / 0%, groups of 4 5 / 14 / 20%; best solo 55 / 80 / 75% with lowest health 17–27%, groups of 2 95 / 80 / 92% (lowest 52–60%), groups of 4 98 / 95 / 94% (lowest 68–74%). Best-gear deaths happen in room 6–7, the end chamber. Bots hold 2–3 buff stacks by the end. Off target: best-gear novices solo just under 60%; groups are easier than solo, as noted above.
+Cleared (novice / average / expert): fresh gear 0% but 1–10% for average/expert groups; crafted solo 0 / 0 / 15%, groups of 2 2 / 12 / 55%, groups of 4 45 / 74 / 72%; best solo 35 / 70 / 100% with lowest health 7 / 18 / 50%, groups of 2 98–100% (lowest 47–75%), groups of 4 100% (lowest 71–85%). Every clear killed the boss; best-gear deaths happen in rooms 6–7. Off target: expert solo with best gear has no close calls, crafted groups of 4 clear more than "sometimes" and groups of 4 are a walk; all three came with the better dodge timing, not the boss (re-tune depth damage and group scaling next).

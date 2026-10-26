@@ -9,7 +9,7 @@ func test_describe_says_where_from_and_what_for() -> void:
 	assert_array(Array(InventoryUi.sources(&"club"))).is_equal(["crafting"])
 	assert_array(Array(InventoryUi.used_in(&"wood"))).contains(["Club"])
 	var text := InventoryUi.describe(&"bone_armor")
-	assert_str(text).contains("armor").contains("Blocks").contains("From: crafting")
+	assert_str(text).contains("armor").contains("Blocks").contains("From: barrow king, crafting")
 	text = InventoryUi.describe(&"berries")
 	assert_str(text).contains("food").contains("Restores").contains("From: trees")
 

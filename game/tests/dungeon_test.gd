@@ -269,3 +269,25 @@ func test_more_players_wake_more_enemies() -> void:
 	assert_int(expected).is_greater(run.defs[1].spawns.size())
 	for enemy: SimEnemy in world.enemies.values():
 		assert_int(run.room_of(enemy.position)).is_equal(1)
+
+
+func test_the_end_room_wakes_one_boss_at_the_chest() -> void:
+	var world := _world()
+	world.interact(1)
+	var run: Dungeon = world.players[1].run
+	world.players[1].position = run.rooms[run.rooms.size() - 2].get_center()
+	world.tick(TICK)
+	var bosses := func() -> Array:
+		return world.enemies.values().filter(
+			func(e: SimEnemy) -> bool: return e.def == Content.tuning.dungeon_boss
+		)
+	assert_array(bosses.call()).is_empty()
+	world.players[1].position = run.chest + Vector2(0, 120)
+	world.tick(TICK)
+	assert_array(bosses.call()).has_size(1)
+	var boss: SimEnemy = bosses.call()[0]
+	assert_vector(boss.home).is_equal(run.chest)
+	var scale := Combat.dungeon_scaled(run.reached, run.minutes(world.time))
+	assert_float(boss.max_health).is_equal_approx(
+		Content.tuning.dungeon_boss.health * scale.health, 0.01
+	)

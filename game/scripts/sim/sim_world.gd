@@ -132,13 +132,13 @@ var pieces := {}
 ## Off in tests that place their own enemies.
 var spawn_enemies := true
 ## What happened this tick for clients to show, drained by GameServer: ["hit", enemy: bool,
-## id, amount, position], ["windup", enemy id, position, seconds], ["respawn", player id,
-## position], ["swing", player id, heavy, aim, position, weapon], ["loot", player id, item,
-## count] for a pickup, ["full", player id] when loot didn't fit, ["dungeon", player id, area,
-## exit, chest, position] when a player entered a run or (area empty) is back in the
-## overworld, ["chest", player id] when one opened its run's end chest, ["piece", tile] when a
-## piece was built, changed (damage, door) or is gone, ["storage", player id, Inventory.to_data
-## of its open chest, {} once closed].
+## id, amount, position], ["windup", enemy id, position, seconds, slam radius or 0],
+## ["respawn", player id, position], ["swing", player id, heavy, aim, position, weapon],
+## ["loot", player id, item, count] for a pickup, ["full", player id] when loot didn't fit,
+## ["dungeon", player id, area, exit, chest, position] when a player entered a run or (area
+## empty) is back in the overworld, ["chest", player id] when one opened its run's end
+## chest, ["piece", tile] when a piece was built, changed (damage, door) or is gone,
+## ["storage", player id, Inventory.to_data of its open chest, {} once closed].
 var events: Array[Array] = []
 ## Seeded by the balance sim for repeatable runs.
 var rng := RandomNumberGenerator.new()
@@ -576,8 +576,8 @@ func _open_run() -> Dungeon:
 
 ## Spawns the enemies of each room a living player has walked into for the first time, in
 ## number and strength scaled by the players near it, in strength by its depth and the minutes
-## the run has been open. Once every enemy of the rooms woken so far is dead, the living inside
-## heal room_clear_heal of their max health.
+## the run has been open; the end room also wakes the boss at the chest. Once every enemy of
+## the rooms woken so far is dead, the living inside heal room_clear_heal of their max health.
 func _wake_rooms(run: Dungeon) -> void:
 	if (
 		run.cleared < run.reached
@@ -609,6 +609,9 @@ func _wake_rooms(run: Dungeon) -> void:
 				kind.damage * scale.damage,
 				kind
 			)
+		if run.reached == run.rooms.size() - 1:
+			var boss := Content.tuning.dungeon_boss
+			add_enemy(run.chest, boss.health * scale.health, boss.damage * scale.damage, boss)
 
 
 ## Out of its run, at the position already set, without its buffs; restore puts back the
@@ -960,9 +963,9 @@ func sees(id: int, at: Vector2) -> bool:
 
 
 ## What one player's client is sent: {players: {id: Vector3(x, y, health 0..1)}, enemies: the
-## same, drops: {id: Vector3(x, y, Content.item_index, or -1 - the index in Content.buff_ids
-## for a buff orb)}, me: Vector4(health, stamina, max
-## health, hunger), time: the world's time for the day/night clock}, with only the players
+## same with Net.enemy_z for z, drops: {id: Vector3(x, y, Content.item_index, or -1 - the
+## index in Content.buff_ids for a buff orb)}, me: Vector4(health, stamina, max health,
+## hunger), time: the world's time for the day/night clock}, with only the players
 ## (itself included), enemies and drops near it.
 func snapshot_for(id: int) -> Dictionary:
 	var near := {}
@@ -974,8 +977,11 @@ func snapshot_for(id: int) -> Dictionary:
 	var near_enemies := {}
 	for enemy: SimEnemy in enemies.values():
 		if sees(id, enemy.position):
+			var health := enemy.health / enemy.max_health
 			near_enemies[enemy.id] = Vector3(
-				enemy.position.x, enemy.position.y, enemy.health / enemy.max_health
+				enemy.position.x,
+				enemy.position.y,
+				Net.enemy_z(Content.enemy_index(enemy.def), health)
 			)
 	var near_drops := {}
 	for drop: SimDrop in drops.values():

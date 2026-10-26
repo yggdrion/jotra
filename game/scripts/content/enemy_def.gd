@@ -3,8 +3,12 @@ extends Resource
 ## An enemy kind, one file per kind in res://data/enemies/; its id is the file name. Health and
 ## damage are before self-scaling (Combat.scaled). Distances in px, times in seconds.
 
+## Shown on the boss bar; only bosses (size > 1) get one.
+@export var display_name := ""
 ## Walk sheet, 16×16 frames: a column per facing (down, up, left, right), a row per frame.
 @export var sheet: Texture2D
+## Drawn this many times its sheet's size.
+@export var size := 1.0
 @export var health := 40.0
 @export var damage := 15.0
 @export var speed := 70.0
@@ -18,6 +22,8 @@ extends Resource
 ## escape and only a dash dodges.
 @export var windup_speed := 0.0
 @export var cooldown := 1.0
+## Above 0, the windup ends in a slam that hits every player this close instead of the target.
+@export var slam_radius := 0.0
 ## Chasing further than this from home it gives up, walks back and heals.
 @export var leash := 400.0
 ## What it drops on death, see Loot.roll.

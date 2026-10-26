@@ -144,6 +144,7 @@ if args.dungeon:
             ("died", share("died")),
             ("stuck", share("stuck")),
             ("chest", share("chest")),
+            ("boss", share("boss")),
             ("deepest", lambda rows: f"{mean(rows, 'deepest'):.1f}/{mean(rows, 'rooms') - 1:.1f}"),
             ("died in room", died_deepest),
             ("clear min", cleared_minutes),

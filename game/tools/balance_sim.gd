@@ -145,6 +145,7 @@ func _delve(skill: String, tier: String, players: int, seed_value: int) -> void:
 			died = int(bot.deaths_by_enemy + bot.deaths_by_hunger > 0),
 			stuck = int(not bot.done()),
 			chest = int(bot.opened_chest),
+			boss = int(bot.boss_down),
 			deepest = bot.deepest,
 			rooms = bot.rooms,
 			minutes = snappedf((end - bot.entered_at) / 60.0, 0.1),
