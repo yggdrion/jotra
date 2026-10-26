@@ -37,7 +37,8 @@ func test_snapshot_lists_only_nearby_players() -> void:
 	world.add_player(3, "p3")
 	world.remove_player(2)
 	world.players[3].position = Vector2(WorldGen.CHUNK_PX * (SimWorld.VIEW_CHUNKS + 1), 0)
-	assert_dict(world.snapshot_for(1)).is_equal({1: world.players[1].position})
+	var me: Vector2 = world.players[1].position
+	assert_dict(world.snapshot_for(1).players).is_equal({1: Vector3(me.x, me.y, 1.0)})
 
 
 func test_time_stands_still_while_empty() -> void:

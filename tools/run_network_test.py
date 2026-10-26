@@ -1,7 +1,7 @@
 """Headless network test over ENet on localhost, in two runs:
 
   1. One server and BOTS bot clients. Each bot walks in a circle and exits 0 once the server
-     echoes its position, it has chunks and it has seen every other bot moving (GameClient bot
+     echoes its position, it has chunks and an enemy and it has seen every other bot moving (GameClient bot
      mode). The server's metrics endpoint must then show the ticks that ran, and the world dir
      the bots' saved positions.
   2. A --solo server and one bot: the server must exit on its own once the bot leaves, as it
@@ -87,4 +87,4 @@ try:
 finally:
     for p in procs:
         p.kill()
-print(f"Network test passed: {BOTS} bots saw each other and got chunks, metrics served, players saved, solo server exited with its player, solo spawn works.")
+print(f"Network test passed: {BOTS} bots saw each other and enemies and got chunks, metrics served, players saved, solo server exited with its player, solo spawn works.")

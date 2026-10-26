@@ -64,6 +64,11 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 	net.hello_received.connect(_on_hello)
 	net.moved.connect(func(id: int, position: Vector2) -> void: world.move_player(id, position))
 	net.prop_remove_requested.connect(_on_prop_remove_requested)
+	net.attacked.connect(
+		func(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> void:
+			world.attack(id, heavy, aim, hits)
+	)
+	net.dashed.connect(func(id: int) -> void: world.dash(id))
 	print("server: listening on %d" % port)
 	if metrics_port > 0:
 		var metrics := MetricsServer.new()
@@ -96,12 +101,14 @@ func _physics_process(delta: float) -> void:
 		return
 	var started := Time.get_ticks_usec()
 	world.tick(delta)
+	_send_events()
 	_snapshot_due -= delta
 	if _snapshot_due <= 0.0:
 		_snapshot_due += 1.0 / SNAPSHOT_RATE
 		for id: int in world.players:
 			_send_chunks(id)
-			net.snapshot.rpc_id(id, world.snapshot_for(id))
+			var snap := world.snapshot_for(id)
+			net.snapshot.rpc_id(id, snap.players, snap.enemies, snap.me)
 	_save_due -= delta
 	if _save_due <= 0.0:
 		_save_due = SAVE_INTERVAL
@@ -122,6 +129,24 @@ func _send_chunks(id: int) -> void:
 		if not sent.has(coord):
 			sent[coord] = true
 			net.chunk.rpc_id(id, coord, world.removed_props(coord))
+
+
+## Forwards what happened in the sim, including attacks handled between ticks, to the clients
+## that see it.
+func _send_events() -> void:
+	for event in world.events:
+		match event[0]:
+			"respawn":
+				net.respawned.rpc_id(event[1], event[2])
+			"hit":
+				for id: int in world.players:
+					if world.sees(id, event[4]):
+						net.hit.rpc_id(id, event[1], event[2], roundi(event[3]))
+			"windup":
+				for id: int in world.players:
+					if world.sees(id, event[2]):
+						net.windup.rpc_id(id, event[1])
+	world.events.clear()
 
 
 func _save() -> void:
@@ -152,6 +177,7 @@ func metrics_text() -> String:
 		["start_time_seconds", "gauge", "", _started],
 		["players", "gauge", "", world.players.size()],
 		["loaded_chunks", "gauge", "", world.chunks.size()],
+		["enemies", "gauge", "", world.enemies.size()],
 		["save_seconds", "gauge", "", _save_usec / 1e6],
 		["ticks_total", "counter", "", _ticks],
 		["tick_seconds_total", "counter", "", _tick_usec / 1e6],
