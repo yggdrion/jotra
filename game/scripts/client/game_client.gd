@@ -1,3 +1,4 @@
+# gdlint: disable=max-file-lines
 class_name GameClient
 extends Node2D
 ## The client: moves its own player at once (client-authoritative), sends the position to the
@@ -619,11 +620,11 @@ func _drawn(bow: ItemDef) -> float:
 
 ## While the bow is drawn: shows the draw, and shoots when the button is let go (anywhere, also
 ## over the UI). It is dropped without a shot when the bow is put away, the inventory opens or
-## the draw was too short.
+## the draw was too short (any menu opening counts).
 func _tick_draw(bow: ItemDef) -> void:
 	var drawn := _drawn(bow)
 	_me.draw_share = drawn
-	if _inventory_ui.visible or _health <= 0:
+	if _inventory_ui.visible or _craft_menu.visible or _pause.visible or _health <= 0:
 		_draw_started_ms = 0
 		_me.draw_share = 0.0
 		return
