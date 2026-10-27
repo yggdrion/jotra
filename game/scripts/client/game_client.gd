@@ -126,6 +126,15 @@ var _attack_ready_ms := 0
 var _dash_ready_ms := 0
 var _dash_left := 0.0
 var _dash_dir := Vector2.ZERO
+var _sfx := Sfx.new()
+var _camera := Camera2D.new()
+## Screenshake in px, falling off, and the slide of a hit that hurt us (px a second).
+var _shake := 0.0
+var _knock_vel := Vector2.ZERO
+## The swing we last made, and when: a hit on an enemy soon after is ours, for hitstop and shake.
+var _last_move: AttackDef
+var _last_swing_ms := 0
+var _hitstop_until := 0
 ## The rooms and corridors of the dungeon run we are in, empty in the overworld, and its way
 ## out.
 var _area: Array[Rect2] = []
@@ -161,12 +170,16 @@ func _ready() -> void:
 			if _chunks.has(coord):
 				_chunks[coord].remove_prop(id)
 	)
+	add_child(_sfx)
 	net.hit_received.connect(_on_hit)
 	net.windup_received.connect(
-		func(id: int, seconds: float, slam_radius: float) -> void:
+		func(id: int, seconds: float, radius: float) -> void:
 			if _enemy_views.has(id):
-				_enemy_views[id].windup(seconds, slam_radius)
+				_enemy_views[id].windup(seconds, radius)
+				_sfx.play(&"windup")
 	)
+	net.enemy_event_received.connect(_on_enemy_event)
+	net.perfect_received.connect(_on_perfect)
 	net.respawned_received.connect(
 		func(at: Vector2) -> void:
 			_me.position = at
@@ -176,12 +189,15 @@ func _ready() -> void:
 	net.swing_received.connect(
 		func(id: int, heavy: bool, aim: Vector2, weapon: StringName) -> void:
 			if _views.has(id):
-				_views[id].swing(aim, Content.attack(weapon, heavy))
+				_views[id].swing(aim, Content.attack(weapon, heavy), weapon)
+				_sfx.play(&"swing_heavy" if heavy else &"swing")
 	)
 	net.inventory_received.connect(
 		func(data: Dictionary) -> void:
 			_bot_inventory = true
 			_weapon = StringName(data.get("weapon", ""))
+			if _me:
+				_me.weapon = _weapon
 			_inventory.load_data(data)
 			_inventory_ui.show_inventory(data)
 	)
@@ -345,7 +361,9 @@ func _on_welcomed(spawn: Vector2, world_seed: int) -> void:
 	_me = PlayerView.new()
 	_me.own = true
 	_me.position = spawn
-	_me.add_child(Camera2D.new())
+	_me.holding = true
+	_me.weapon = _weapon
+	_me.add_child(_camera)
 	add_child(_me)
 	var entrance := PortalView.new()
 	entrance.label = "Barrow"
@@ -550,6 +568,9 @@ func _attack(heavy: bool) -> void:
 		if Combat.in_arc(_me.position, aim, _enemy_views[id].position, move.reach, move.arc):
 			hits.append(id)
 	_me.swing(aim, move)
+	_last_move = move
+	_last_swing_ms = now
+	_sfx.play(&"swing_heavy" if heavy else &"swing")
 	net.attack.rpc_id(1, heavy, aim, hits)
 
 
@@ -564,6 +585,7 @@ func _dash() -> void:
 	var dir := _input_direction()
 	_dash_dir = dir if dir != Vector2.ZERO else _aim().normalized()
 	_dash_left = t.dash_time
+	_sfx.play(&"dash")
 	net.dash.rpc_id(1)
 
 
@@ -691,7 +713,7 @@ func _on_looted(item: StringName, count: int) -> void:
 		)
 
 
-func _on_hit(enemy: bool, id: int, amount: int) -> void:
+func _on_hit(enemy: bool, id: int, amount: int, push: Vector2) -> void:
 	var view: PlayerView
 	if enemy:
 		view = _enemy_views.get(id)
@@ -701,6 +723,67 @@ func _on_hit(enemy: bool, id: int, amount: int) -> void:
 		return
 	view.flash()
 	_float_text(str(amount), Color.WHITE if enemy else Color("e43b44"), view.position)
+	var heavy := push.length() > 15.0 or amount > 30
+	add_child(HitSpark.burst(view.position + Vector2(0, -8), push, 8 if heavy else 4))
+	if enemy:
+		(view as EnemyView).recoil(push)
+		_sfx.play(&"hit_heavy" if heavy else &"hit")
+		var mine := _last_move != null and Time.get_ticks_msec() - _last_swing_ms < 300
+		if mine:
+			_shake = maxf(_shake, _last_move.shake)
+			_hitstop(_last_move.hitstop)
+	elif view == _me:
+		view.hurt()
+		_hud.hurt()
+		_sfx.play(&"hurt")
+		_shake = maxf(_shake, Content.tuning.hurt_shake)
+		_knock_vel = push * Content.tuning.knock_decay
+
+
+func _on_enemy_event(id: int, kind: int) -> void:
+	var view: EnemyView = _enemy_views.get(id)
+	if view == null:
+		return
+	match kind:
+		Net.EnemyEvent.STAGGER:
+			view.stagger()
+		Net.EnemyEvent.STRIKE:
+			view.strike()
+		Net.EnemyEvent.DIED:
+			view.die()
+			_sfx.play(&"death")
+		Net.EnemyEvent.GAVE_UP:
+			view.give_up()
+			_float_text("?", Color("c0cbdc"), view.position)
+			_sfx.play(&"give_up")
+
+
+## The dash we just made dodged a hit perfectly: a flourish and a beat of slow motion.
+func _on_perfect() -> void:
+	_float_text("Perfect!", Color("feae34"), _me.position + Vector2(0, -8))
+	_sfx.play(&"perfect")
+	_slow(0.3, 0.2)
+
+
+## Freezes the game for seconds of real time (hitstop), unless a longer freeze is on.
+func _hitstop(seconds: float) -> void:
+	_slow(0.02, seconds)
+
+
+func _slow(time_scale: float, seconds: float) -> void:
+	var until := Time.get_ticks_msec() + int(seconds * 1000)
+	if bot or until <= _hitstop_until:
+		return
+	_hitstop_until = until
+	Engine.time_scale = time_scale
+	# Ignores the time scale it is slowing.
+	await get_tree().create_timer(seconds, true, false, true).timeout
+	if Time.get_ticks_msec() >= _hitstop_until:
+		Engine.time_scale = 1.0
+
+
+func _exit_tree() -> void:
+	Engine.time_scale = 1.0
 
 
 ## A number or note rising from above a position and fading out.
@@ -740,6 +823,13 @@ func _process(delta: float) -> void:
 		if _bot_swing_at <= 0.0:
 			_bot_swing_at = BOT_SWING_EVERY
 			_attack(false)
+	_shake = move_toward(_shake, 0.0, 20.0 * delta)
+	_camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * _shake
+	if _knock_vel != Vector2.ZERO:
+		_walk(_knock_vel * delta)
+		_knock_vel *= exp(-Content.tuning.knock_decay * delta)
+		if _knock_vel.length() < 4.0:
+			_knock_vel = Vector2.ZERO
 	if _dash_left > 0.0:
 		var step := minf(delta, _dash_left)
 		_dash_left -= step
@@ -841,7 +931,9 @@ func _show_remote_players(players: Dictionary) -> void:
 func _show_enemies(enemies: Dictionary) -> void:
 	for id: int in _enemy_views.keys():
 		if not enemies.has(id):
-			_enemy_views[id].queue_free()
+			# A dead one frees itself once it has fallen.
+			if not _enemy_views[id].dying:
+				_enemy_views[id].queue_free()
 			_enemy_views.erase(id)
 	var boss: EnemyView = null
 	for id: int in enemies:
@@ -851,6 +943,8 @@ func _show_enemies(enemies: Dictionary) -> void:
 			_enemy_views[id].def = Content.enemies[Content.enemy_ids[Net.enemy_kind(enemy.z)]]
 			add_child(_enemy_views[id])
 		var view: EnemyView = _enemy_views[id]
+		if view.dying:
+			continue
 		view.position = Vector2(enemy.x, enemy.y)
 		view.health = Net.enemy_health(enemy.z)
 		if boss == null and view.def.size > 1:

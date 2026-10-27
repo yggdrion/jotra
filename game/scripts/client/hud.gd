@@ -6,6 +6,7 @@ extends CanvasLayer
 ## bottom-right corner, the room code friends join with in the top-right one when hosting,
 ## the dungeon buffs held in the top-left one and a boss's name and health bar at the top
 ## while one is in view. The minimap sits above the key hint.
+## A red edge closes in on the screen's border when health is low, and flashes when hit.
 ## Anchored to the screen, as the visible area differs per player
 ## (PLAN §6).
 
@@ -33,9 +34,27 @@ var _health := 1.0
 var _stamina := 1.0
 var _hunger := 1.0
 var _announce_tween: Tween
+var _vignette := TextureRect.new()
+## 0..1 how low health is, and a flash of red that fades.
+var _low := 0.0
+var _hurt := 0.0
 
 
 func _ready() -> void:
+	var edge := Gradient.new()
+	edge.offsets = PackedFloat32Array([0.55, 1.0])
+	edge.colors = PackedColorArray([Color(0.8, 0, 0, 0), Color(0.8, 0, 0, 0.75)])
+	var texture := GradientTexture2D.new()
+	texture.gradient = edge
+	texture.fill = GradientTexture2D.FILL_RADIAL
+	texture.fill_from = Vector2(0.5, 0.5)
+	texture.fill_to = Vector2(1.0, 0.5)
+	_vignette.texture = texture
+	_vignette.stretch_mode = TextureRect.STRETCH_SCALE
+	_vignette.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_vignette.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_vignette.modulate.a = 0.0
+	add_child(_vignette)
 	_bars.size = Vector2(BAR.x, BAR.y * 3 + 4)
 	_bars.set_anchors_and_offsets_preset(
 		Control.PRESET_BOTTOM_LEFT, Control.PRESET_MODE_KEEP_SIZE, MARGIN
@@ -110,7 +129,19 @@ func show_stats(health: float, stamina: float, hunger: float) -> void:
 	_stamina = stamina
 	_hunger = hunger
 	_died.visible = health <= 0.0
+	_low = clampf(1.0 - health / Content.tuning.low_health, 0.0, 1.0) if health > 0.0 else 0.0
 	_bars.queue_redraw()
+
+
+## A hit just landed on the player: the red edge flashes.
+func hurt() -> void:
+	_hurt = 1.0
+
+
+func _process(delta: float) -> void:
+	_hurt = move_toward(_hurt, 0.0, delta * 3.0)
+	var beat := 0.8 + 0.2 * sin(Time.get_ticks_msec() / 160.0)
+	_vignette.modulate.a = maxf(_low * beat, _hurt * 0.7)
 
 
 ## What the player can do here, e.g. "[E] Fell tree"; "" hides it.
