@@ -96,6 +96,7 @@ func test_nights_bring_more_and_stronger_enemies() -> void:
 
 func _spawned(time: float) -> Array:
 	var world := SimWorld.new()
+	world.spawn_kind = Content.tuning.enemy
 	world.time = time
 	world.add_player(1, "p1")
 	for i in 300:

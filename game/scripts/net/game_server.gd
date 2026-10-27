@@ -281,7 +281,7 @@ func _send_events() -> void:
 			"windup":
 				for id: int in world.players:
 					if world.sees(id, event[2]):
-						net.windup.rpc_id(id, event[1], event[3], event[4])
+						net.windup.rpc_id(id, event[1], event[3], event[4], event[5])
 			"enemy":
 				for id: int in world.players:
 					if world.sees(id, event[3]):

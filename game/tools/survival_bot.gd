@@ -9,7 +9,7 @@ extends RefCounted
 
 ## Gear it works toward, in order; it skips what isn't better than what it wears.
 const GEAR: Array[StringName] = [
-	&"club", &"cloth_tunic", &"stone_axe", &"bone_armor", &"bone_sword"
+	&"club", &"cloth_tunic", &"stone_axe", &"hide_armor", &"bone_armor", &"bone_sword"
 ]
 ## Hand-made tools it makes first, by what they break: sticks and pebbles come off the ground.
 const TOOLS := {ItemDef.Tool.AXE: &"pebble_axe", ItemDef.Tool.PICKAXE: &"pebble_pickaxe"}
@@ -61,8 +61,10 @@ var alive := 0.0
 var crafted_at := {}
 
 var _rng := RandomNumberGenerator.new()
-## Sim times to dash at, for the windups it decided to dodge.
+## Sim times to dash at, for the windups it decided to dodge, and the way each dash goes
+## (zero: away from the nearest enemy).
 var _dash_at: Array[float] = []
+var _dash_way: Array[Vector2] = []
 var _retreating := false
 var _wander := Vector2.RIGHT
 var _wander_until := 0.0
@@ -95,8 +97,7 @@ func observe(delta: float) -> void:
 				damage_day += event[3]
 		elif event[0] == "windup" and _targets_me(event[1]):
 			if _rng.randf() < dodge:
-				# As the telegraph ends, so the i-frames cover the hit even on a long windup.
-				_dash_at.append(world.time + maxf(REACT, event[3] - Content.tuning.iframes))
+				_plan_dash(event)
 	var dead := me.dead_until > 0
 	if dead and not _was_dead:
 		if me.hunger <= 0 and not _hit_this_tick:
@@ -106,6 +107,7 @@ func observe(delta: float) -> void:
 		if Survival.is_night(world.time):
 			deaths_at_night += 1
 		_dash_at.clear()
+		_dash_way.clear()
 		_retreating = false
 	_was_dead = dead
 	if not dead:
@@ -178,18 +180,41 @@ func _targets_me(enemy_id: int) -> bool:
 	return enemy.target == id
 
 
-## Dashes away from the nearest enemy when a planned dodge is due.
+## Plans the dash for a windup event. A hit lands as the telegraph ends, so the i-frames are
+## timed to cover it even on a long windup; an arrow line is sidestepped, and the dash is timed
+## to the arrow's arrival.
+func _plan_dash(event: Array) -> void:
+	var at: float = world.time + maxf(REACT, event[3] - Content.tuning.iframes)
+	var way := Vector2.ZERO
+	var line: Vector2 = event[5]
+	if line != Vector2.ZERO:
+		var enemy: SimEnemy = world.enemies[event[1]]
+		var flight := enemy.position.distance_to(player().position) / enemy.def.arrow_speed
+		at = world.time + event[3] + flight - Content.tuning.iframes / 2
+		way = line.orthogonal()
+	_dash_at.append(at)
+	_dash_way.append(way)
+
+
+## Dashes away from the nearest enemy (or the way planned) when a planned dodge is due.
 func _dodge() -> bool:
-	if _dash_at.is_empty() or world.time < _dash_at[0]:
+	var next := -1
+	for i in _dash_at.size():
+		if world.time >= _dash_at[i] and (next == -1 or _dash_at[i] < _dash_at[next]):
+			next = i
+	if next == -1:
 		return false
-	_dash_at.pop_front()
+	var way := _dash_way[next]
+	_dash_at.remove_at(next)
+	_dash_way.remove_at(next)
 	var me := player()
 	if not world.dash(id):
 		return false
 	dodged += 1
-	var enemy := _nearest_enemy()
-	var away := (me.position - enemy.position).normalized() if enemy else Vector2.RIGHT
-	world.move_player(id, me.position + away * Content.tuning.dash_distance)
+	if way == Vector2.ZERO:
+		var enemy := _nearest_enemy()
+		way = (me.position - enemy.position).normalized() if enemy else Vector2.RIGHT
+	world.move_player(id, me.position + way * Content.tuning.dash_distance)
 	return true
 
 
@@ -216,6 +241,11 @@ func _fight(enemy: SimEnemy, delta: float) -> void:
 		if me.stamina >= heavy.cost + reserve
 		else Content.attack(me.inventory.weapon(), false)
 	)
+	# Behind a shield a light swing does nothing: go around it unless the swing breaks the guard.
+	var guarded := enemy.blocks(me.position) and move.poise_damage < enemy.def.block_break
+	if guarded:
+		_walk_to(enemy.position + enemy.facing.rotated(PI * 0.75) * 24.0, delta)
+		return
 	if enemy.position.distance_to(me.position) > move.reach * 0.8:
 		_walk_to(enemy.position, delta)
 		return

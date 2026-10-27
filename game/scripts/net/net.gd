@@ -42,7 +42,7 @@ signal node_hit_received(at: Vector2, note: String)
 signal hit_received(enemy: bool, id: int, amount: int, push: Vector2)
 signal enemy_event_received(enemy_id: int, kind: int)
 signal perfect_received
-signal windup_received(enemy_id: int, seconds: float, radius: float)
+signal windup_received(enemy_id: int, seconds: float, radius: float, line: Vector2)
 signal respawned_received(position: Vector2)
 signal swing_received(player_id: int, heavy: bool, aim: Vector2, weapon: StringName)
 signal inventory_received(data: Dictionary)
@@ -55,11 +55,11 @@ signal chest_opened_received
 signal ponged(sent_ms: int)
 
 ## What happened to an enemy in view, see enemy_event.
-enum EnemyEvent { STAGGER, STRIKE, DIED, GAVE_UP }
+enum EnemyEvent { STAGGER, STRIKE, DIED, GAVE_UP, BLOCK }
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 15
+const PROTOCOL_VERSION := 16
 const ENTITY_BYTES := 10
 
 @rpc("any_peer", "reliable")
@@ -201,17 +201,18 @@ func snapshot(
 
 
 ## An enemy's kind (Content.enemy_index) and health 0..1 in one snapshot z, split by
-## enemy_kind and enemy_health. The 0.99 keeps full health below the next kind.
+## enemy_kind and enemy_health. The 0.99 keeps full health below the next kind; a half float
+## keeps health to about 0.005 up to a few dozen kinds.
 static func enemy_z(kind: int, health: float) -> float:
-	return kind * 2 + health * 0.99
+	return kind + health * 0.99
 
 
 static func enemy_kind(z: float) -> int:
-	return floori(z / 2)
+	return floori(z)
 
 
 static func enemy_health(z: float) -> float:
-	return (z - enemy_kind(z) * 2) / 0.99
+	return (z - enemy_kind(z)) / 0.99
 
 
 ## {id: Vector3(x, y, z)} in ENTITY_BYTES each, a third of a Dictionary: the id, x and y in
@@ -279,13 +280,15 @@ func hit(enemy: bool, id: int, amount: int, push: Vector2) -> void:
 
 
 ## An enemy in view started an attack that lands in seconds: the telegraph to dash from. It
-## hits everyone within radius of the enemy.
+## hits everyone within radius of the enemy, or, with a line (a unit vector), the strip that
+## far along it.
 @rpc("authority", "reliable")
-func windup(enemy_id: int, seconds: float, radius: float) -> void:
-	windup_received.emit(enemy_id, seconds, radius)
+func windup(enemy_id: int, seconds: float, radius: float, line: Vector2) -> void:
+	windup_received.emit(enemy_id, seconds, radius, line)
 
 
-## An enemy in view staggered (its windup is off), struck, died or gave up its chase (EnemyEvent).
+## An enemy in view staggered (its windup is off), struck, died, gave up its chase or blocked
+## a hit (EnemyEvent).
 @rpc("authority", "reliable")
 func enemy_event(enemy_id: int, kind: int) -> void:
 	enemy_event_received.emit(enemy_id, kind)

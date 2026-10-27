@@ -151,6 +151,7 @@ func _tick_until_windup(world: SimWorld) -> void:
 ## The enemies spawned around count players standing together, after long enough.
 func _spawned(count: int) -> Array:
 	var world := SimWorld.new()
+	world.spawn_kind = Content.tuning.enemy
 	for i in count:
 		world.add_player(i + 1, "p%d" % i)
 	for i in 300:

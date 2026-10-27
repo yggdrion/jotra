@@ -122,6 +122,8 @@ const REACH := 32.0
 const REACH_SLACK := 16.0
 ## Seconds between two "inventory full" notices to one player.
 const FULL_NOTICE_INTERVAL := 3.0
+## Pack members spawn this far (px) around the first.
+const PACK_SPREAD := 28.0
 
 var world_seed := 0
 ## Null in tests: nothing is saved.
@@ -137,9 +139,12 @@ var dungeons := {}  # slot -> Dungeon
 var pieces := {}
 ## Off in tests that place their own enemies.
 var spawn_enemies := true
+## Spawns only this kind instead of the day and night mix (tests, the balance sim).
+var spawn_kind: EnemyDef
 ## What happened this tick for clients to show, drained by GameServer: ["hit", enemy: bool,
 ## id, amount, position, push: the way and px the hit shoves the one hit],
-## ["windup", enemy id, position, seconds, radius of the area it will hit],
+## ["windup", enemy id, position, seconds, radius of the area it will hit, line: the unit
+## vector of an arrow line of that length instead of the disc, zero for a disc],
 ## ["enemy", enemy id, Net.EnemyEvent, position], ["perfect", player id] for a perfectly
 ## dodged hit,
 ## ["respawn", player id, position], ["swing", player id, heavy, aim, position, weapon],
@@ -156,6 +161,7 @@ var rng := RandomNumberGenerator.new()
 var _next_enemy_id := 1
 var _next_drop_id := 1
 var _next_projectile_id := 1
+var _next_pack_id := 1
 var _spawn_due := 0.0
 
 
@@ -318,12 +324,51 @@ func _spawn(delta: float) -> void:
 		var at := player.position + Vector2.from_angle(rng.randf() * TAU) * distance
 		if Building.blocker(pieces, at) != null:
 			continue
-		var enemy := add_enemy(
-			at,
-			t.enemy.health * scale.health * night.health,
-			t.enemy.damage * scale.damage * night.damage
-		)
-		enemy.speed *= night.speed
+		var kind := _pick_kind(Survival.is_night(time))
+		var members := rng.randi_range(kind.pack_min, kind.pack_max)
+		var pack := _next_pack_id if members > 1 else 0
+		_next_pack_id += 1 if members > 1 else 0
+		for i in members:
+			var enemy := add_enemy(
+				at + Vector2.from_angle(rng.randf() * TAU) * (0.0 if i == 0 else PACK_SPREAD),
+				kind.health * scale.health * night.health,
+				kind.damage * scale.damage * night.damage,
+				kind
+			)
+			enemy.speed *= night.speed
+			enemy.pack = pack
+
+
+## A kind for the overworld spawner to add, by the weights of Content.enemies for day or night.
+func _pick_kind(night: bool) -> EnemyDef:
+	if spawn_kind:
+		return spawn_kind
+	var total := 0.0
+	for kind: EnemyDef in Content.enemies.values():
+		total += kind.spawn_weight_night if night else kind.spawn_weight_day
+	if total <= 0.0:
+		return Content.tuning.enemy
+	var roll := rng.randf() * total
+	for id in Content.enemy_ids:
+		var kind: EnemyDef = Content.enemies[id]
+		roll -= kind.spawn_weight_night if night else kind.spawn_weight_day
+		if roll < 0.0:
+			return kind
+	return Content.tuning.enemy
+
+
+## An exploder's blast: everyone and every piece within its slam_radius takes its damage, and
+## it dies without dropping anything.
+func explode(enemy: SimEnemy) -> void:
+	var radius := enemy.def.slam_radius
+	for player: SimPlayer in players.values():
+		if player.position.distance_to(enemy.position) <= radius:
+			damage_player(player.id, enemy.damage, enemy)
+	for tile: Vector2i in pieces.keys():
+		if Building.tile_center(tile).distance_to(enemy.position) <= radius:
+			damage_piece(tile, enemy.damage)
+	events.append(["enemy", enemy.id, Net.EnemyEvent.DIED, enemy.position])
+	enemies.erase(enemy.id)
 
 
 ## An enemy of kind (Tuning.enemy by default) with health and damage already scaled.
@@ -846,6 +891,11 @@ func attack(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> Packe
 		# Rolled only with a crit buff, so runs without buffs draw the same numbers.
 		var dealt := damage * (2.0 if crit > 0 and rng.randf() < crit else 1.0)
 		enemy.provoke(id)
+		if enemy.blocks(player.position) and move.poise_damage < enemy.def.block_break:
+			events.append(["enemy", enemy.id, Net.EnemyEvent.BLOCK, enemy.position])
+			damaged.append(enemy.id)
+			_hurt_enemy(enemy, dealt * enemy.def.block_pass, player, false)
+			continue
 		enemy.push((enemy.position - player.position).normalized(), move.knock)
 		enemy.hit_poise(self, move.poise_damage)
 		damaged.append(enemy.id)
@@ -983,6 +1033,10 @@ func _projectile_hits(p: SimProjectile, radius: float) -> bool:
 		if enemy.position.distance_to(p.position) <= radius:
 			var shooter: SimPlayer = players.get(p.owner_id)
 			enemy.provoke(p.owner_id)
+			if enemy.blocks(p.position - p.velocity):
+				events.append(["enemy", enemy.id, Net.EnemyEvent.BLOCK, enemy.position])
+				_hurt_enemy(enemy, p.damage * enemy.def.block_pass, shooter, false)
+				return true
 			_hurt_enemy(enemy, p.damage, shooter)
 			return true
 	return false

@@ -117,3 +117,49 @@ func test_buffs_and_synergies_name_real_stats_and_buffs() -> void:
 		assert_int(synergy.buffs.size()).is_equal(2)
 		for buff in synergy.buffs:
 			assert_bool(Content.buffs.has(buff)).override_failure_message(str(id)).is_true()
+
+
+func test_enemies_have_a_sheet_and_what_their_behavior_needs() -> void:
+	for id: StringName in Content.enemies:
+		var enemy: EnemyDef = Content.enemies[id]
+		var message := str(id)
+		assert_object(enemy.sheet).override_failure_message(message).is_not_null()
+		match enemy.behavior:
+			EnemyDef.Behavior.ARCHER:
+				assert_float(enemy.preferred_distance).is_greater(0.0)
+				assert_float(enemy.preferred_distance).is_less(enemy.attack_range)
+				assert_float(enemy.arrow_range).is_greater(0.0)
+				assert_float(enemy.arrow_speed).is_greater(0.0)
+			EnemyDef.Behavior.PACK:
+				assert_int(enemy.pack_min).is_greater(1)
+				assert_int(enemy.pack_max).is_greater_equal(enemy.pack_min)
+				assert_float(enemy.lunge_distance).is_greater(0.0)
+			EnemyDef.Behavior.SHIELD:
+				assert_float(enemy.block_arc).is_greater(0.0)
+			EnemyDef.Behavior.EXPLODER:
+				assert_float(enemy.slam_radius).is_greater(0.0)
+
+
+func test_wolves_drop_meat_and_hide_and_hide_is_used() -> void:
+	var drops: Array = Content.enemies[&"wolf"].drops.map(
+		func(d: Dictionary) -> StringName: return d.item
+	)
+	assert_array(drops).contains([&"meat", &"hide"])
+	var uses := Content.recipes.values().filter(
+		func(r: RecipeDef) -> bool: return r.inputs.has(&"hide")
+	)
+	assert_int(uses.size()).is_greater(0)
+	assert_int(Content.item(uses[0].result).slot).is_equal(ItemDef.Slot.ARMOR)
+
+
+func test_every_spawnable_enemy_has_a_weight_and_the_day_has_no_ranged_or_exploders() -> void:
+	var day := 0.0
+	var night := 0.0
+	for enemy: EnemyDef in Content.enemies.values():
+		day += enemy.spawn_weight_day
+		night += enemy.spawn_weight_night
+		if enemy.behavior in [EnemyDef.Behavior.ARCHER, EnemyDef.Behavior.EXPLODER]:
+			assert_float(enemy.spawn_weight_day).is_equal(0.0)
+			assert_float(enemy.spawn_weight_night).is_greater(0.0)
+	assert_float(day).is_greater(0.0)
+	assert_float(night).is_greater(0.0)

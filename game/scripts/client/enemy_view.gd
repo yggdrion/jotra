@@ -7,6 +7,8 @@ extends PlayerView
 
 const AREA := Color(0.9, 0.15, 0.1)
 const GAVE_UP := Color(0.65, 0.7, 0.9)
+const SHIELD := Color(0.75, 0.82, 0.95)
+const BLOCK_MS := 150
 const STRIKE_MS := 140
 const STAGGER_MS := 500
 const GAVE_UP_MS := 2500
@@ -25,6 +27,9 @@ var dying := false
 var _windup_start := 0
 var _windup_end := 0
 var _area := 0.0
+## The unit vector of an arrow line telegraph, zero for a disc.
+var _line := Vector2.ZERO
+var _block_at := -1000
 var _strike_at := -1000
 var _stagger_at := -1000
 var _gave_up_at := -100000
@@ -33,11 +38,19 @@ var _recoil := Vector2.ZERO
 var _died_at := 0
 
 
-## An attack that lands in seconds on everything within radius of the enemy.
-func windup(seconds: float, radius: float) -> void:
+## An attack that lands in seconds on everything within radius of the enemy, or, with a line
+## (a unit vector), on the strip that far along it.
+func windup(seconds: float, radius: float, line := Vector2.ZERO) -> void:
+	_line = line
 	_windup_start = Time.get_ticks_msec()
 	_windup_end = _windup_start + int(seconds * 1000)
 	_area = radius
+	queue_redraw()
+
+
+## Its shield took a hit.
+func block() -> void:
+	_block_at = Time.get_ticks_msec()
 	queue_redraw()
 
 
@@ -77,6 +90,8 @@ func tint() -> Color:
 	var base := super()
 	if base != Color.WHITE:
 		return base
+	if def.tint != Color.WHITE:
+		return def.tint
 	if Time.get_ticks_msec() - _gave_up_at < GAVE_UP_MS:
 		return GAVE_UP
 	return Color.WHITE
@@ -115,6 +130,16 @@ func _draw() -> void:
 	if now < _windup_end and not dying:
 		var r := _area / scale.x
 		var p := float(now - _windup_start) / maxf(_windup_end - _windup_start, 1.0)
-		draw_circle(Vector2.ZERO, r * p, Color(AREA, 0.35))
-		draw_arc(Vector2.ZERO, r, 0, TAU, 32, Color(AREA, 0.85), 1.0)
+		if _line != Vector2.ZERO:
+			draw_line(Vector2.ZERO, _line * r, Color(AREA, 0.3), 3.0)
+			draw_line(Vector2.ZERO, _line * r * p, Color(AREA, 0.85), 2.0)
+		else:
+			draw_circle(Vector2.ZERO, r * p, Color(AREA, 0.35))
+			draw_arc(Vector2.ZERO, r, 0, TAU, 32, Color(AREA, 0.85), 1.0)
+	if def.block_arc > 0 and not dying:
+		var edge := deg_to_rad(def.block_arc) / 2
+		var heading := _facing_vector().angle()
+		var lit := clampf(1.0 - float(now - _block_at) / BLOCK_MS, 0.0, 1.0)
+		var color := SHIELD.lerp(Color.WHITE, lit)
+		draw_arc(Vector2(0, -6), 12, heading - edge, heading + edge, 12, color, 2.0)
 	super()

@@ -1,0 +1,22 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/enemy_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/characters/skeleton_walk.png" id="sheet"]
+
+[resource]
+script = ExtResource("1")
+sheet = ExtResource("sheet")
+behavior = 4
+tint = Color(0.6, 0.9, 0.4, 1)
+size = 1.15
+health = 40.0
+damage = 40.0
+speed = 100.0
+attack_range = 30.0
+windup = 0.9
+windup_speed = 0.3
+slam_radius = 70.0
+recovery = 0.5
+poise = 20.0
+spawn_weight_night = 2.0
+drops = []

@@ -1,0 +1,25 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/enemy_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/characters/hunter_walk.png" id="sheet"]
+
+[resource]
+script = ExtResource("1")
+sheet = ExtResource("sheet")
+behavior = 1
+tint = Color(0.8, 0.85, 0.8, 1)
+health = 45.0
+damage = 18.0
+speed = 85.0
+notice_radius = 280.0
+attack_range = 220.0
+windup = 0.8
+windup_speed = 0.0
+cooldown = 1.8
+recovery = 0.4
+poise = 25.0
+preferred_distance = 130.0
+arrow_speed = 300.0
+arrow_range = 260.0
+spawn_weight_night = 3.0
+drops = [{"item": &"bone", "chance": 0.4, "min": 1, "max": 2}, {"item": &"arrow", "chance": 0.4, "min": 1, "max": 3}]

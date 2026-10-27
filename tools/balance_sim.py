@@ -175,6 +175,6 @@ show("Time spent (% of play)", [
     for a in ACTIVITIES
 ])
 show("Gear crafted (bots that got it, median time)", [
-    (item, reached(item)) for item in ["club", "stone_axe", "cloth_tunic", "bone_armor", "bone_sword"]
+    (item, reached(item)) for item in ["club", "stone_axe", "cloth_tunic", "hide_armor", "bone_armor", "bone_sword"]
 ])
 write_csv()

@@ -183,9 +183,9 @@ func _ready() -> void:
 		func(at: Vector2, note: String) -> void: _float_text(note, Color("c0cbdc"), at)
 	)
 	net.windup_received.connect(
-		func(id: int, seconds: float, radius: float) -> void:
+		func(id: int, seconds: float, radius: float, line: Vector2) -> void:
 			if _enemy_views.has(id):
-				_enemy_views[id].windup(seconds, radius)
+				_enemy_views[id].windup(seconds, radius, line)
 				_sfx.play(&"windup")
 	)
 	net.enemy_event_received.connect(_on_enemy_event)
@@ -859,6 +859,10 @@ func _on_enemy_event(id: int, kind: int) -> void:
 		Net.EnemyEvent.DIED:
 			view.die()
 			_sfx.play(&"death")
+		Net.EnemyEvent.BLOCK:
+			view.block()
+			_float_text("Blocked", Color("c0cbdc"), view.position)
+			_sfx.play(&"block")
 		Net.EnemyEvent.GAVE_UP:
 			view.give_up()
 			_float_text("?", Color("c0cbdc"), view.position)

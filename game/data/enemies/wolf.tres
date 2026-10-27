@@ -1,0 +1,32 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/enemy_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/characters/caveman_walk.png" id="sheet"]
+
+[resource]
+script = ExtResource("1")
+sheet = ExtResource("sheet")
+behavior = 2
+tint = Color(0.62, 0.62, 0.68, 1)
+size = 0.8
+health = 28.0
+damage = 14.0
+speed = 150.0
+notice_radius = 200.0
+attack_range = 70.0
+attack_slack = 8.0
+windup = 0.35
+windup_speed = 0.0
+cooldown = 1.6
+recovery = 0.4
+poise = 15.0
+stagger_time = 0.5
+windup_armor = 30.0
+pack_min = 3
+pack_max = 4
+lunge_distance = 90.0
+circle_distance = 56.0
+lunge_reach = 26.0
+spawn_weight_day = 3.0
+spawn_weight_night = 2.0
+drops = [{"item": &"meat", "chance": 0.15, "min": 1, "max": 1}, {"item": &"hide", "chance": 0.4, "min": 1, "max": 1}]
