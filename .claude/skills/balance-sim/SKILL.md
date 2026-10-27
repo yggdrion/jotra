@@ -5,15 +5,17 @@ description: Simulate Jotra headless with bots of three skill levels (solo and i
 
 # Balance sim
 
-`python tools/balance_sim.py` runs `game/tools/balance_sim.gd` in one headless Godot process per group size, in parallel, and prints the tables. Each player is a `SurvivalBot` (`game/tools/survival_bot.gd`) driving a plain `SimWorld` through the same calls the server makes for a client, at the server's 30 Hz tick. The bot eats below half hunger, forages trees while carrying less than 40 hunger of food, gathers wood and stone for the next gear upgrade, crafts it (walking to the workbench) and wears it, fights enemies within 150 px and otherwise wanders.
+`python tools/balance_sim.py` runs `game/tools/balance_sim.gd` in one headless Godot process per group size, in parallel, and prints the tables. Each player is a `SurvivalBot` (`game/tools/survival_bot.gd`) driving a plain `SimWorld` through the same calls the server makes for a client, at the server's 30 Hz tick. The bot eats below half hunger, forages trees while carrying less than 40 hunger of food, gathers wood and stone for the next gear upgrade, crafts it (walking to the workbench) and wears it, fights enemies within 150 px and otherwise wanders. Once only bone gear is left it makes a rune (ward in a group when it has the amber and grave cloth, else shockwave) and uses it on Q: frost bolt at an enemy chasing it, ward when it or a teammate beside it is below 60% (alone only with no enemy upon it; it stands in the ward while retreating), shockwave with 2+ enemies in reach. It keeps a healing draught (more only from spare bones) and drinks below half health, and stews 3+ berries at a fire within 300 px or one it builds on the spot. After a death it goes back to its grave only by day (90 s of daylight left), at 60%+ health, not starving, with fewer than 2 enemies at the grave and, in a group, with a teammate beside it (idle teammates walk with it); a death on the way makes it wait 2 minutes, and after 2 it leaves that grave.
 
 Skill levels (`SKILLS` in `balance_sim.gd`):
 
-| skill | dashes out of a telegraphed hit | backs off when low |
-|---|---|---|
-| novice | 20% | never: fights everything to the end |
-| average | 50% | below 35% health, until 60% |
-| expert | 85% | same |
+| skill | dashes out of a telegraphed hit | of those, timed into the perfect window | backs off when low |
+|---|---|---|---|
+| novice | 20% | 0% | never: fights everything to the end |
+| average | 50% | 25% | below 35% health, until 60% |
+| expert | 85% | 60% | same |
+
+An early dash goes 64 px away from the hit; a perfect-window dash (`Tuning.perfect_window`) stays put, so the hit still reaches the i-frames (a dash out of reach dodges nothing perfectly). Early dashes against a wolf lunge (0.35 s windup) land in the window anyway, so novices count perfect dodges too.
 
 ## Run it
 
@@ -27,6 +29,7 @@ Run the full one in the background. One in-game day is `day_length + night_lengt
 
 - **Danger:** deaths per bot per in-game day (and how many starved, how many at night), damage taken per minute by day and by night, the lowest health it ever had, kills, and enemies within 150 px on average.
 - **Hunger:** seconds per day spent starving, hunger eaten per day.
+- **Tools:** dashes, perfect dodges and draughts drunk per day, rune abilities used per day, share of bots wearing a rune at the end, stews made per day.
 - **Time spent:** share of play per activity. Forage is gathering for food, gather for gear, retreat is backing off at low health.
 - **Gear:** how many bots crafted each piece and the median time, in minutes.
 - The bot plays worse than a person (no kiting, no focus fire in groups, groups of identical bots stand in one blob) and better in places (it never forgets to eat). Compare skills, group sizes and before/after; don't read the numbers as what a player will see. All-novice groups come out much harder than solo mostly because of the blobbing.
@@ -71,7 +74,7 @@ M17 (2026-10-27, healing + magic; solo, 6 seeds, 3 days, novice / average / expe
 
 `python tools/balance_sim.py --dungeon [--quick] [--players 1]` puts `DelveBot`s (`game/tools/delve_bot.gd`, a `SurvivalBot` that dodges the same way) at the barrow with one of three gear tiers and 5 trail rations, and they take one run together: fight what comes within 220 px, walk over buff orbs, follow the corridors, open the end chest, leave. They never back off inside (nothing heals but a cleared room). A run ends when a bot walks out or dies; 20 minutes counts as stuck. Tiers: `fresh` (nothing), `crafted` (club, cloth tunic), `best` (bone sword, bone armor). `--quick` is 8 seeds (~1 min per group size), the default 20.
 
-Columns: cleared, died and stuck as shares; chest opened; boss (the barrow king) seen dying; deepest room reached of the rooms after the start; the median room deaths happened in; median minutes to clear; most buff stacks held at once; kills; lowest health.
+The best tier also wears a rune, frost, ward and shock in turn by seed and player. Columns: cleared, died and stuck as shares; chest opened; boss (the barrow king) seen dying; deepest room reached of the rooms after the start; the median room deaths happened in; median minutes to clear; most buff stacks held at once; perfect dodges as a share of dashes; draughts drunk and abilities used per run; kills; lowest health.
 
 The bot clears much faster than a person (1–2 min: no hesitating, no looking around). It dashes as a telegraph ends (`REACT` at the earliest), so the i-frames cover the slam's long windup too; since then skill matters inside (expert dodges 85%).
 
@@ -103,3 +106,24 @@ Cleared (novice / average / expert): fresh gear 0% but 1–10% for average/exper
 ## After M16 (2026-10-27, `--quick`: 3 seeds, 2 days; day mix draugr/wolves, night adds archers, shields, exploders; bots dodge archer lines by sidestepping, flank shields, wear hide armor)
 
 Baseline before (solo, same settings): deaths/day novice 2.67, average 0.50, expert 0.17. After, deaths per day (novice / average / expert): solo 4.00 / 0.33 / 0.33, groups of 2 5.92 / 0.58 / 0.25, groups of 4 12.54 / 1.83 / 0.67. Solo is within the targets (expert a little over 0.3, lowest health 11%); average groups of 4 are ~5× solo, over the ~3× target (it was already over before M16). Damage per minute by night is 2–4× by day for novices. Kills per day roughly doubled (wolf packs). Hide armor (14 hide) comes at 5–15 min, bone armor still after 12 min. Wolf meat is 0.15 a kill: at 0.3–0.8 bots stopped foraging (2–4% of play) because meat fed them. Three seeds are noisy (a solo novice swung 2.5–4.5 deaths/day between runs with only drop tweaks), so rerun with more seeds before tuning on it.
+
+## M17a (2026-10-27, full: 6 seeds, 3 days; bots use runes, draughts, perfect dodges, stews and smarter grave runs)
+
+Deaths per day (novice / average / expert), main `c2cf04e` before → after, no data changed:
+
+| | before | after |
+|---|---|---|
+| solo | 6.28 / 0.44 / 0.28 | 7.94 / 0.61 / 0.33 |
+| groups of 2 | 8.86 / 0.78 / 0.47 | 9.25 / 1.06 / 0.31 |
+| groups of 4 | 14.35 / 1.75 / 1.90 | 13.15 / 1.50 / 0.81 |
+| groups of 4 ÷ solo | 2.3× / 4.0× / 6.8× | 1.7× / 2.5× / 2.5× |
+
+Groups of 4 are within ~3× solo again. What did it: the grave run. Bots used to walk straight back to their grave, often at night and into the enemies that killed them; groups of 4 spent 13% of play on it and starved. Waiting for day and health, going with a teammate and giving up a guarded grave took experts in groups of 4 from 1.90 to 0.81. Starving deaths are nearly gone (expert groups of 4: 0.26 → 0 a day).
+
+Other columns after: perfect dodges are 42–67% of dashes (16–35 a day), draughts 0.3–1.3 a day, abilities 0.9–7 a day (runes on 25–100% of bots at the end; average groups of 4 rarely get one: they retreat 40% of the time and get few kills or bones), stews ~0.5–1 a day. Foraging 9–24% of play. Novice solo is over its 2–4 target (it already was, 6.3 on main): deaths moved from night (83%) to day (46%), since it now waits for day to go back. Average groups of 4 still get almost no gear (no bone gear, hide armor 7/24).
+
+Stewing (why the first M17 bot "foraged far more"): rerunning commits a835eda and 80c812d showed stewing never mattered. At a835eda turning stewing off changed nothing, turning draught crafting off brought foraging from 28% back to 5–15%: draughts were made from any bones with no limit and each took 4 berries. 80c812d's bone limit had already fixed it; stewing was dropped on the wrong suspicion.
+
+Co-op count scaling sweep (groups of 4, 6 seeds, 2 days, new bots; average / expert deaths per day): count 0.3 health 0.15 (current) 1.58 / 0.88, count 0.15 1.31 / 0.60, health 0 1.42 / 0.83, count 0.2 health 0 1.35 / 0.77. Not changed: the bots alone met the target, and with 3 enemies per player count 0.15 rounds a pair back to a solo player's 3 by day.
+
+Dungeon (20 seeds), before → after, cleared (novice / average / expert): best gear solo 35 / 65 / 85% → 25 / 50 / 100% (lowest health 9 / 17 / 43% → 9 / 20 / 56%), groups of 4 95 / 94 / 100% → 84 / 99 / 99%; crafted solo 0 / 0 / 15% → 0 / 0 / 35%, groups of 2 0 / 5 / 10% → 0 / 15 / 60%. Perfect dodges are 46% of expert dashes inside, 16% for average. Off target: expert solo with best gear has no close calls (lowest 56%) and crafted experts clear a third of runs. The perfect dodge (stamina back, enemy open 0.8 s) is what made experts stronger; `perfect_window`, `perfect_stamina` and `perfect_stagger` are the levers to try next.
