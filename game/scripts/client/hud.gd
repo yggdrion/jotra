@@ -7,7 +7,8 @@ extends CanvasLayer
 ## room code friends join with in the top-right corner when hosting, the dungeon buffs held
 ## in the top-left one and a boss's name and health bar at the top while one is in view. The
 ## minimap sits in the bottom-right corner.
-## A red edge closes in on the screen's border when health is low, and flashes when hit.
+## A red edge closes in on the screen's border when health is low, and flashes when hit. An
+## arrow at the screen's edge points to the player's own grave while it is off screen.
 ## Anchored to the screen, as the visible area differs per player
 ## (PLAN §6).
 
@@ -33,6 +34,10 @@ var _buffs := VBoxContainer.new()
 var _boss := Label.new()
 var _status := Label.new()
 var _boss_bar := Control.new()
+var _marker := Control.new()
+## Where the grave marker's arrow points, and its tip on screen; NAN x hides it.
+var _marker_dir := Vector2.RIGHT
+var _marker_at := Vector2(NAN, 0)
 var _boss_health := 0.0
 var _health := 1.0
 var _stamina := 1.0
@@ -127,6 +132,10 @@ func _ready() -> void:
 	_boss_bar.draw.connect(_draw_boss_bar)
 	_boss_bar.visible = false
 	add_child(_boss_bar)
+	_marker.set_anchors_preset(Control.PRESET_FULL_RECT)
+	_marker.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_marker.draw.connect(_draw_marker)
+	add_child(_marker)
 	_buffs.set_anchors_and_offsets_preset(
 		Control.PRESET_TOP_LEFT, Control.PRESET_MODE_MINSIZE, MARGIN
 	)
@@ -191,6 +200,36 @@ func key_panel_text() -> String:
 func show_prompt(text: String) -> void:
 	_prompt.text = text
 	_prompt.visible = text != ""
+
+
+## The arrow toward the player's own grave: its tip at at (screen px) pointing along dir; a NAN
+## at.x hides it.
+func show_grave_marker(at: Vector2, dir: Vector2) -> void:
+	var same := at.is_equal_approx(_marker_at) or (is_nan(at.x) and is_nan(_marker_at.x))
+	if same and dir.is_equal_approx(_marker_dir):
+		return
+	_marker_at = at
+	_marker_dir = dir
+	_marker.queue_redraw()
+
+
+func _draw_marker() -> void:
+	if is_nan(_marker_at.x):
+		return
+	var side := _marker_dir.orthogonal() * 4.0
+	var back := _marker_at - _marker_dir * 8.0
+	var arrow := PackedVector2Array([_marker_at, back + side, back - side])
+	_marker.draw_colored_polygon(arrow, Color("feae34"))
+	_marker.draw_polyline(
+		PackedVector2Array([_marker_at, back + side, back - side, _marker_at]), Color.BLACK, 1.0
+	)
+	var font := _marker.get_theme_default_font()
+	var width := font.get_string_size("Grave", HORIZONTAL_ALIGNMENT_LEFT, -1, 8).x
+	var label := back - _marker_dir * (width / 2 + 4) + Vector2(-width / 2, 3)
+	_marker.draw_string_outline(
+		font, label, "Grave", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, 2, Color.BLACK
+	)
+	_marker.draw_string(font, label, "Grave", HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color("feae34"))
 
 
 ## The day and how long until it changes, e.g. "Night 2  1:30 to dawn".

@@ -3,8 +3,9 @@ extends RefCounted
 ## Plays one player of a SimWorld the way a person roughly would, for the balance sim: eats
 ## when hungry, forages trees when low on food, gathers what the next piece of gear needs,
 ## crafts it (walking to a workbench, or building one first) and wears it, fights what comes
-## near and otherwise wanders. Skill decides how often it dashes out of a telegraphed hit and
-## whether it backs off when low on health. It drives the sim through the same calls the server
+## near, walks back to its grave after a death to take its things back and otherwise wanders.
+## Skill decides how often it dashes out of a telegraphed hit and whether it backs off when low
+## on health. It drives the sim through the same calls the server
 ## makes for a client, so it gets no more than a player could do. It records what happened to it.
 
 ## Gear it works toward, in order; it skips what isn't better than what it wears.
@@ -46,7 +47,7 @@ var dodge := 0.5
 ## Backs off to heal when low.
 var retreats := false
 
-## Seconds spent per activity: fight, forage, gather, craft, retreat, wander, dead.
+## Seconds spent per activity: fight, forage, gather, craft, retreat, grave, wander, dead.
 var time_in := {}
 var deaths_by_enemy := 0
 var deaths_by_hunger := 0
@@ -152,6 +153,9 @@ func act(delta: float) -> void:
 	if distance <= (CORNERED if _retreating else ENGAGE):
 		_spend("fight", delta)
 		_fight(enemy, delta)
+		return
+	if _to_grave(delta):
+		_spend("grave", delta)
 		return
 	if _craft(delta):
 		_spend("craft", delta)
@@ -267,6 +271,22 @@ func _fight(enemy: SimEnemy, delta: float) -> void:
 	for hit in world.attack(id, move == heavy, aim, hits):
 		if not world.enemies.has(hit):
 			kills += 1
+
+
+## Walks to its closest grave and loots it. Returns whether that is what it is doing; false
+## also when nothing more of the grave fits.
+func _to_grave(delta: float) -> bool:
+	var me := player()
+	if me.graves.is_empty():
+		return false
+	var closest := me.graves[0]
+	for at in me.graves:
+		if at.distance_to(me.position) < closest.distance_to(me.position):
+			closest = at
+	if closest.distance_to(me.position) > SimWorld.REACH * 0.8:
+		_walk_to(closest, delta)
+		return true
+	return world.interact(id)
 
 
 ## Crafts the next gear upgrade (or a ration from spare berries) it has the items for,

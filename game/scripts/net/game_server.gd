@@ -255,7 +255,13 @@ func _send_chunks(id: int) -> void:
 	for coord in world.interest(id):
 		if not sent.has(coord):
 			sent[coord] = true
-			net.chunk.rpc_id(id, coord, world.removed_props(coord), world.chunk_pieces(coord))
+			net.chunk.rpc_id(
+				id,
+				coord,
+				world.removed_props(coord),
+				world.chunk_pieces(coord),
+				world.chunk_graves(coord)
+			)
 
 
 ## Forwards what happened in the sim, including attacks handled between ticks, to the clients
@@ -325,7 +331,22 @@ func _send_events() -> void:
 			"storage":
 				if world.players.has(event[1]):
 					net.storage.rpc_id(event[1], event[2])
+			"grave":
+				var grave: SimWorld.SimGrave = world.graves.get(event[2])
+				var data := [grave.position.x, grave.position.y, grave.owner] if grave else []
+				for id: int in _sent_chunks:
+					if _sent_chunks[id].has(event[1]):
+						net.grave.rpc_id(id, event[1], event[2], data)
+			"graves":
+				if world.players.has(event[1]):
+					_send_own_graves(event[1])
+			"bed":
+				net.bed_set.rpc_id(event[1])
 	world.events.clear()
+
+
+func _send_own_graves(id: int) -> void:
+	net.own_graves.rpc_id(id, PackedVector2Array(world.players[id].graves))
 
 
 func _save() -> void:
@@ -398,6 +419,7 @@ func _on_hello(id: int, version: int, player_name: String) -> void:
 	_sent_chunks[id] = {}
 	_owner_joined = _owner_joined or solo or player_name == owner_name
 	net.welcome.rpc_id(id, player.position, world.world_seed)
+	_send_own_graves(id)
 	if room != "":
 		net.room.rpc_id(id, room)
 	print("server: %s joined as %d (%d online)" % [player_name, id, world.players.size()])

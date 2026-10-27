@@ -7,7 +7,8 @@ extends RefCounted
 ## with tick(delta); GameServer drives the same path. Keeps the chunks around players loaded,
 ## runs combat and enemies, drops loot that players walk over to pick up, handles inventories,
 ## crafting, building (Building), hunger and eating, spawns more and stronger enemies at night,
-## runs dungeon instances (Dungeon) with their buffs (Buffs) and, with a store, saves what
+## runs dungeon instances (Dungeon) with their buffs (Buffs), leaves a grave of the inventory
+## where a player dies in the overworld and respawns it at its bed, and, with a store, saves what
 ## changed against the seed and the players.
 
 
@@ -45,6 +46,10 @@ class SimPlayer:
 	## Sim times the next healing draught and the next rune ability may be used.
 	var draught_ready_at := -INF
 	var ability_ready_at := -INF
+	## The tile of the bed it respawns at, null for the spawn.
+	var bed: Variant = null
+	## Where its unlooted graves lie, for the client's marker.
+	var graves: Array[Vector2] = []
 
 	func _init(player_id: int, player_name: String, spawn: Vector2, now: float) -> void:
 		id = player_id
@@ -117,6 +122,16 @@ class SimDrop:
 	var until: float
 
 
+## The inventory slots of a player who died in the overworld, lying where it died until that
+## player takes them all back.
+class SimGrave:
+	var id: int
+	## The name of the player it belongs to.
+	var owner: String
+	var position: Vector2
+	var items := Inventory.new(Content.tuning.inventory_size)
+
+
 class SimChunk:
 	## {id: WorldGen.Prop} as generated from the seed.
 	var props: Dictionary
@@ -126,6 +141,8 @@ class SimChunk:
 	var node_health := {}
 	## {global tile: Building.Piece} built in it.
 	var pieces := {}
+	## {id: SimGrave} lying in it.
+	var graves := {}
 	var dirty := false
 
 
@@ -157,6 +174,8 @@ var wards := {}  # id -> SimWard
 var dungeons := {}  # slot -> Dungeon
 ## {global tile: Building.Piece} of every loaded chunk.
 var pieces := {}
+## {id: SimGrave} of every loaded chunk.
+var graves := {}
 ## Off in tests that place their own enemies.
 var spawn_enemies := true
 ## Spawns only this kind instead of the day and night mix (tests, the balance sim).
@@ -174,7 +193,9 @@ var spawn_kind: EnemyDef
 ## chest, ["node", player id, position, note] when a swing hit a tree or rock (the damage, or
 ## what it needs), ["prop_removed", chunk, prop id], ["piece", tile] when a piece was built,
 ## changed (damage, door) or is gone,
-## ["storage", player id, Inventory.to_data of its open chest, {} once closed].
+## ["storage", player id, Inventory.to_data of its open chest, {} once closed],
+## ["grave", chunk, grave id] when a grave appeared, changed or is gone, ["graves", player id]
+## when where its graves lie changed, ["bed", player id] when it set its respawn at a bed.
 var events: Array[Array] = []
 ## Seeded by the balance sim for repeatable runs.
 var rng := RandomNumberGenerator.new()
@@ -183,6 +204,7 @@ var _next_drop_id := 1
 var _next_projectile_id := 1
 var _next_pack_id := 1
 var _next_ward_id := 1
+var _next_grave_id := 1
 var _spawn_due := 0.0
 
 
@@ -291,7 +313,7 @@ func _tick_player(player: SimPlayer, delta: float) -> void:
 	if player.dead_until > 0:
 		if time >= player.dead_until:
 			player.dead_until = 0.0
-			player.position = Content.tuning.respawn_at
+			player.position = _respawn_point(player)
 			# Death inside a run takes back what was found there, and leaves it at the entrance.
 			if player.run:
 				player.position = Content.tuning.dungeon_entrance
@@ -322,9 +344,100 @@ func _tick_player(player: SimPlayer, delta: float) -> void:
 		player.stamina = minf(player.stamina + regen * delta, t.max_stamina)
 
 
+## Dead until respawn_delay is up. In the overworld its inventory slots stay behind in a grave
+## (a run takes back its snapshot on respawn instead).
 func _die(player: SimPlayer) -> void:
 	player.regen_left = 0.0
 	player.dead_until = time + Content.tuning.respawn_delay
+	if player.run == null:
+		_add_grave(player)
+
+
+## Moves a player's inventory slots (not what it wears) into a new grave where it stands, unless
+## they are empty. A grave already lying elsewhere stays as it is.
+func _add_grave(player: SimPlayer) -> void:
+	var grave := SimGrave.new()
+	var empty := true
+	for i in player.inventory.slots.size():
+		if not player.inventory.slots[i].is_empty():
+			grave.items.slots[i] = player.inventory.slots[i]
+			player.inventory.slots[i] = {}
+			empty = false
+	if empty:
+		return
+	player.inventory.changed = true
+	grave.owner = player.name
+	grave.position = player.position
+	var coord := WorldGen.chunk_of(grave.position)
+	if not chunks.has(coord):
+		_load_chunk(coord)
+	_place_grave(chunks[coord], grave)
+	chunks[coord].dirty = true
+	player.graves.append(grave.position)
+	events.append(["grave", coord, grave.id])
+	events.append(["graves", player.id])
+
+
+func _place_grave(chunk: SimChunk, grave: SimGrave) -> void:
+	grave.id = _next_grave_id
+	_next_grave_id += 1
+	chunk.graves[grave.id] = grave
+	graves[grave.id] = grave
+
+
+## The owner's grave closest to at within reach, null if none.
+func own_grave(player_name: String, at: Vector2, reach: float) -> SimGrave:
+	var best: SimGrave = null
+	for grave: SimGrave in graves.values():
+		var distance := grave.position.distance_to(at)
+		if grave.owner == player_name and distance <= reach:
+			if best == null or distance < best.position.distance_to(at):
+				best = grave
+	return best
+
+
+## Takes what fits of a grave back into its owner's inventory; an emptied grave is gone. Returns
+## whether anything was taken.
+func _loot_grave(player: SimPlayer, grave: SimGrave) -> bool:
+	var took := false
+	for slot in grave.items.slots:
+		if slot.is_empty():
+			continue
+		var left := player.inventory.add(slot.item, slot.count)
+		if left < slot.count:
+			events.append(["loot", player.id, slot.item, slot.count - left])
+			took = true
+		slot.count = left
+		if left == 0:
+			slot.clear()
+	var coord := WorldGen.chunk_of(grave.position)
+	chunks[coord].dirty = true
+	if grave.items.slots.all(func(slot: Dictionary) -> bool: return slot.is_empty()):
+		chunks[coord].graves.erase(grave.id)
+		graves.erase(grave.id)
+		for i in player.graves.size():
+			if player.graves[i].is_equal_approx(grave.position):
+				player.graves.remove_at(i)
+				break
+		events.append(["graves", player.id])
+	events.append(["grave", coord, grave.id])
+	if not took:
+		events.append(["full", player.id])
+	return took
+
+
+## The tile center of the player's bed if it still stands, else the spawn (and the bed is
+## forgotten). The bed's chunk is loaded for the check if no one is near it.
+func _respawn_point(player: SimPlayer) -> Vector2:
+	if player.bed != null:
+		var coord := Building.chunk_of_tile(player.bed)
+		if not chunks.has(coord):
+			_load_chunk(coord)
+		var piece: Building.Piece = pieces.get(player.bed)
+		if piece and piece.def().bed:
+			return Building.tile_center(player.bed)
+		player.bed = null
+	return Content.tuning.respawn_at
 
 
 ## Tops up the enemies around each living player, one per player per spawn_interval, in number
@@ -443,11 +556,15 @@ func _stream_chunks() -> void:
 			if not chunks.has(coord):
 				_load_chunk(coord)
 	for coord: Vector2i in chunks.keys():
-		if not keep.has(coord):
-			_save_chunk(coord)
-			for tile: Vector2i in chunks[coord].pieces:
-				pieces.erase(tile)
-			chunks.erase(coord)
+		# Without a store a grave would be gone for good, so its chunk stays (tests, balance sim).
+		if keep.has(coord) or (store == null and not chunks[coord].graves.is_empty()):
+			continue
+		_save_chunk(coord)
+		for tile: Vector2i in chunks[coord].pieces:
+			pieces.erase(tile)
+		for id: int in chunks[coord].graves:
+			graves.erase(id)
+		chunks.erase(coord)
 
 
 func _load_chunk(coord: Vector2i) -> void:
@@ -471,6 +588,12 @@ func _load_chunk(coord: Vector2i) -> void:
 		var tile := Building.tile_at(coord, int(entry.get("t", 0)))
 		chunk.pieces[tile] = piece
 		pieces[tile] = piece
+	for entry: Dictionary in saved.graves:
+		var grave := SimGrave.new()
+		grave.owner = str(entry.get("owner", ""))
+		grave.position = Vector2(float(entry.get("x", 0)), float(entry.get("y", 0)))
+		grave.items.load_data(entry.get("items", {}))
+		_place_grave(chunk, grave)
 
 
 func _save_chunk(coord: Vector2i) -> void:
@@ -486,7 +609,20 @@ func _save_chunk(coord: Vector2i) -> void:
 		if piece.items:
 			entry.items = piece.items.to_data()
 		saved.append(entry)
-	store.save_chunk(coord, removed_props(coord), saved)
+	var saved_graves := []
+	for grave: SimGrave in chunk.graves.values():
+		(
+			saved_graves
+			. append(
+				{
+					owner = grave.owner,
+					x = grave.position.x,
+					y = grave.position.y,
+					items = grave.items.to_data(),
+				}
+			)
+		)
+	store.save_chunk(coord, removed_props(coord), saved, saved_graves)
 	chunk.dirty = false
 
 
@@ -507,19 +643,17 @@ func _save_player(player: SimPlayer) -> void:
 	if store == null:
 		return
 	var at := Content.tuning.dungeon_entrance if player.run else player.position
-	(
-		store
-		. save_player(
-			player.name,
-			{
-				x = at.x,
-				y = at.y,
-				health = player.health,
-				hunger = player.hunger,
-				inventory = player.snapshot if player.run else player.inventory.to_data(),
-			}
-		)
-	)
+	var data := {
+		x = at.x,
+		y = at.y,
+		health = player.health,
+		hunger = player.hunger,
+		inventory = player.snapshot if player.run else player.inventory.to_data(),
+		graves = player.graves.map(func(g: Vector2) -> Array: return [g.x, g.y]),
+	}
+	if player.bed != null:
+		data.bed = [player.bed.x, player.bed.y]
+	store.save_player(player.name, data)
 
 
 ## Joins at the saved position of that name with its saved inventory and hunger, or fresh at
@@ -531,6 +665,11 @@ func add_player(id: int, player_name: String) -> SimPlayer:
 		spawn = Vector2(saved.x, saved.y)
 	var player := SimPlayer.new(id, player_name, spawn, time)
 	player.inventory.load_data(saved.get("inventory", {}))
+	for g: Array in saved.get("graves", []):
+		player.graves.append(Vector2(g[0], g[1]))
+	var bed: Array = saved.get("bed", [])
+	if bed.size() == 2:
+		player.bed = Vector2i(int(bed[0]), int(bed[1]))
 	# Someone who left while dead comes back alive.
 	var health := minf(float(saved.get("health", player.max_health())), player.max_health())
 	player.health = health if health > 0 else player.max_health()
@@ -581,17 +720,28 @@ func move_player(id: int, position: Vector2) -> bool:
 	return true
 
 
-## E at the dungeon entrance, a run's exit or its end chest. A living player at the entrance
+## E at one of its own graves, the dungeon entrance, a run's exit or its end chest. At a grave it
+## takes back what fits (_loot_grave). A living player at the entrance
 ## goes into a run, the one opened within dungeon_join_window or a new one, and its inventory is
 ## snapshotted; at its run's exit it goes back to the entrance with everything found inside; at
 ## the chest, once no enemy is near it, it opens it once for itself and the chest_drops spill
 ## out. Returns whether it did any of that.
 func interact(id: int) -> bool:
 	var player: SimPlayer = players.get(id)
-	var t := Content.tuning
-	var reach := t.portal_reach + REACH_SLACK
 	if player == null or player.dead_until > 0:
 		return false
+	if player.run == null:
+		var grave := own_grave(player.name, player.position, REACH + REACH_SLACK)
+		if grave:
+			return _loot_grave(player, grave)
+	return _use_portal(player)
+
+
+## interact at the dungeon entrance, a run's exit or its end chest.
+func _use_portal(player: SimPlayer) -> bool:
+	var id := player.id
+	var t := Content.tuning
+	var reach := t.portal_reach + REACH_SLACK
 	var run := player.run
 	if run and player.position.distance_to(run.chest) <= reach:
 		if run.opened.has(id) or Dungeon.locked(run.chest, _enemy_positions()):
@@ -796,7 +946,7 @@ func unbuild(id: int, tile: Vector2i) -> bool:
 
 
 ## E on a door opens or shuts it (not shut on someone standing in it), on a chest opens it for
-## the player. Returns whether it did.
+## the player, on a bed makes it the player's respawn point. Returns whether it did.
 func use_piece(id: int, tile: Vector2i) -> bool:
 	var player: SimPlayer = players.get(id)
 	var piece: Building.Piece = pieces.get(tile)
@@ -818,8 +968,12 @@ func use_piece(id: int, tile: Vector2i) -> bool:
 	if piece.items:
 		player.open_chest = tile
 		events.append(["storage", id, piece.items.to_data()])
-		return true
-	return false
+	elif piece.def().bed:
+		player.bed = tile
+		events.append(["bed", id])
+	else:
+		return false
+	return true
 
 
 ## Moves a whole stack between the player's inventory and its open chest, from_chest says
@@ -1221,6 +1375,14 @@ func chunk_pieces(coord: Vector2i) -> Array:
 	var out := []
 	for tile: Vector2i in chunks[coord].pieces:
 		out.append([Building.index_in_chunk(tile)] + Building.to_net(pieces[tile]))
+	return out
+
+
+## The graves in a loaded chunk as sent to clients: [id, x, y, owner name] each.
+func chunk_graves(coord: Vector2i) -> Array:
+	var out := []
+	for grave: SimGrave in chunks[coord].graves.values():
+		out.append([grave.id, grave.position.x, grave.position.y, grave.owner])
 	return out
 
 

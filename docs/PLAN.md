@@ -33,6 +33,7 @@ This file is the single source of truth for scope, design and architecture. Buil
 | Dungeon buffs | Risk of Rain-style stacking passive items with rarities and synergies. They exist only inside the dungeon |
 | Dungeon rewards | Materials, gear with random affixes, and a guaranteed end chest/boss drop with a raised chance for rare loot |
 | Dungeon death | You keep everything you brought in; everything found during that run is lost. Exit alive: keep everything |
+| Overworld death | A corpse run: the inventory (not what is worn) stays in a grave where you died, which only you can loot; you respawn at your bed, or the spawn |
 | Difficulty | No selectable tiers. The game scales itself (see 5.6) |
 | Building | Simple grid placement for now; may grow later |
 | Cheating | Not a concern (co-op with friends). Netcode optimizes for feel, not security |
@@ -161,7 +162,7 @@ Players, enemies, dropped items, resource nodes, buildings, projectiles. Stable 
 
 - Hitboxes/hurtboxes on the 2D plane. Light attack, heavy attack, dash with i-frames, stamina cost on attack and dash.
 - Damage = weapon damage × modifiers − armor. Damage numbers, hit flash, knockback.
-- Death and respawn (overworld respawn rules: open question 1).
+- Death and respawn (M18, settles open question 1): an overworld death moves the inventory slots (equipment stays worn) into a grave at the death spot (`SimWorld.SimGrave`), saved in its chunk file (format 3) and sent with each chunk plus a `grave` RPC per change. Only its owner loots it, with E (`Net.interact`), taking what fits; it is gone once empty. Another death makes another grave. The owner's client gets where its graves lie (`Net.own_graves`, saved with the player) and points an arrow at the screen's edge to the closest. A bed piece (`PieceDef.bed`) sets the respawn point of whoever uses it (E, saved with the player); a respawn goes there while the bed stands, else to the spawn. A dungeon death keeps the snapshot rule (4.8) and leaves no grave.
 - Enemy AI v1: idle → notice → chase → attack → leash back.
 - Healing (M17): cooked food from the fire regenerates health for a while (`ItemDef.regen`, `regen_time`); a healing draught (`ItemDef.heal`, H) heals at once with a shared cooldown (`Tuning.draught_cooldown`).
 - Abilities (M17, settles open question 2): gear grants abilities through a **rune slot**, not through weapons, so any weapon can be combined with any ability. A rune item (`ItemDef.Slot.RUNE`) names an `AbilityDef` (`game/data/abilities/`: cooldown, stamina cost, kind-specific numbers); Q uses the worn one, checked on the server. One ability at a time keeps the HUD and the keybinding simple; more slots can come later. Frost bolt (a player projectile that slows), healing ward (a timed healing area) and shockwave (area damage, poise break and knockback). Runes drop from the barrow's end chest and boss; the shock and ward runes can also be crafted.

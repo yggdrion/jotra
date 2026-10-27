@@ -15,7 +15,7 @@ const SKILLS := {
 	expert = {dodge = 0.85, retreats = true},
 }
 const TICK := 1.0 / 30
-const ACTIVITIES := ["fight", "forage", "gather", "craft", "retreat", "wander", "dead"]
+const ACTIVITIES := ["fight", "forage", "gather", "craft", "retreat", "grave", "wander", "dead"]
 ## What a DelveBot carries into the dungeon: nothing, the first crafted gear, the best.
 const TIERS := {
 	fresh = [],
@@ -91,6 +91,7 @@ func _run(skill: String, players: int, days: float, seed_value: int) -> void:
 			starving = snappedf(bot.starving, 1),
 			food_eaten = snappedf(bot.food_eaten, 1),
 			lowest_health = snappedf(bot.lowest_health, 0.01),
+			graves_left = bot.player().graves.size(),
 			weapon = inventory.weapon() if inventory.weapon() != &"" else &"fists",
 			armor = inventory.equipment[ItemDef.Slot.ARMOR],
 		}

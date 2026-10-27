@@ -1,13 +1,13 @@
 class_name WorldStore
 extends RefCounted
 ## The files of one world: world.json (seed, time), chunks/<x>_<y>.json (props removed from
-## the seed's chunk, pieces built) and players/<name>.json (position). Every write goes to a
+## the seed's chunk, pieces built, graves) and players/<name>.json (position). Every write goes to a
 ## temp file that is renamed over the old one, so a crash mid-save leaves the previous version.
 # ponytail: plain JSON files; switch this class to SQLite if file counts or save times hurt.
 
 ## Written into every file. Bump it with a migration when the format changes. 2 added pieces
-## to chunks; version 1 chunks read as having none.
-const FORMAT_VERSION := 2
+## to chunks, 3 graves; older chunks read as having none.
+const FORMAT_VERSION := 3
 
 var dir: String
 
@@ -38,18 +38,21 @@ func save_meta(data: Dictionary) -> void:
 	_write("world.json", data)
 
 
-## {removed: PackedInt32Array of prop ids, pieces: Array of what save_chunk was given}.
+## {removed: PackedInt32Array of prop ids, pieces and graves: Arrays of what save_chunk was
+## given}.
 func load_chunk(coord: Vector2i) -> Dictionary:
 	var data := _read(_chunk_file(coord))
 	return {
 		removed = PackedInt32Array(data.get("removed", [])),
 		pieces = data.get("pieces", []),
+		graves = data.get("graves", []),
 	}
 
 
-## pieces: one Dictionary per piece built in the chunk, as SimWorld writes them.
-func save_chunk(coord: Vector2i, removed: PackedInt32Array, pieces := []) -> void:
-	_write(_chunk_file(coord), {removed = Array(removed), pieces = pieces})
+## pieces and graves: one Dictionary per piece built and grave lying in the chunk, as SimWorld
+## writes them.
+func save_chunk(coord: Vector2i, removed: PackedInt32Array, pieces := [], graves := []) -> void:
+	_write(_chunk_file(coord), {removed = Array(removed), pieces = pieces, graves = graves})
 
 
 ## {} for a player never saved here.

@@ -15,8 +15,10 @@ extends Node2D
 ## way out comes back. Buffs picked up inside are listed in the HUD and speed up walking and
 ## swinging here as on the server. B toggles build mode (BuildMode) in the overworld: clicks
 ## build and remove pieces, which block walking here as on the server; E opens doors and chests,
-## and crafting needs a station piece nearby. A minimap shows the chunks we have been near,
-## M opens a big map of them (MapView).
+## and crafting needs a station piece nearby, E on a bed makes it our respawn point. Dying in
+## the overworld leaves the inventory in a grave, which E takes back and an arrow at the screen's
+## edge points to. A minimap shows the chunks we have been near, M opens a big map of them
+## (MapView).
 ##
 ## Reaches the server over ENet by address (join) or over WebRTC by lobby room code
 ## (join_room). A player who can't get in, is rejected or loses the server gets `left` with the
@@ -68,6 +70,8 @@ const DUNGEON_TINT := Color("8b9bb4")
 const KEEP_CHUNKS := SimWorld.VIEW_CHUNKS + 2
 ## Seconds between pings where the transport measures none itself (WebRTC).
 const PING_INTERVAL := 1.0
+## How far in from the screen's edge the arrow to our grave stays.
+const GRAVE_MARKER_MARGIN := 16.0
 
 var net: Net
 var bot := false
@@ -102,6 +106,11 @@ var _chunks := {}  # Vector2i -> ChunkView
 var _enemy_views := {}  # enemy id -> EnemyView
 var _drop_views := {}  # drop id -> DropView
 var _projectile_views := {}  # projectile id -> ProjectileView
+var _graves := {}  # grave id -> GraveView
+## Where our unlooted graves lie, anywhere in the world.
+var _own_graves := PackedVector2Array()
+## Our grave in reach that E loots, null if none.
+var _grave: GraveView
 ## [chunk coord, prop id] of the prop E acts on, [] if none is in reach.
 var _target := []
 ## The tile of the door or chest E acts on instead, null if none.
@@ -178,6 +187,14 @@ func _ready() -> void:
 	net.snapshot_received.connect(_on_snapshot)
 	net.chunk_received.connect(_on_chunk)
 	net.piece_received.connect(_on_piece)
+	net.grave_received.connect(_on_grave)
+	net.own_graves_received.connect(
+		func(positions: PackedVector2Array) -> void:
+			if positions.size() > _own_graves.size():
+				_hud.announce("Your things lie in your grave", Color("feae34"))
+			_own_graves = positions
+	)
+	net.bed_set_received.connect(func() -> void: _hud.announce("Respawn set", Color("feae34")))
 	net.storage_received.connect(_inventory_ui.show_storage)
 	net.prop_removed_received.connect(
 		func(coord: Vector2i, id: int) -> void:
@@ -450,11 +467,13 @@ func _on_buffs(data: Dictionary) -> void:
 	_hud.show_buffs(lines)
 
 
-## The entrance, or in a run its end chest or way out, when we stand at one: [what interact
-## does there, "" if nothing, and whether interact may be sent]. A chest an enemy is near says
-## so but may not, as the server would refuse it.
+## Our own grave, the entrance, or in a run its end chest or way out, when we stand at one:
+## [what interact does there, "" if nothing, and whether interact may be sent]. A chest an
+## enemy is near says so but may not, as the server would refuse it.
 func _interaction() -> Array:
 	var reach := Content.tuning.portal_reach
+	if _grave:
+		return ["Take back your things", true]
 	if _area.is_empty():
 		var near := _me.position.distance_to(Content.tuning.dungeon_entrance) <= reach
 		return ["Enter the barrow", true] if near else ["", false]
@@ -470,8 +489,8 @@ func _interaction() -> Array:
 	return ["", false]
 
 
-## pieces: [index in chunk, Building.to_net...] each.
-func _on_chunk(coord: Vector2i, removed: PackedInt32Array, pieces: Array) -> void:
+## pieces: [index in chunk, Building.to_net...] each; graves: [id, x, y, owner name] each.
+func _on_chunk(coord: Vector2i, removed: PackedInt32Array, pieces: Array, graves: Array) -> void:
 	if _chunks.has(coord):
 		_chunks[coord].queue_free()
 		_forget_pieces(coord)
@@ -480,6 +499,26 @@ func _on_chunk(coord: Vector2i, removed: PackedInt32Array, pieces: Array) -> voi
 	add_child(_chunks[coord])
 	for entry: Array in pieces:
 		_on_piece(coord, entry[0], entry.slice(1))
+	for entry: Array in graves:
+		_on_grave(coord, entry[0], entry.slice(1))
+
+
+## data: [x, y, owner name], [] when the grave is gone.
+func _on_grave(coord: Vector2i, id: int, data: Array) -> void:
+	if not _chunks.has(coord):
+		return
+	if data.is_empty():
+		if _graves.has(id):
+			_graves[id].queue_free()
+			_graves.erase(id)
+		return
+	if not _graves.has(id):
+		var view := GraveView.new()
+		view.coord = coord
+		view.own = data[2] == player_name
+		_graves[id] = view
+		add_child(view)
+	_graves[id].position = Vector2(data[0], data[1])
 
 
 ## data: Building.to_net, [] when the piece is gone.
@@ -509,10 +548,15 @@ func _refresh_joins(tile: Vector2i) -> void:
 			view.set_join_mask(Building.index_in_chunk(at), mask)
 
 
+## Also the graves lying in the chunk.
 func _forget_pieces(coord: Vector2i) -> void:
 	for tile: Vector2i in _pieces.keys():
 		if Building.chunk_of_tile(tile) == coord:
 			_pieces.erase(tile)
+	for id: int in _graves.keys():
+		if _graves[id].coord == coord:
+			_graves[id].queue_free()
+			_graves.erase(id)
 
 
 func _drop_far_chunks() -> void:
@@ -699,14 +743,22 @@ func _aim() -> Vector2:
 	return aim if aim != Vector2.ZERO else Vector2.RIGHT
 
 
-## Picks the prop, door or chest in reach that E acts on, outlines it, and prompts for it or,
-## failing that, for a station nearby; in build mode the prompt is the build mode's.
+## Picks our grave, or else the prop, door, chest or bed in reach that E acts on, outlines it,
+## and prompts for it or, failing that, for a station nearby; in build mode the prompt is the
+## build mode's.
 func _update_target() -> void:
+	var grave := _own_grave_near()
+	if grave != _grave:
+		if _grave:
+			_grave.highlighted = false
+		if grave:
+			grave.highlighted = true
+		_grave = grave
 	var best := []
-	var best_distance := INF
+	var best_distance := INF if grave == null else -1.0
 	var center := WorldGen.chunk_of(_me.position)
 	for coord in WorldGen.around(center, 1):
-		if not _chunks.has(coord):
+		if not _chunks.has(coord) or grave:
 			continue
 		var found: Array = _chunks[coord].nearest_prop(_me.position, SimWorld.REACH)
 		if not found.is_empty() and found[1] < best_distance:
@@ -751,6 +803,8 @@ func _update_target() -> void:
 		if piece.def().door and piece.open:
 			verb = "Close"
 		prompt = "%s %s %s" % [use, verb, piece.def().display_name.to_lower()]
+		if piece.def().bed:
+			prompt = "%s Respawn at this %s" % [use, piece.def().display_name.to_lower()]
 	elif not _target.is_empty():
 		var stick: bool = _chunks[_target[0]].kind_of(_target[1]) == WorldGen.Prop.STICK
 		prompt = "%s Pick up %s" % [use, "stick" if stick else "pebble"]
@@ -761,6 +815,44 @@ func _update_target() -> void:
 		var station: StringName = _inventory_ui.stations.keys()[0]
 		prompt = "%s Craft at the %s" % [use, Content.piece(station).display_name.to_lower()]
 	_hud.show_prompt(prompt)
+
+
+## Our grave within reach, null if none (or inside a run).
+func _own_grave_near() -> GraveView:
+	var best: GraveView = null
+	if not _area.is_empty() or _health <= 0:
+		return null
+	for view: GraveView in _graves.values():
+		var distance := view.position.distance_to(_me.position)
+		if view.own and distance <= SimWorld.REACH:
+			if best == null or distance < best.position.distance_to(_me.position):
+				best = view
+	return best
+
+
+## Points the HUD's arrow at our closest grave while it is off screen, from the screen's edge.
+func _update_grave_marker() -> void:
+	var hidden := Vector2(NAN, 0)
+	if _own_graves.is_empty() or not _area.is_empty():
+		_hud.show_grave_marker(hidden, Vector2.RIGHT)
+		return
+	var closest := _own_graves[0]
+	for at in _own_graves:
+		if at.distance_to(_me.position) < closest.distance_to(_me.position):
+			closest = at
+	var screen := get_viewport().get_visible_rect()
+	var on_screen := get_viewport().get_canvas_transform() * closest
+	var inner := screen.grow(-GRAVE_MARKER_MARGIN)
+	if inner.has_point(on_screen):
+		_hud.show_grave_marker(hidden, Vector2.RIGHT)
+		return
+	var center := screen.get_center()
+	var dir := (on_screen - center).normalized()
+	var half := inner.size / 2
+	var reach := minf(
+		half.x / absf(dir.x) if dir.x != 0 else INF, half.y / absf(dir.y) if dir.y != 0 else INF
+	)
+	_hud.show_grave_marker(center + dir * reach, dir)
 
 
 func _on_snapshot(
@@ -1062,6 +1154,7 @@ func _process(delta: float) -> void:
 			get_global_mouse_position(), _pieces, _chunks, _inventory, _me.position, bodies
 		)
 	_update_target()
+	_update_grave_marker()
 	if _time >= 0:
 		_time += delta
 		_show_clock()

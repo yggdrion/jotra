@@ -25,7 +25,7 @@ import subprocess
 from _common import GAME, fail, godot, godot_import
 
 SKILLS = ["novice", "average", "expert"]
-ACTIVITIES = ["fight", "forage", "gather", "craft", "retreat", "wander", "dead"]
+ACTIVITIES = ["fight", "forage", "gather", "craft", "retreat", "grave", "wander", "dead"]
 
 parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
 parser.add_argument("--quick", action="store_true")
@@ -163,6 +163,7 @@ show("Danger", [
     ("dmg/min day", lambda rows: f"{mean(rows, 'dmg_day_min'):.1f}"),
     ("dmg/min night", lambda rows: f"{mean(rows, 'dmg_night_min'):.1f}"),
     ("lowest hp", lambda rows: f"{100 * mean(rows, 'lowest_health'):.0f}%"),
+    ("graves left", lambda rows: f"{mean(rows, 'graves_left'):.2f}"),
     ("kills/day", per_day("kills")),
     ("enemies near", lambda rows: f"{mean(rows, 'crowd'):.2f}"),
 ])

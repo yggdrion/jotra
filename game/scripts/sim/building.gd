@@ -155,7 +155,7 @@ static func stations_near(pieces: Dictionary, at: Vector2) -> Dictionary:
 	return out
 
 
-## The closest door or chest within reach of at: [tile, distance], [] if none.
+## The closest door, chest or bed within reach of at: [tile, distance], [] if none.
 static func nearest_usable(pieces: Dictionary, at: Vector2, reach: float) -> Array:
 	var best := []
 	var center := tile_of(at)
@@ -164,7 +164,10 @@ static func nearest_usable(pieces: Dictionary, at: Vector2, reach: float) -> Arr
 		for x in range(-tiles, tiles + 1):
 			var tile := center + Vector2i(x, y)
 			var piece: Piece = pieces.get(tile)
-			if piece == null or not (piece.def().door or piece.def().storage > 0):
+			if (
+				piece == null
+				or not (piece.def().door or piece.def().storage > 0 or piece.def().bed)
+			):
 				continue
 			var distance := at.distance_to(tile_center(tile))
 			if distance <= reach and (best.is_empty() or distance < best[1]):

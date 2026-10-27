@@ -27,6 +27,8 @@ extends Resource
 @export var door := false
 ## Recipes naming this piece's id as their station are crafted next to it.
 @export var station := false
+## E on it makes it the player's respawn point (SimWorld.use_piece).
+@export var bed := false
 ## Slots of storage; E opens it.
 @export var storage := 0
 ## Radius in px of the light it gives off at night (client only).

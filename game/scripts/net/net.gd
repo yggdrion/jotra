@@ -37,8 +37,11 @@ signal snapshot_received(
 	me: Vector4,
 	time: float
 )
-signal chunk_received(coord: Vector2i, removed: PackedInt32Array, pieces: Array)
+signal chunk_received(coord: Vector2i, removed: PackedInt32Array, pieces: Array, graves: Array)
 signal piece_received(coord: Vector2i, index: int, data: Array)
+signal grave_received(coord: Vector2i, id: int, data: Array)
+signal own_graves_received(positions: PackedVector2Array)
+signal bed_set_received
 signal storage_received(data: Dictionary)
 signal prop_removed_received(coord: Vector2i, prop_id: int)
 signal node_hit_received(at: Vector2, note: String)
@@ -143,7 +146,7 @@ func ability(aim: Vector2) -> void:
 	ability_requested.emit(multiplayer.get_remote_sender_id(), aim)
 
 
-## E at the dungeon entrance, the run's exit or its end chest.
+## E at one of our graves, the dungeon entrance, the run's exit or its end chest.
 @rpc("any_peer", "reliable")
 func interact() -> void:
 	interact_requested.emit(multiplayer.get_remote_sender_id())
@@ -314,16 +317,35 @@ static func unpack_entities(bytes: PackedByteArray, origin: Vector2) -> Dictiona
 
 
 ## A chunk entered the player's view: the client generates it from the seed, leaves out the
-## removed props and adds the pieces built ([index in chunk, Building.to_net...] each).
+## removed props and adds the pieces built ([index in chunk, Building.to_net...] each) and the
+## graves lying in it ([id, x, y, owner name] each).
 @rpc("authority", "reliable")
-func chunk(coord: Vector2i, removed: PackedInt32Array, pieces: Array) -> void:
-	chunk_received.emit(coord, removed, pieces)
+func chunk(coord: Vector2i, removed: PackedInt32Array, pieces: Array, graves: Array) -> void:
+	chunk_received.emit(coord, removed, pieces, graves)
 
 
 ## A piece in a chunk the client has changed: Building.to_net, or [] when it is gone.
 @rpc("authority", "reliable")
 func piece(coord: Vector2i, index: int, data: Array) -> void:
 	piece_received.emit(coord, index, data)
+
+
+## A grave in a chunk the client has appeared or changed: [x, y, owner name], [] when it is gone.
+@rpc("authority", "reliable")
+func grave(coord: Vector2i, id: int, data: Array) -> void:
+	grave_received.emit(coord, id, data)
+
+
+## Where the receiving player's unlooted graves lie, on joining and whenever that changes.
+@rpc("authority", "reliable")
+func own_graves(positions: PackedVector2Array) -> void:
+	own_graves_received.emit(positions)
+
+
+## The receiving player's respawn point is now the bed it used.
+@rpc("authority", "reliable")
+func bed_set() -> void:
+	bed_set_received.emit()
 
 
 ## The receiving player's open chest (Inventory.to_data) whenever it changes, {} once closed.
