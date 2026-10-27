@@ -33,6 +33,7 @@ signal snapshot_received(
 	enemies: Dictionary,
 	drops: Dictionary,
 	projectiles: Dictionary,
+	facings: Dictionary,
 	me: Vector4,
 	time: float
 )
@@ -66,7 +67,7 @@ enum Status { DRAUGHT, ABILITY, REGEN }
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 17
+const PROTOCOL_VERSION := 18
 const ENTITY_BYTES := 10
 
 @rpc("any_peer", "reliable")
@@ -196,7 +197,8 @@ func reject(reason: String) -> void:
 ## players: {id: Vector3(x, y, health 0..1)}, enemies: the same with z = enemy_z (kind and
 ## health), drops: {id: Vector3(x, y, Content.item_index, or -1 - the buff's index in
 ## Content.buff_ids for a buff orb)}, projectiles: {id: Vector3(x, y, flight angle in radians)},
-## only those near the receiving player; me: its own Vector4(health, stamina, max health,
+## only those near the receiving player; facings: a facing_byte for each enemy with a shield,
+## in the order of enemies (pack_facings); me: its own Vector4(health, stamina, max health,
 ## hunger); time: the world's time, for the day/night clock. Sent packed (pack_entities) around
 ## at, the receiving player's position on the server.
 @rpc("authority", "unreliable_ordered")
@@ -206,14 +208,17 @@ func snapshot(
 	enemies: PackedByteArray,
 	drops: PackedByteArray,
 	projectiles: PackedByteArray,
+	facings: PackedByteArray,
 	me: Vector4,
 	time: float
 ) -> void:
+	var near_enemies := unpack_entities(enemies, at)
 	snapshot_received.emit(
 		unpack_entities(players, at),
-		unpack_entities(enemies, at),
+		near_enemies,
 		unpack_entities(drops, at),
 		unpack_entities(projectiles, at),
+		unpack_facings(near_enemies, facings),
 		me,
 		time
 	)
@@ -243,6 +248,42 @@ static func enemy_slowed(z: float) -> bool:
 
 static func _enemy_base(z: float) -> float:
 	return -z - 1.0 if z < 0.0 else z
+
+
+## Whether snapshots carry the facing of an enemy with this enemy_z: only a shield's matters.
+static func sends_facing(z: float) -> bool:
+	return Content.enemies[Content.enemy_ids[enemy_kind(z)]].block_arc > 0.0
+
+
+## A facing angle in one byte, 256 steps to the turn (1.4 degrees).
+static func facing_byte(angle: float) -> int:
+	return posmod(roundi(angle / TAU * 256.0), 256)
+
+
+static func facing_angle(byte: int) -> float:
+	return byte * TAU / 256.0
+
+
+## The facing_byte of each enemy that sends_facing, in the order of enemies ({id: Vector3(x, y,
+## enemy_z)}), which pack_entities and unpack_entities keep: a byte each, no ids. facings:
+## {id: angle in radians}.
+static func pack_facings(enemies: Dictionary, facings: Dictionary) -> PackedByteArray:
+	var bytes := PackedByteArray()
+	for id: int in enemies:
+		if sends_facing(enemies[id].z):
+			bytes.append(facing_byte(facings[id]))
+	return bytes
+
+
+## {id: angle in radians} for the enemies that sends_facing, from pack_facings.
+static func unpack_facings(enemies: Dictionary, bytes: PackedByteArray) -> Dictionary:
+	var out := {}
+	var at := 0
+	for id: int in enemies:
+		if at < bytes.size() and sends_facing(enemies[id].z):
+			out[id] = facing_angle(bytes[at])
+			at += 1
+	return out
 
 
 ## {id: Vector3(x, y, z)} in ENTITY_BYTES each, a third of a Dictionary: the id, x and y in

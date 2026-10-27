@@ -763,11 +763,15 @@ func _on_snapshot(
 	enemies: Dictionary,
 	drops: Dictionary,
 	projectiles: Dictionary,
+	facings: Dictionary,
 	me: Vector4,
 	time: float
 ) -> void:
 	var now := Time.get_ticks_msec()
-	_snapshots.append({ms = now, players = players, enemies = enemies})
+	var turned := {}
+	for id: int in facings:
+		turned[id] = Vector2.from_angle(facings[id])
+	_snapshots.append({ms = now, players = players, enemies = enemies, facings = turned})
 	while _snapshots[0].ms < now - BUFFER_MS:
 		_snapshots.pop_front()
 	_health = me.x
@@ -1036,7 +1040,10 @@ func _process(delta: float) -> void:
 		_ping_due = PING_INTERVAL
 		net.ping.rpc_id(1, Time.get_ticks_msec())
 	var at := Time.get_ticks_msec() - INTERP_DELAY_MS
-	_show_enemies(Interpolation.sample(_snapshots, at, "enemies"))
+	_show_enemies(
+		Interpolation.sample(_snapshots, at, "enemies"),
+		Interpolation.sample(_snapshots, at, "facings")
+	)
 	_show_remote_players(Interpolation.sample(_snapshots, at))
 	_map.me = _me.position
 	_map.players.assign(
@@ -1115,8 +1122,9 @@ func _show_remote_players(players: Dictionary) -> void:
 		_bot_check(positions)
 
 
-## enemies: {id: Vector3(x, y, Net.enemy_z)}. The HUD's boss bar follows the first boss in view.
-func _show_enemies(enemies: Dictionary) -> void:
+## enemies: {id: Vector3(x, y, Net.enemy_z)}, facings: {id: Vector2} of those with a shield. The
+## HUD's boss bar follows the first boss in view.
+func _show_enemies(enemies: Dictionary, facings: Dictionary) -> void:
 	for id: int in _enemy_views.keys():
 		if not enemies.has(id):
 			# A dead one frees itself once it has fallen.
@@ -1136,6 +1144,8 @@ func _show_enemies(enemies: Dictionary) -> void:
 		view.position = Vector2(enemy.x, enemy.y)
 		view.health = Net.enemy_health(enemy.z)
 		view.modulate = SLOWED if Net.enemy_slowed(enemy.z) else Color.WHITE
+		if facings.has(id):
+			view.facing = facings[id]
 		if boss == null and view.def.size > 1:
 			boss = view
 	_hud.show_boss(boss.def.display_name if boss else "", boss.health if boss else 0.0)

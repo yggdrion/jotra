@@ -1246,9 +1246,9 @@ func sees(id: int, at: Vector2) -> bool:
 ## What one player's client is sent: {players: {id: Vector3(x, y, health 0..1)}, enemies: the
 ## same with Net.enemy_z for z, drops: {id: Vector3(x, y, Content.item_index, or -1 - the
 ## index in Content.buff_ids for a buff orb)}, projectiles: {id: Vector3(x, y, flight angle in
-## radians)}, me: Vector4(health, stamina, max health, hunger), time: the world's time for the
-## day/night clock}, with only the players (itself included), enemies, drops and projectiles
-## near it.
+## radians)}, facings: {id: angle in radians} of the enemies with a shield, me: Vector4(health,
+## stamina, max health, hunger), time: the world's time for the day/night clock}, with only
+## the players (itself included), enemies, drops and projectiles near it.
 func snapshot_for(id: int) -> Dictionary:
 	var near := {}
 	for other: SimPlayer in players.values():
@@ -1257,8 +1257,11 @@ func snapshot_for(id: int) -> Dictionary:
 				other.position.x, other.position.y, other.health / other.max_health()
 			)
 	var near_enemies := {}
+	var facings := {}
 	for enemy: SimEnemy in enemies.values():
 		if sees(id, enemy.position):
+			if enemy.def.block_arc > 0.0:
+				facings[enemy.id] = enemy.facing.angle()
 			var health := enemy.health / enemy.max_health
 			near_enemies[enemy.id] = Vector3(
 				enemy.position.x,
@@ -1282,6 +1285,7 @@ func snapshot_for(id: int) -> Dictionary:
 		enemies = near_enemies,
 		drops = near_drops,
 		projectiles = near_projectiles,
+		facings = facings,
 		me = Vector4(me.health, me.stamina, me.max_health(), me.hunger),
 		time = time,
 	}

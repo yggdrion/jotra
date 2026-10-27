@@ -222,6 +222,7 @@ func _physics_process(delta: float) -> void:
 				Net.pack_entities(snap.enemies, at),
 				Net.pack_entities(snap.drops, at),
 				Net.pack_entities(snap.projectiles, at),
+				Net.pack_facings(snap.enemies, snap.facings),
 				snap.me,
 				snap.time
 			)

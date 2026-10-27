@@ -3,7 +3,8 @@ extends PlayerView
 ## An enemy in its def's walk sheet at its def's size. While it winds up an attack the ground
 ## shows the area it will hit, a disc filling to its edge as the hit lands, and it crouches back;
 ## then it lunges forward. A hit recoils it away from the blow, a stagger shakes it, a give-up
-## dims it, a death topples and fades it before it is gone.
+## dims it, a death topples and fades it before it is gone. A shield shows its blocking arc
+## along the server's facing, which also turns the sprite.
 
 const AREA := Color(0.9, 0.15, 0.1)
 const GAVE_UP := Color(0.65, 0.7, 0.9)
@@ -21,6 +22,13 @@ var def: EnemyDef:
 	set(value):
 		def = value
 		scale = Vector2.ONE * def.size
+## The server's facing (SimEnemy.facing) for one with a shield, zero for the rest, which face
+## the way they walk.
+var facing := Vector2.ZERO:
+	set(value):
+		facing = value
+		_face(value)
+		queue_redraw()
 ## Died: it is topped up and shown falling instead of being driven by snapshots.
 var dying := false
 
@@ -97,9 +105,17 @@ func tint() -> Color:
 	return Color.WHITE
 
 
+func _face(direction: Vector2) -> void:
+	super(facing if facing != Vector2.ZERO else direction)
+
+
+func _ahead() -> Vector2:
+	return facing.normalized() if facing != Vector2.ZERO else _facing_vector()
+
+
 func _pose(now: int) -> void:
 	super(now)
-	var ahead := _facing_vector()
+	var ahead := _ahead()
 	if now < _windup_end:
 		var p := float(now - _windup_start) / maxf(_windup_end - _windup_start, 1.0)
 		pose_offset = -ahead * 3.0 * ease(p, 0.5)
@@ -138,7 +154,7 @@ func _draw() -> void:
 			draw_arc(Vector2.ZERO, r, 0, TAU, 32, Color(AREA, 0.85), 1.0)
 	if def.block_arc > 0 and not dying:
 		var edge := deg_to_rad(def.block_arc) / 2
-		var heading := _facing_vector().angle()
+		var heading := _ahead().angle()
 		var lit := clampf(1.0 - float(now - _block_at) / BLOCK_MS, 0.0, 1.0)
 		var color := SHIELD.lerp(Color.WHITE, lit)
 		draw_arc(Vector2(0, -6), 12, heading - edge, heading + edge, 12, color, 2.0)

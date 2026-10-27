@@ -122,6 +122,22 @@ func test_shield_turns_slowly() -> void:
 	assert_float(turned).is_equal_approx(def.turn_speed * TICK, 0.02)
 
 
+func test_snapshots_send_a_shields_facing_through_packing() -> void:
+	var world := _world()
+	var shield := world.add_enemy(Vector2(100, 0), 100, 0, Content.enemies[&"shield_draugr"])
+	shield.facing = Vector2.from_angle(2.0)
+	var other := world.add_enemy(Vector2(-100, 0), 100, 0, Content.enemies[&"draugr"])
+	var snap := world.snapshot_for(1)
+	assert_dict(snap.facings).is_equal({shield.id: shield.facing.angle()})
+	var bytes := Net.pack_facings(snap.enemies, snap.facings)
+	assert_int(bytes.size()).is_equal(1)
+	var enemies := Net.unpack_entities(Net.pack_entities(snap.enemies, Vector2.ZERO), Vector2.ZERO)
+	var back := Net.unpack_facings(enemies, bytes)
+	assert_array(back.keys()).contains_exactly([shield.id])
+	assert_float(back[shield.id]).is_equal_approx(2.0, TAU / 512)
+	assert_bool(back.has(other.id)).is_false()
+
+
 func test_exploder_blasts_everyone_in_radius_and_dies() -> void:
 	var world := _world()
 	var def: EnemyDef = Content.enemies[&"bloated_draugr"]
