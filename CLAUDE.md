@@ -47,6 +47,7 @@ Keep this section current: update it in the same push that finishes a milestone 
 
       git tag -a v0.<n>.0 -m "M<x>: <name>" && git push origin v0.<n>.0
 
+  GitHub starts no workflow for a push of more than three tags, so push them one per `git push` (or rerun with `gh workflow run CI --ref <tag>`; then check which release is marked Latest).
   Lettered milestones count too, so version numbers don't map 1:1 to milestone numbers. Patch tags (`v0.<n>.1`) for fixes between milestones.
 - Renovate (`.github/renovate.json`) opens dependency PRs and automerges non-major updates once CI passes; those are the exception to "no PRs".
 
