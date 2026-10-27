@@ -160,6 +160,9 @@ const REACH_SLACK := 16.0
 const FULL_NOTICE_INTERVAL := 3.0
 ## Pack members spawn this far (px) around the first.
 const PACK_SPREAD := 28.0
+## Tiles all enemies' path searches may expand in one tick (Pathing.find); those left over
+## search on a later tick.
+const PATH_BUDGET := 600
 
 var world_seed := 0
 ## Null in tests: nothing is saved.
@@ -174,6 +177,11 @@ var wards := {}  # id -> SimWard
 var dungeons := {}  # slot -> Dungeon
 ## {global tile: Building.Piece} of every loaded chunk.
 var pieces := {}
+## Goes up whenever a piece that blocks may have come or gone (built, broken, a door, a chunk
+## loaded or unloaded), so enemies search their paths again.
+var pieces_version := 0
+## Tiles path searches may still expand this tick.
+var path_budget := PATH_BUDGET
 ## {id: SimGrave} of every loaded chunk.
 var graves := {}
 ## Off in tests that place their own enemies.
@@ -206,6 +214,8 @@ var _next_pack_id := 1
 var _next_ward_id := 1
 var _next_grave_id := 1
 var _spawn_due := 0.0
+var _blocked := {}
+var _blocked_version := -1
 
 
 ## Loads the world in path, or creates it with a random seed. Null if it can't be read.
@@ -229,6 +239,7 @@ func tick(delta: float) -> void:
 	if players.is_empty():
 		return
 	time += delta
+	path_budget = PATH_BUDGET
 	for player: SimPlayer in players.values():
 		_tick_player(player, delta)
 	# After the players: a respawn moves one, and its new view must be loaded before it is sent.
@@ -562,6 +573,7 @@ func _stream_chunks() -> void:
 		_save_chunk(coord)
 		for tile: Vector2i in chunks[coord].pieces:
 			pieces.erase(tile)
+			pieces_version += 1
 		for id: int in chunks[coord].graves:
 			graves.erase(id)
 		chunks.erase(coord)
@@ -588,6 +600,7 @@ func _load_chunk(coord: Vector2i) -> void:
 		var tile := Building.tile_at(coord, int(entry.get("t", 0)))
 		chunk.pieces[tile] = piece
 		pieces[tile] = piece
+		pieces_version += 1
 	for entry: Dictionary in saved.graves:
 		var grave := SimGrave.new()
 		grave.owner = str(entry.get("owner", ""))
@@ -918,6 +931,7 @@ func build(id: int, tile: Vector2i, piece_id: StringName) -> bool:
 			var piece := Building.Piece.new(piece_id)
 			chunk.pieces[tile] = piece
 			pieces[tile] = piece
+			pieces_version += 1
 		_:
 			return false
 	chunk.dirty = true
@@ -962,6 +976,7 @@ func use_piece(id: int, tile: Vector2i) -> bool:
 			if bodies.any(func(at: Vector2) -> bool: return Building.overlaps(tile, at)):
 				return false
 		piece.open = not piece.open
+		pieces_version += 1
 		chunks[Building.chunk_of_tile(tile)].dirty = true
 		events.append(["piece", tile])
 		return true
@@ -1019,6 +1034,14 @@ func blocker(at: Vector2) -> Variant:
 	return Building.blocker(pieces, at)
 
 
+## Pathing.blocked_tiles of the loaded pieces, kept until pieces_version changes.
+func blocked_tiles() -> Dictionary:
+	if _blocked_version != pieces_version:
+		_blocked = Pathing.blocked_tiles(pieces)
+		_blocked_version = pieces_version
+	return _blocked
+
+
 func _remove_piece(tile: Vector2i) -> void:
 	var piece: Building.Piece = pieces[tile]
 	if piece.items:
@@ -1032,6 +1055,7 @@ func _remove_piece(tile: Vector2i) -> void:
 	chunk.pieces.erase(tile)
 	chunk.dirty = true
 	pieces.erase(tile)
+	pieces_version += 1
 	events.append(["piece", tile])
 
 

@@ -5,14 +5,20 @@ extends RefCounted
 ## in at windup_speed meanwhile; a slam hits everyone near instead), then stand open for
 ## def.recovery. Hits push it (it slides) and wear down its poise: broken, or hit by a heavy
 ## during a windup, it staggers. It gives up when its target is led further than def.leash
-## from home and walks home, healing on the way. It walks straight at its target; a blocking
-## piece in the way gets the attack instead, until it breaks.
+## from home and walks home, healing on the way. It walks around blocking pieces to its target
+## (Pathing, searched again when pieces change or its target moves to another tile); when no
+## way is open it attacks the piece in its way at the end of the best route until it breaks.
 ## def.behavior changes the parts that differ (approach, what the windup ends in): an archer
 ## keeps its distance and shoots along the line it locked, a wolf circles and lunges and its
 ## pack comes along, a shield blocks hits from the front, an exploder blows up.
-# ponytail: no pathing around walls; enemies break through. Add it if bases feel too fragile.
+# ponytail: leashing walks straight home; it only takes the spot it is walled off at as home.
 
 enum State { IDLE, CHASE, WINDUP, LEASH, RECOVER, STAGGER }
+
+## Seconds at least between path searches for a moving target (spread a little by id).
+const REPATH := 0.5
+## Tiles one path search may expand.
+const PATH_NODES := 300
 
 var id: int
 var def: EnemyDef
@@ -50,6 +56,17 @@ var _aim := Vector2.ZERO
 var _alerted := false
 ## Seconds a perfect dodge of its hit leaves it open, taken off by SimWorld.damage_player.
 var _punished := 0.0
+## The waypoints left on its route (empty: straight at the target), whether the route reaches
+## the target, the earliest time to search again, and the target's tile and
+## SimWorld.pieces_version at the last search.
+var _path: Array[Vector2] = []
+var _open := true
+var _repath_at := 0.0
+var _path_goal := Vector2i.MAX
+var _path_version := -1
+## Ran into a piece on a route that looked open: searches again at once, sieges if that
+## happens again before it moves freely.
+var _stuck := false
 
 
 ## Health and damage come scaled; the rest is from def.
@@ -172,8 +189,35 @@ func _approach(world: SimWorld, player: SimWorld.SimPlayer, delta: float) -> boo
 			return false
 	if distance <= def.attack_range:
 		return true
-	siege = _step(world, player.position, _speed(world) * delta)
+	var wall: Variant = _step(world, _waypoint(world, player.position), _speed(world) * delta)
+	if wall == null:
+		_stuck = false
+	elif _open and not _stuck:
+		# The target moved behind a piece or a push took it off its route: look again first.
+		_stuck = true
+		return false
+	siege = wall
 	return siege != null
+
+
+## Where to walk next on the way to goal: the next waypoint of its route, searched again
+## when pieces changed or the goal moved to another tile (at most every REPATH), as the
+## tick's path budget allows; at once when stuck.
+func _waypoint(world: SimWorld, goal: Vector2) -> Vector2:
+	var tile := Building.tile_of(goal)
+	var moved := tile != _path_goal and world.time >= _repath_at
+	var due := _stuck or moved or _path_version != world.pieces_version
+	if due and (_stuck or world.path_budget >= PATH_NODES):
+		var route := Pathing.find(world.blocked_tiles(), position, goal, PATH_NODES)
+		world.path_budget -= route.used
+		_path = route.points
+		_open = route.open
+		_path_goal = tile
+		_path_version = world.pieces_version
+		_repath_at = world.time + REPATH + (id % 5) * 0.05
+	while not _path.is_empty() and position.distance_to(_path[0]) <= 0.5:
+		_path.pop_front()
+	return goal if _path.is_empty() else _path[0]
 
 
 ## Moves distance toward to unless a piece blocks the way (or it is already inside one).

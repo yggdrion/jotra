@@ -75,33 +75,6 @@ func test_walls_block_moves_and_open_doors_dont() -> void:
 	assert_bool(world.use_piece(1, door)).is_false()
 
 
-func test_enemies_break_walls_in_their_way() -> void:
-	var world := _world()
-	var player: SimWorld.SimPlayer = world.players[1]
-	player.inventory.add(&"wood", 50)
-	var walls: Array[Vector2i] = []
-	for y in range(-2, 3):
-		walls.append(_clear(world, Vector2i(2, y)))
-		assert_bool(world.build(1, walls[-1], &"wall")).is_true()
-	var enemy := world.add_enemy(Vector2(80, 8), 1000, 100)
-	enemy.provoke(1)
-	for i in 30:
-		world.tick(TICK)
-	assert_float(player.health).is_equal(player.max_health())
-	assert_float(enemy.position.x).is_greater(40)
-	var health := 0.0
-	for tile in walls:
-		health += world.pieces[tile].health
-	assert_float(health).is_less(walls.size() * Content.piece(&"wall").health)
-	for i in 300:
-		world.tick(TICK)
-	var standing := 0
-	for tile in walls:
-		standing += 1 if world.pieces.has(tile) else 0
-	assert_int(standing).is_less(walls.size())
-	assert_float(player.health).is_less(player.max_health())
-
-
 func test_repair_waits_for_enemies_to_leave() -> void:
 	var world := _world()
 	world.players[1].inventory.add(&"wood", 10)
