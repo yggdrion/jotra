@@ -144,6 +144,10 @@ static func find(blocked: Dictionary, from: Vector2, to: Vector2, budget: int) -
 		if clear(blocked, from, Building.tile_center(tiles[i])):
 			first = i
 			break
+	# Standing in a blocked tile (a dungeon wall tile whose center is outside the room, the body
+	# inside it): its center can't be reached, so the route leaves from where it stands.
+	if first == 0 and blocked.has(start) and tiles.size() > 1:
+		first = 1
 	for i in range(first, tiles.size()):
 		route.points.append(Building.tile_center(tiles[i]))
 	return route

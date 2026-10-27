@@ -25,6 +25,19 @@ func test_route_goes_around_a_wall() -> void:
 	assert_bool(Building.tile_of(route.points[-1]) == Vector2i(0, 0)).is_true()
 
 
+func test_a_route_from_inside_a_blocked_tile_leaves_from_where_it_stands() -> void:
+	# A dungeon room's top edge just below a tile center: the tile is a wall, the body inside.
+	var blocked := {}
+	for x in range(-1, 6):
+		blocked[Vector2i(x, -1)] = true
+		blocked[Vector2i(x, 0)] = true
+	blocked.erase(Vector2i(3, 0))
+	var from := Vector2(8, 15.5)
+	var route := Pathing.find(blocked, from, Building.tile_center(Vector2i(3, 3)), 400)
+	assert_array(route.points).is_not_empty()
+	assert_bool(Building.tile_center(Vector2i(0, 0)) in route.points).is_false()
+
+
 func test_route_is_straight_without_pieces_in_the_way() -> void:
 	var pieces := {Vector2i(9, 9): Building.Piece.new(&"wall")}
 	var route := Pathing.find(Pathing.blocked_tiles(pieces), Vector2(8, 8), Vector2(80, 8), 400)
