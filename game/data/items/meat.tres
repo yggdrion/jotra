@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/item_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/items/meat.png" id="icon"]
+
+[resource]
+script = ExtResource("1")
+icon = ExtResource("icon")
+display_name = "Raw meat"
+rarity = 0
+max_stack = 20
+color = Color(0.7, 0.25, 0.25, 1)
+food = 5.0
