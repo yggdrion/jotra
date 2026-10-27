@@ -10,8 +10,19 @@ extends Node2D
 ## Sheet columns per facing.
 enum Facing { DOWN, UP, LEFT, RIGHT }
 
-const OWN_SHEET := preload("res://assets/ninja_adventure/characters/hunter_walk.png")
-const OTHER_SHEET := preload("res://assets/ninja_adventure/characters/caveman_walk.png")
+const SHEETS: Array[Texture2D] = [
+	preload("res://assets/ninja_adventure/characters/hunter_walk.png"),
+	preload("res://assets/ninja_adventure/characters/caveman_walk.png"),
+]
+## Multiplied into the sheet, the second half of a look (Net.player_z).
+const TINTS: Array[Color] = [
+	Color.WHITE,
+	Color(1.0, 0.75, 0.7),
+	Color(0.75, 0.9, 1.0),
+	Color(0.8, 1.0, 0.75),
+	Color(1.0, 0.95, 0.65),
+	Color(0.85, 0.75, 1.0),
+]
 const FRAME := 16
 const FRAME_MS := 150
 ## Keeps walking this long after the last move, so frames without one don't flicker to idle.
@@ -33,6 +44,8 @@ const PULL_BACK_ANGLE := 0.6
 const SMEAR := 0.4
 
 var own := false
+## Its character's look (Net.player_z): which sheet, in which tint.
+var look := 0
 ## 0..1 of a bow drawn, shown as a ring that fills; 0: not drawing.
 var draw_share := 0.0
 ## Held and drawn all the time for the own player; others show it only while swinging.
@@ -94,14 +107,23 @@ func swing(aim: Vector2, move: AttackDef, weapon_id := &"") -> void:
 
 
 func sheet() -> Texture2D:
-	return OWN_SHEET if own else OTHER_SHEET
+	return SHEETS[sheet_of(look)]
 
 
 func tint() -> Color:
 	var now := Time.get_ticks_msec()
 	if now < _flash_until:
 		return FLASH
-	return HURT if now < _hurt_until else Color.WHITE
+	return HURT if now < _hurt_until else TINTS[tint_of(look)]
+
+
+## The sheet index of a look (Net.player_z), the first half of it.
+static func sheet_of(of_look: int) -> int:
+	return clampi(of_look / TINTS.size(), 0, SHEETS.size() - 1)
+
+
+static func tint_of(of_look: int) -> int:
+	return posmod(of_look, TINTS.size())
 
 
 ## 0..1 through the swing being shown, -1 when none.

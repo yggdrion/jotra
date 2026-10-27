@@ -91,6 +91,9 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 		multiplayer.multiplayer_peer = peer
 	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
 	net.hello_received.connect(_on_hello)
+	net.character_received.connect(
+		func(id: int, look: int, kit: StringName) -> void: world.set_character(id, look, kit)
+	)
 	net.moved.connect(func(id: int, position: Vector2) -> void: world.move_player(id, position))
 	net.prop_remove_requested.connect(_on_prop_remove_requested)
 	net.attacked.connect(
@@ -123,6 +126,10 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 	net.use_requested.connect(func(id: int, tile: Vector2i) -> void: world.use_piece(id, tile))
 	net.chest_move_requested.connect(
 		func(id: int, from_chest: bool, index: int) -> void: world.chest_move(id, from_chest, index)
+	)
+	net.marker_place_requested.connect(func(id: int, at: Vector2) -> void: world.add_marker(id, at))
+	net.marker_remove_requested.connect(
+		func(id: int, marker_id: int) -> void: world.remove_marker(id, marker_id)
 	)
 	net.pinged.connect(func(id: int, sent_ms: int) -> void: net.pong.rpc_id(id, sent_ms))
 	if lobby_url == "":
@@ -342,6 +349,9 @@ func _send_events() -> void:
 					_send_own_graves(event[1])
 			"bed":
 				net.bed_set.rpc_id(event[1])
+			"markers":
+				for id: int in world.players:
+					net.markers.rpc_id(id, world.marker_list())
 	world.events.clear()
 
 
@@ -420,6 +430,7 @@ func _on_hello(id: int, version: int, player_name: String) -> void:
 	_owner_joined = _owner_joined or solo or player_name == owner_name
 	net.welcome.rpc_id(id, player.position, world.world_seed)
 	_send_own_graves(id)
+	net.markers.rpc_id(id, world.marker_list())
 	if room != "":
 		net.room.rpc_id(id, room)
 	print("server: %s joined as %d (%d online)" % [player_name, id, world.players.size()])

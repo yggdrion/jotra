@@ -3,7 +3,10 @@ extends CanvasLayer
 ## The map of the chunks this player has been near: a minimap in the bottom-right
 ## corner and, toggled with M, a big one over the whole screen. Terrain is painted
 ## from the world seed like the chunks themselves; dots mark us, the other players and the
-## barrow. The explored chunks are kept per world seed in `dir`.
+## barrow, diamonds the markers anyone in the world placed (in their character's tint). On the
+## big map a click places a marker and a right click takes the nearest one down (GameClient sends
+## them; world_at and marker_near turn the mouse into world terms). The explored chunks are kept
+## per world seed in `dir`.
 
 const MINI := Vector2(80, 80)
 const MARGIN := 6
@@ -14,6 +17,9 @@ const FOG := Color(0, 0, 0, 0.75)
 const ME_COLOR := Color.WHITE
 const PLAYER_COLOR := Color("feae34")
 const BARROW_COLOR := Color("e43b44")
+## Map px from the mouse a right click finds a marker within.
+const PICK_PX := 6.0
+const HINT := "Click: place a marker   Right click: remove one   M: close"
 
 # ponytail: client-side, per device; move to the saved player on the server if maps should
 # follow players across machines.
@@ -21,6 +27,8 @@ var dir := "user://maps"
 ## Our position and the other players', set every frame by GameClient.
 var me := Vector2.ZERO
 var players: Array[Vector2] = []
+## [id, x, y, owner name, look] of every marker in the world, from the server.
+var markers: Array = []
 
 var _seed := 0
 var _player := ""
@@ -88,6 +96,23 @@ func refresh() -> void:
 		_big.queue_redraw()
 
 
+## The world position under a point of the big map (viewport coordinates).
+func world_at(screen: Vector2) -> Vector2:
+	return me + (screen - _big.size / 2) * BIG_SCALE
+
+
+## The id of the marker nearest to a world position within PICK_PX on the big map, 0 if none.
+func marker_near(at: Vector2) -> int:
+	var best := 0
+	var best_distance := PICK_PX * BIG_SCALE
+	for marker: Array in markers:
+		var distance := at.distance_to(Vector2(marker[1], marker[2]))
+		if distance <= best_distance:
+			best = marker[0]
+			best_distance = distance
+	return best
+
+
 func _path() -> String:
 	return "%s/%d-%s.json" % [dir, _seed, _player]
 
@@ -118,7 +143,24 @@ func _draw_map(control: Control, px: float) -> void:
 		var spot: Vector2 = center + (world - me) / px
 		control.draw_rect(Rect2(spot - Vector2.ONE * 1.5, Vector2.ONE * 3), color)
 	dot.call(Content.tuning.dungeon_entrance, BARROW_COLOR)
+	for marker: Array in markers:
+		var spot: Vector2 = center + (Vector2(marker[1], marker[2]) - me) / px
+		var r := 3.0
+		var diamond := PackedVector2Array(
+			[
+				spot + Vector2(0, -r),
+				spot + Vector2(r, 0),
+				spot + Vector2(0, r),
+				spot + Vector2(-r, 0)
+			]
+		)
+		control.draw_colored_polygon(diamond, PlayerView.TINTS[PlayerView.tint_of(marker[4])])
+		control.draw_polyline(diamond + PackedVector2Array([diamond[0]]), Color.BLACK, 1.0)
 	for other in players:
 		dot.call(other, PLAYER_COLOR)
 	dot.call(me, ME_COLOR)
 	control.draw_rect(Rect2(Vector2.ZERO, control.size), Color(1, 1, 1, 0.3), false)
+	if control == _big:
+		var font := ThemeDB.fallback_font
+		var at := Vector2(MARGIN, control.size.y - MARGIN)
+		control.draw_string(font, at, HINT, HORIZONTAL_ALIGNMENT_LEFT, -1, 8, Color(1, 1, 1, 0.8))

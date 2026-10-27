@@ -1,0 +1,10 @@
+[gd_resource type="Resource" script_class="KitDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/kit_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Wanderer"
+description = "Nothing but the clothes on your back."
+items = {}
+wear = Array[StringName]([])

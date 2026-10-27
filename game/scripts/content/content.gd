@@ -12,6 +12,7 @@ static var buffs := _load("res://data/buffs/")
 static var synergies := _load("res://data/synergies/")
 static var pieces := _load("res://data/pieces/")
 static var abilities := _load("res://data/abilities/")
+static var kits := _load("res://data/kits/")
 ## Item ids in a fixed order, so snapshots can send an item as its index.
 static var item_ids: Array[StringName] = _sorted_ids(items)
 ## Enemy ids the same way, for each enemy's kind in snapshots.
@@ -20,6 +21,8 @@ static var enemy_ids: Array[StringName] = _sorted_ids(enemies)
 static var buff_ids: Array[StringName] = _sorted_ids(buffs)
 ## Building pieces the same way, also the order of the build menu.
 static var piece_ids: Array[StringName] = _sorted_ids(pieces)
+## Starting kits the same way, also the order on the character screen.
+static var kit_ids: Array[StringName] = _sorted_ids(kits)
 
 
 static func item(id: StringName) -> ItemDef:

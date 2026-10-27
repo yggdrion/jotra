@@ -80,6 +80,9 @@ var bot_expect := 0
 var bot_duration := 0.0
 ## Empty: use the one in NAME_FILE.
 var player_name := ""
+## The character's look (Net.player_z) and starting kit (KitDef id, &"" for none).
+var look := 0
+var kit := &""
 
 var _address := ""
 var _port := 0
@@ -172,7 +175,9 @@ func _ready() -> void:
 	if player_name == "":
 		player_name = _stored_name()
 	multiplayer.connected_to_server.connect(
-		func() -> void: net.hello.rpc_id(1, Net.PROTOCOL_VERSION, player_name)
+		func() -> void:
+			net.hello.rpc_id(1, Net.PROTOCOL_VERSION, player_name)
+			net.character.rpc_id(1, look, kit)
 	)
 	multiplayer.connection_failed.connect(_on_connection_failed)
 	multiplayer.server_disconnected.connect(_on_server_disconnected)
@@ -216,6 +221,7 @@ func _ready() -> void:
 	net.perfect_received.connect(_on_perfect)
 	net.status_received.connect(_on_status)
 	net.effect_received.connect(_on_effect)
+	net.markers_received.connect(func(list: Array) -> void: _map.markers = list)
 	net.respawned_received.connect(
 		func(at: Vector2) -> void:
 			_me.position = at
@@ -405,6 +411,7 @@ func _on_welcomed(spawn: Vector2, world_seed: int) -> void:
 	_map.load_world(world_seed, player_name)
 	_me = PlayerView.new()
 	_me.own = true
+	_me.look = look
 	_me.position = spawn
 	_me.holding = true
 	_me.weapon = _weapon
@@ -578,7 +585,11 @@ func _unhandled_input(event: InputEvent) -> void:
 			get_viewport().set_input_as_handled()
 		return
 	var mouse := event as InputEventMouseButton
-	if mouse and (_inventory_ui.visible or _craft_menu.visible):
+	if mouse and (_inventory_ui.visible or _craft_menu.visible or _map.is_big()):
+		# A screen is open: its controls take the clicks; on the big map they place markers.
+		if mouse.pressed and not (_inventory_ui.visible or _craft_menu.visible):
+			_map_click(mouse)
+			get_viewport().set_input_as_handled()
 		return
 	if mouse and mouse.pressed and _build.visible:
 		_build_click(mouse.button_index)
@@ -637,6 +648,17 @@ func _unhandled_input(event: InputEvent) -> void:
 	else:
 		return
 	get_viewport().set_input_as_handled()
+
+
+## On the big map: left places a marker under the mouse, right takes down the nearest one.
+func _map_click(mouse: InputEventMouseButton) -> void:
+	var at := _map.world_at(mouse.position)
+	if mouse.button_index == MOUSE_BUTTON_LEFT:
+		net.place_marker.rpc_id(1, at)
+	elif mouse.button_index == MOUSE_BUTTON_RIGHT:
+		var marker := _map.marker_near(at)
+		if marker != 0:
+			net.remove_marker.rpc_id(1, marker)
 
 
 ## In build mode: left builds (or repairs) the chosen piece where the ghost is green, right
@@ -1205,7 +1227,8 @@ func _show_remote_players(players: Dictionary) -> void:
 			_views[id] = PlayerView.new()
 			add_child(_views[id])
 		_views[id].position = positions[id]
-		_views[id].health = players[id].z
+		_views[id].look = Net.player_look(players[id].z)
+		_views[id].health = Net.player_health(players[id].z)
 	if bot:
 		_bot_check(positions)
 

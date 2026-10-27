@@ -50,6 +50,10 @@ class SimPlayer:
 	var bed: Variant = null
 	## Where its unlooted graves lie, for the client's marker.
 	var graves: Array[Vector2] = []
+	## Its character's look (Net.player_z), as its client sent it.
+	var look := 0
+	## New to this world (nothing saved): its character's starting kit is still to come.
+	var fresh := false
 
 	func _init(player_id: int, player_name: String, spawn: Vector2, now: float) -> void:
 		id = player_id
@@ -163,6 +167,9 @@ const PACK_SPREAD := 28.0
 ## Tiles all enemies' path searches may expand in one tick (Pathing.find); those left over
 ## search on a later tick.
 const PATH_BUDGET := 600
+## Map markers one player may have placed at once, and all of them in the world.
+const MARKERS_EACH := 20
+const MARKERS_MAX := 100
 
 var world_seed := 0
 ## Null in tests: nothing is saved.
@@ -184,6 +191,8 @@ var pieces_version := 0
 var path_budget := PATH_BUDGET
 ## {id: SimGrave} of every loaded chunk.
 var graves := {}
+## Map markers anyone placed, saved with the world meta: {id: [x, y, owner name, its look]}.
+var markers := {}
 ## Off in tests that place their own enemies.
 var spawn_enemies := true
 ## Spawns only this kind instead of the day and night mix (tests, the balance sim).
@@ -204,10 +213,12 @@ var spawn_kind: EnemyDef
 ## changed (damage, door) or is gone,
 ## ["storage", player id, Inventory.to_data of its open chest, {} once closed],
 ## ["grave", chunk, grave id] when a grave appeared, changed or is gone, ["graves", player id]
-## when where its graves lie changed, ["bed", player id] when it set its respawn at a bed.
+## when where its graves lie changed, ["bed", player id] when it set its respawn at a bed,
+## ["markers"] when a map marker was placed or removed.
 var events: Array[Array] = []
 ## Seeded by the balance sim for repeatable runs.
 var rng := RandomNumberGenerator.new()
+var _next_marker_id := 1
 var _next_enemy_id := 1
 var _next_drop_id := 1
 var _next_projectile_id := 1
@@ -232,6 +243,11 @@ static func open(path: String) -> SimWorld:
 	else:
 		world.world_seed = int(meta.seed)
 		world.time = meta.time
+		for entry: Variant in meta.get("markers", []):
+			if entry is Array and entry.size() == 4:
+				var id := world._next_marker_id
+				world.markers[id] = [float(entry[0]), float(entry[1]), str(entry[2]), int(entry[3])]
+				world._next_marker_id += 1
 	return world
 
 
@@ -644,7 +660,7 @@ func _save_chunk(coord: Vector2i) -> void:
 func save() -> void:
 	if store == null:
 		return
-	store.save_meta({seed = world_seed, time = time})
+	store.save_meta({seed = world_seed, time = time, markers = markers.values()})
 	for coord: Vector2i in chunks:
 		_save_chunk(coord)
 	for player: SimPlayer in players.values():
@@ -678,6 +694,7 @@ func add_player(id: int, player_name: String) -> SimPlayer:
 	if not saved.is_empty():
 		spawn = Vector2(saved.x, saved.y)
 	var player := SimPlayer.new(id, player_name, spawn, time)
+	player.fresh = saved.is_empty()
 	player.inventory.load_data(saved.get("inventory", {}))
 	for g: Array in saved.get("graves", []):
 		player.graves.append(Vector2(g[0], g[1]))
@@ -692,6 +709,57 @@ func add_player(id: int, player_name: String) -> SimPlayer:
 		player.hunger = maxf(player.hunger, Content.tuning.respawn_hunger)
 	players[id] = player
 	return player
+
+
+## The look and starting kit of the player's character, sent by its client right after it
+## joined: the look always, the kit (KitDef id, &"" for none) only to one new to this world, and
+## once. Returns whether the kit was given.
+func set_character(id: int, look: int, kit: StringName) -> bool:
+	var player: SimPlayer = players.get(id)
+	if player == null:
+		return false
+	player.look = clampi(look, 0, Net.LOOKS - 1)
+	var def: KitDef = Content.kits.get(kit)
+	if not player.fresh or def == null:
+		return false
+	player.fresh = false
+	for item: StringName in def.items:
+		player.inventory.add(item, def.items[item])
+	for item: StringName in def.wear:
+		for i in player.inventory.slots.size():
+			if player.inventory.slots[i].get("item", &"") == item:
+				player.inventory.equip(i)
+				break
+	return true
+
+
+## A map marker at a world position, drawn in the tint of its look, for everyone in the world;
+## refused once it has MARKERS_EACH or the world MARKERS_MAX. Returns its id, 0 if refused.
+func add_marker(id: int, at: Vector2) -> int:
+	var player: SimPlayer = players.get(id)
+	if player == null or markers.size() >= MARKERS_MAX or not at.is_finite():
+		return 0
+	var own := markers.values().filter(func(m: Array) -> bool: return m[2] == player.name)
+	if own.size() >= MARKERS_EACH:
+		return 0
+	var marker_id := _next_marker_id
+	_next_marker_id += 1
+	markers[marker_id] = [at.x, at.y, player.name, player.look]
+	events.append(["markers"])
+	return marker_id
+
+
+## Anyone may take a marker down. Returns whether there was one.
+func remove_marker(id: int, marker_id: int) -> bool:
+	if not players.has(id) or not markers.erase(marker_id):
+		return false
+	events.append(["markers"])
+	return true
+
+
+## The markers as sent to clients: [id, x, y, owner name, look] each.
+func marker_list() -> Array:
+	return markers.keys().map(func(m: int) -> Array: return [m] + markers[m])
 
 
 ## Leaving the game inside a run counts as dying there, without the wait.
@@ -1430,7 +1498,7 @@ func sees(id: int, at: Vector2) -> bool:
 	)
 
 
-## What one player's client is sent: {players: {id: Vector3(x, y, health 0..1)}, enemies: the
+## What one player's client is sent: {players: {id: Vector3(x, y, Net.player_z)}, enemies: the
 ## same with Net.enemy_z for z, drops: {id: Vector3(x, y, Content.item_index, or -1 - the
 ## index in Content.buff_ids for a buff orb)}, projectiles: {id: Vector3(x, y, flight angle in
 ## radians)}, facings: {id: angle in radians} of the enemies with a shield, me: Vector4(health,
@@ -1441,7 +1509,9 @@ func snapshot_for(id: int) -> Dictionary:
 	for other: SimPlayer in players.values():
 		if sees(id, other.position):
 			near[other.id] = Vector3(
-				other.position.x, other.position.y, other.health / other.max_health()
+				other.position.x,
+				other.position.y,
+				Net.player_z(other.look, other.health / other.max_health())
 			)
 	var near_enemies := {}
 	var facings := {}

@@ -14,7 +14,8 @@ extends Node
 ##   --bot [--expect=N]                       headless test client (solo unless joining or hosting)
 ##     [--duration=SECS]                      roam this long instead of leaving once it passed
 ##   --name=NAME                              client player name (default: a token kept in user://)
-##   (none)                                   start menu: solo (a local --solo server), host, join
+##   (none)                                   start menu: character, solo (a local --solo server),
+##                                            host, join
 ##   --windowed                               client starts in a window instead of fullscreen
 
 const DEFAULT_PORT := 17777
@@ -93,6 +94,10 @@ func _new_client() -> GameClient:
 	_client.bot_expect = int(_args.get("expect", "0"))
 	_client.bot_duration = float(_args.get("duration", "0"))
 	_client.player_name = _args.get("name", "")
+	if _menu and not _menu.character.is_empty():
+		_client.player_name = _menu.character.name
+		_client.look = _menu.character.look
+		_client.kit = _menu.character.kit
 	add_child(_client)
 	_client.joined.connect(
 		func() -> void:

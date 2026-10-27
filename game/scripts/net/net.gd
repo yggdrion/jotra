@@ -7,6 +7,10 @@ extends Node
 
 # Server side.
 signal hello_received(peer_id: int, version: int, player_name: String)
+signal character_received(peer_id: int, look: int, kit: StringName)
+signal marker_place_requested(peer_id: int, at: Vector2)
+signal marker_remove_requested(peer_id: int, marker_id: int)
+signal markers_received(markers: Array)
 signal moved(peer_id: int, position: Vector2)
 signal prop_remove_requested(peer_id: int, coord: Vector2i, prop_id: int)
 signal attacked(peer_id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array)
@@ -70,12 +74,20 @@ enum Status { DRAUGHT, ABILITY, REGEN }
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 19
+const PROTOCOL_VERSION := 21
+## Character looks: PlayerView.SHEETS times PlayerView.TINTS.
+const LOOKS := 12
 const ENTITY_BYTES := 10
 
 @rpc("any_peer", "reliable")
 func hello(version: int, player_name: String) -> void:
 	hello_received.emit(multiplayer.get_remote_sender_id(), version, player_name)
+
+
+## Right after hello: the joining character's look and starting kit (KitDef id, &"" for none).
+@rpc("any_peer", "reliable")
+func character(look: int, kit: StringName) -> void:
+	character_received.emit(multiplayer.get_remote_sender_id(), look, kit)
 
 
 @rpc("any_peer", "unreliable_ordered")
@@ -231,6 +243,19 @@ func snapshot(
 ## snapshot z, split by enemy_kind, enemy_health and enemy_slowed. The 0.99 keeps full health
 ## below the next kind; a slowed enemy's z is negated and moved below zero. A half float keeps
 ## health to about 0.005 up to a few dozen kinds.
+## A player's z in snapshots: its look and its share of health.
+static func player_z(look: int, health: float) -> float:
+	return look + clampf(health, 0.0, 1.0) * 0.99
+
+
+static func player_look(z: float) -> int:
+	return floori(z)
+
+
+static func player_health(z: float) -> float:
+	return (z - floori(z)) / 0.99
+
+
 static func enemy_z(kind: int, health: float, slowed := false) -> float:
 	var z := kind + health * 0.99
 	return -z - 1.0 if slowed else z
@@ -346,6 +371,24 @@ func own_graves(positions: PackedVector2Array) -> void:
 @rpc("authority", "reliable")
 func bed_set() -> void:
 	bed_set_received.emit()
+
+
+## A map marker at a world position, for everyone in the world.
+@rpc("any_peer", "reliable")
+func place_marker(at: Vector2) -> void:
+	marker_place_requested.emit(multiplayer.get_remote_sender_id(), at)
+
+
+@rpc("any_peer", "reliable")
+func remove_marker(marker_id: int) -> void:
+	marker_remove_requested.emit(multiplayer.get_remote_sender_id(), marker_id)
+
+
+## Every map marker in the world ([id, x, y, owner name, look] each), on joining and on every
+## change.
+@rpc("authority", "reliable")
+func markers(list: Array) -> void:
+	markers_received.emit(list)
 
 
 ## The receiving player's open chest (Inventory.to_data) whenever it changes, {} once closed.
