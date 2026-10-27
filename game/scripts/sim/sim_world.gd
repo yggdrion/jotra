@@ -924,14 +924,8 @@ func attack(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> Packe
 			_hurt_enemy(enemy, dealt * enemy.def.block_pass, player, false)
 			continue
 		enemy.push((enemy.position - player.position).normalized(), move.knock)
-		enemy.hit_poise(self, move.poise_damage)
 		damaged.append(enemy.id)
-		player.heal(dealt * b.stat("lifesteal"))
-		if b.stat("bleed") > 0:
-			enemy.bleed_dps = b.stat("bleed")
-			enemy.bleed_until = time + t.bleed_time
-			enemy.bleed_by = id
-		_hurt_enemy(enemy, dealt, player)
+		_land_hit(enemy, dealt, player, move.poise_damage)
 	if damaged.is_empty():
 		Gathering.swing(self, player, aim, reach, arc, move.cost)
 	return damaged
@@ -989,6 +983,7 @@ func use_ability(id: int, aim: Vector2) -> bool:
 			)
 			bolt.slow = def.slow
 			bolt.slow_time = def.slow_time
+			bolt.magic = true
 		AbilityDef.Kind.WARD:
 			var ward := SimWard.new()
 			ward.id = _next_ward_id
@@ -1008,8 +1003,7 @@ func use_ability(id: int, aim: Vector2) -> bool:
 				enemy.push(
 					offset.normalized() if offset != Vector2.ZERO else Vector2.RIGHT, def.knock
 				)
-				enemy.hit_poise(self, def.poise_damage)
-				_hurt_enemy(enemy, damage, player)
+				_land_hit(enemy, damage, player, def.poise_damage)
 			events.append(["effect", def.kind, player.position, def.radius, 0.4])
 	return true
 
@@ -1025,17 +1019,35 @@ func _tick_wards(delta: float) -> void:
 				player.heal(ward.heal_per_second * delta)
 
 
+## A player's hit that got through, by a swing, an arrow or a rune: by's lifesteal heals them
+## and their bleed starts on the enemy, it takes the damage (kill buffs in _hurt_enemy), then,
+## if still alive, the poise damage (after, so a killing blow that would stagger an exploder
+## out of its windup still sets it off).
+func _land_hit(enemy: SimEnemy, dealt: float, by: SimPlayer, poise_damage: float) -> void:
+	if by:
+		by.heal(dealt * by.buffs.stat("lifesteal"))
+		if by.buffs.stat("bleed") > 0:
+			enemy.bleed_dps = by.buffs.stat("bleed")
+			enemy.bleed_until = time + Content.tuning.bleed_time
+			enemy.bleed_by = by.id
+	if not _hurt_enemy(enemy, dealt, by):
+		enemy.hit_poise(self, poise_damage)
+
+
 ## Takes health off an enemy, with a damage number if shown. One that dies drops its loot,
 ## inside a run maybe a buff orb (rarer the deeper the run has gone), and feeds by's kill
-## buffs. Returns whether it died.
+## buffs; an exploder killed in its windup blows up as it dies. Returns whether it died.
 func _hurt_enemy(enemy: SimEnemy, amount: float, by: SimPlayer, shown := true) -> bool:
 	enemy.health -= amount
 	if shown:
 		events.append(["hit", true, enemy.id, amount, enemy.position, enemy.pushed()])
-	if enemy.health > 0:
+	if enemy.health > 0 or not enemies.has(enemy.id):
 		return false
-	events.append(["enemy", enemy.id, Net.EnemyEvent.DIED, enemy.position])
-	enemies.erase(enemy.id)
+	if enemy.def.behavior == EnemyDef.Behavior.EXPLODER and enemy.state == SimEnemy.State.WINDUP:
+		explode(enemy)
+	else:
+		events.append(["enemy", enemy.id, Net.EnemyEvent.DIED, enemy.position])
+		enemies.erase(enemy.id)
 	_drop_loot(enemy.def.drops, enemy.position)
 	var run := _run_at(enemy.position)
 	if run and rng.randf() < Content.tuning.buff_chance:
@@ -1075,7 +1087,7 @@ func shoot(id: int, aim: Vector2, drawn: float) -> bool:
 	# Rolled only with a crit buff, so runs without buffs draw the same numbers.
 	if b.stat("crit") > 0 and rng.randf() < b.stat("crit"):
 		damage *= 2.0
-	add_projectile(
+	var arrow := add_projectile(
 		SimProjectile.Team.PLAYERS,
 		id,
 		player.position,
@@ -1084,6 +1096,8 @@ func shoot(id: int, aim: Vector2, drawn: float) -> bool:
 		damage,
 		bow.arrow_range * share
 	)
+	arrow.knock = bow.arrow_knock * share
+	arrow.poise_damage = bow.arrow_poise * share
 	return true
 
 
@@ -1148,14 +1162,15 @@ func _projectile_hits(p: SimProjectile, radius: float) -> bool:
 		if enemy.position.distance_to(p.position) <= radius:
 			var shooter: SimPlayer = players.get(p.owner_id)
 			enemy.provoke(p.owner_id)
-			if enemy.blocks(p.position - p.velocity):
+			if not p.magic and enemy.blocks(p.position - p.velocity):
 				events.append(["enemy", enemy.id, Net.EnemyEvent.BLOCK, enemy.position])
 				_hurt_enemy(enemy, p.damage * enemy.def.block_pass, shooter, false)
 				return true
 			if p.slow < 1.0:
 				enemy.slow = p.slow
 				enemy.slow_until = time + p.slow_time
-			_hurt_enemy(enemy, p.damage, shooter)
+			enemy.push(p.velocity.normalized(), p.knock)
+			_land_hit(enemy, p.damage, shooter, p.poise_damage)
 			return true
 	return false
 

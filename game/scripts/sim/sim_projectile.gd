@@ -18,6 +18,11 @@ var range_left: float
 ## An enemy it hits is slowed to this speed multiplier for slow_time seconds (1: no effect).
 var slow := 1.0
 var slow_time := 0.0
+## Knockback and poise damage on the enemy it hits.
+var knock := 0.0
+var poise_damage := 0.0
+## Magic goes through a shield's front (SimEnemy.blocks); arrows do not.
+var magic := false
 
 
 func _init(

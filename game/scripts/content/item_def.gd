@@ -44,6 +44,10 @@ const RARITY_COLORS: Array[Color] = [
 @export var arrow_damage := 24.0
 @export var arrow_speed := 360.0
 @export var arrow_range := 280.0
+## Knockback and poise damage of an arrow at a full draw, like a light swing's knock and
+## poise_damage; they scale with the draw as the damage does.
+@export var arrow_knock := 10.0
+@export var arrow_poise := 10.0
 ## Stamina spent on the shot.
 @export var draw_cost := 10.0
 @export_group("Armor")

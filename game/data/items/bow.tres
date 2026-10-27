@@ -16,4 +16,6 @@ min_draw = 0.3
 arrow_damage = 24.0
 arrow_speed = 360.0
 arrow_range = 280.0
+arrow_knock = 10.0
+arrow_poise = 10.0
 draw_cost = 10.0
