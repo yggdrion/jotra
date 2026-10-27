@@ -82,8 +82,15 @@ extends Resource
 @export var scale_count := 0.3
 
 @export_group("Gathering")
-## Seconds a player needs per tree felled or rock broken.
+## Seconds a player needs per stick or pebble picked up by hand.
 @export var gather_time := 1.0
+## Health of a tree and a rock, and the tool tier (ItemDef.tool_tier) each needs. A swing that
+## reaches one takes the best matching tool's damage off; damaged nodes are only remembered
+## while their chunk is loaded.
+@export var tree_health := 60.0
+@export var rock_health := 90.0
+@export var tree_tier := 1
+@export var rock_tier := 1
 
 @export_group("Loot")
 ## Slots in a player's inventory.
@@ -100,6 +107,8 @@ extends Resource
 ## What removing a tree or a rock gives, see Loot.roll.
 @export var tree_drops: Array
 @export var rock_drops: Array
+@export var stick_drops: Array
+@export var pebble_drops: Array
 
 @export_group("Crafting")
 ## How close to a station (a PieceDef with station) a player must stand to craft there.

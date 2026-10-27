@@ -149,6 +149,25 @@ func copy() -> Inventory:
 	return out
 
 
+## The carried tool of a kind (ItemDef.Tool) with the highest tier, then damage; null if none.
+func best_tool(kind: int) -> ItemDef:
+	var best: ItemDef = null
+	var carried: Array = slots.filter(func(slot: Dictionary) -> bool: return not slot.is_empty())
+	carried = carried.map(func(slot: Dictionary) -> StringName: return slot.item)
+	carried.append_array(equipment.values())
+	for item: StringName in carried:
+		var def := Content.item(item)
+		if def == null or def.tool_kind != kind:
+			continue
+		if (
+			best == null
+			or def.tool_tier > best.tool_tier
+			or (def.tool_tier == best.tool_tier and def.tool_damage > best.tool_damage)
+		):
+			best = def
+	return best
+
+
 func weapon() -> StringName:
 	return equipment[ItemDef.Slot.WEAPON]
 

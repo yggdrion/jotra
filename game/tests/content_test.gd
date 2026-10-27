@@ -27,7 +27,7 @@ func test_items_are_complete() -> void:
 
 func test_recipes_and_drop_tables_name_real_items() -> void:
 	var t := Content.tuning
-	var tables: Array = [t.tree_drops, t.rock_drops, t.chest_drops]
+	var tables: Array = [t.tree_drops, t.rock_drops, t.stick_drops, t.pebble_drops, t.chest_drops]
 	for enemy: EnemyDef in Content.enemies.values():
 		tables.append(enemy.drops)
 	for table: Array in tables:

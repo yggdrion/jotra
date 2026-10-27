@@ -101,7 +101,7 @@ func _add(coord: Vector2i) -> void:
 	var image := Image.create(WorldGen.CHUNK, WorldGen.CHUNK, false, Image.FORMAT_RGB8)
 	for id in WorldGen.CHUNK * WorldGen.CHUNK:
 		var color := WorldGen.BIOME_COLORS[chunk.tiles[id]]
-		if chunk.props.has(id):
+		if chunk.props.has(id) and WorldGen.is_node(chunk.props[id]):
 			color = color.darkened(0.35)
 		image.set_pixel(id % WorldGen.CHUNK, id / WorldGen.CHUNK, color)
 	_explored[coord] = ImageTexture.create_from_image(image)

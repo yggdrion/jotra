@@ -162,6 +162,9 @@ func _ready() -> void:
 				_chunks[coord].remove_prop(id)
 	)
 	net.hit_received.connect(_on_hit)
+	net.node_hit_received.connect(
+		func(at: Vector2, note: String) -> void: _float_text(note, Color("c0cbdc"), at)
+	)
 	net.windup_received.connect(
 		func(id: int, seconds: float, slam_radius: float) -> void:
 			if _enemy_views.has(id):
@@ -625,8 +628,8 @@ func _update_target() -> void:
 			verb = "Close"
 		prompt = "[E] %s %s" % [verb, piece.def().display_name.to_lower()]
 	elif not _target.is_empty():
-		var tree: bool = _chunks[_target[0]].kind_of(_target[1]) == WorldGen.Prop.TREE
-		prompt = "[E] Fell tree" if tree else "[E] Break rock"
+		var stick: bool = _chunks[_target[0]].kind_of(_target[1]) == WorldGen.Prop.STICK
+		prompt = "[E] Pick up stick" if stick else "[E] Pick up pebble"
 	elif _interaction() != "":
 		prompt = _interaction()
 	elif not _inventory_ui.stations.is_empty():

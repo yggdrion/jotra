@@ -145,8 +145,23 @@ static func describe(id: StringName) -> String:
 		_ when def.food > 0:
 			lines[0] += " food"
 			lines.append("Restores %d hunger" % def.food)
+		_ when def.tool_kind != ItemDef.Tool.NONE:
+			lines[0] += " tool"
 		_:
 			lines[0] += " material"
+	if def.tool_kind != ItemDef.Tool.NONE:
+		var kind: String = ItemDef.Tool.keys()[def.tool_kind].to_lower()
+		lines.append(
+			(
+				"%s tier %d: %d damage per swing to %s"
+				% [
+					kind.capitalize(),
+					def.tool_tier,
+					def.tool_damage,
+					"trees" if kind == "axe" else "rocks"
+				]
+			)
+		)
 	var found := sources(id)
 	if not found.is_empty():
 		lines.append("From: " + ", ".join(found))
@@ -159,7 +174,11 @@ static func describe(id: StringName) -> String:
 ## Where an item drops: "trees", "rocks", enemy names, "crafting".
 static func sources(id: StringName) -> PackedStringArray:
 	var out := PackedStringArray()
-	var tables := {trees = Content.tuning.tree_drops, rocks = Content.tuning.rock_drops}
+	var tables := {
+		trees = Content.tuning.tree_drops,
+		rocks = Content.tuning.rock_drops,
+		ground = Content.tuning.stick_drops + Content.tuning.pebble_drops,
+	}
 	for enemy: StringName in Content.enemies:
 		tables[str(enemy).capitalize().to_lower()] = Content.enemies[enemy].drops
 	for source: String in tables:

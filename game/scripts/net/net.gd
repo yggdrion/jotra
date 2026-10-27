@@ -32,6 +32,7 @@ signal chunk_received(coord: Vector2i, removed: PackedInt32Array, pieces: Array)
 signal piece_received(coord: Vector2i, index: int, data: Array)
 signal storage_received(data: Dictionary)
 signal prop_removed_received(coord: Vector2i, prop_id: int)
+signal node_hit_received(at: Vector2, note: String)
 signal hit_received(enemy: bool, id: int, amount: int)
 signal windup_received(enemy_id: int, seconds: float, slam_radius: float)
 signal respawned_received(position: Vector2)
@@ -47,7 +48,7 @@ signal ponged(sent_ms: int)
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 14
+const PROTOCOL_VERSION := 15
 const ENTITY_BYTES := 10
 
 @rpc("any_peer", "reliable")
@@ -242,6 +243,12 @@ func storage(data: Dictionary) -> void:
 @rpc("authority", "reliable")
 func prop_removed(coord: Vector2i, prop_id: int) -> void:
 	prop_removed_received.emit(coord, prop_id)
+
+
+## Your swing hit a tree or rock: the damage dealt, or what it takes to hurt it.
+@rpc("authority", "reliable")
+func node_hit(at: Vector2, note: String) -> void:
+	node_hit_received.emit(at, note)
 
 
 ## An enemy or player in view took damage: flash and damage number.

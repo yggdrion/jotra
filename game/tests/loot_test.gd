@@ -33,17 +33,16 @@ func test_killed_enemy_drops_and_walking_over_picks_up() -> void:
 	assert_array(world.events).contains([["loot", 1, &"bone", 3]])
 
 
-func test_removed_tree_drops_wood() -> void:
+func test_picked_up_stick_drops_a_stick() -> void:
 	var world := _world()
 	for coord: Vector2i in world.chunks:
 		for id: int in world.chunks[coord].props:
-			if world.chunks[coord].props[id] == WorldGen.Prop.TREE:
+			if world.chunks[coord].props[id] == WorldGen.Prop.STICK:
 				world.players[1].position = WorldGen.prop_position(coord, id)
 				assert_bool(world.remove_prop(1, coord, id)).is_true()
-				var drop: SimWorld.SimDrop = world.drops.values()[0]
-				assert_str(drop.item).is_equal("wood")
+				assert_str(world.drops.values()[0].item).is_equal("stick")
 				return
-	fail("no tree")
+	fail("no stick")
 
 
 func test_full_inventory_leaves_the_rest_lying() -> void:
