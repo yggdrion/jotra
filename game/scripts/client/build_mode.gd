@@ -57,8 +57,8 @@ func select(index: int) -> void:
 	_menu.choose(piece_id())
 
 
-## Puts the ghost on the tile under mouse and checks the chosen piece there; chunks are the
-## client's ChunkViews, for the props.
+## Puts the ghost on the tile under mouse and checks the chosen piece there, hiding it while the
+## mouse is over the menu; chunks are the client's ChunkViews, for the props.
 func update(
 	mouse: Vector2,
 	pieces: Dictionary,
@@ -77,6 +77,7 @@ func update(
 	if _ghost.piece == null or _ghost.piece.id != piece_id():
 		_ghost.piece = Building.Piece.new(piece_id())
 	_ghost.mask = Building.join_mask(pieces, tile, piece_id())
+	_ghost.visible = not _menu.has_mouse()
 
 
 ## The chosen piece, its cost against what the inventory holds, why it can't go here, and the

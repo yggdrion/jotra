@@ -17,6 +17,7 @@ const BOTTOM := 48
 var recent: Array[StringName] = []
 var selected: StringName
 var _info := Label.new()
+var _panel := PanelContainer.new()
 var _hotbar := HBoxContainer.new()
 ## {piece id: {item id: Label}} of the cost labels.
 var _costs := {}
@@ -57,7 +58,7 @@ func _ready() -> void:
 	var theme := Theme.new()
 	theme.default_font_size = FONT_SIZE
 	theme.set_constant("icon_max_width", "Button", 16)
-	var panel := PanelContainer.new()
+	var panel := _panel
 	panel.theme = theme
 	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE)
 	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -82,6 +83,11 @@ func _ready() -> void:
 	_info.autowrap_mode = TextServer.AUTOWRAP_WORD
 	rows.add_child(_info)
 	_show_recent()
+
+
+## Whether the mouse is over the menu, where clicks pick pieces instead of building.
+func has_mouse() -> bool:
+	return visible and _panel.get_global_rect().has_point(_panel.get_global_mouse_position())
 
 
 ## Marks a piece as the chosen one and moves it onto the hotbar.

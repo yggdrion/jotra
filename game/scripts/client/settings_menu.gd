@@ -1,14 +1,19 @@
 class_name SettingsMenu
 extends CanvasLayer
-## Volume, fullscreen, the HUD's key panel and the controls (Settings.ACTIONS: click one, press
-## its new key), saved as they change. Used by the start menu and the escape menu; close() ends
-## it and emits closed.
+## Two tabs: General (volume, screenshake, fullscreen, the HUD's key panel) and Controls
+## (Settings.ACTIONS: click one, press its new key), the controls scrolling so the menu fits the
+## 360 px high view. Saved as they change. Used by the start menu and the escape menu; close()
+## ends it and emits closed.
 
 signal closed
+
+## Height of a tab's page; with the title, note and Back it stays inside the 360 px view.
+const PAGE_HEIGHT := 220
 
 var _rebinding := &""
 var _buttons := {}  # action -> Button
 var _note := Label.new()
+var _tabs := TabContainer.new()
 
 
 func _ready() -> void:
@@ -22,22 +27,34 @@ func _ready() -> void:
 	center.set_anchors_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 	var box := VBoxContainer.new()
-	box.custom_minimum_size.x = 150
+	box.custom_minimum_size.x = 180
 	box.add_theme_constant_override("separation", 3)
 	center.add_child(box)
 	box.add_child(_label("Settings", 12))
-	var volume := HSlider.new()
-	volume.max_value = 1.0
-	volume.step = 0.05
-	volume.value = Settings.volume
-	volume.custom_minimum_size.x = 80
-	volume.value_changed.connect(
-		func(value: float) -> void:
-			Settings.volume = value
-			Settings.apply()
-			Settings.save_file()
-	)
-	box.add_child(_row("Volume", volume))
+	_tabs.add_theme_font_size_override("font_size", 8)
+	_tabs.custom_minimum_size.y = PAGE_HEIGHT
+	box.add_child(_tabs)
+	_tabs.add_child(_general())
+	_tabs.add_child(_controls())
+	_note.add_theme_font_size_override("font_size", 8)
+	_note.modulate = Color("c0cbdc")
+	_note.autowrap_mode = TextServer.AUTOWRAP_WORD
+	box.add_child(_note)
+	var back := Button.new()
+	back.text = "Back"
+	back.add_theme_font_size_override("font_size", 8)
+	back.pressed.connect(close)
+	box.add_child(back)
+	_tabs.tab_changed.connect(func(_tab: int) -> void: _show_note())
+	_show_keys()
+
+
+func _general() -> Control:
+	var box := VBoxContainer.new()
+	box.name = "General"
+	box.add_theme_constant_override("separation", 3)
+	box.add_child(_row("Volume", _slider(Settings.volume, _set_volume)))
+	box.add_child(_row("Screenshake", _slider(Settings.shake, _set_shake)))
 	var fullscreen := CheckBox.new()
 	fullscreen.button_pressed = (
 		DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
@@ -57,7 +74,17 @@ func _ready() -> void:
 			Settings.save_file()
 	)
 	box.add_child(_row("Key panel", key_panel))
-	box.add_child(_label("Controls", 8))
+	return box
+
+
+func _controls() -> Control:
+	var scroll := ScrollContainer.new()
+	scroll.name = "Controls"
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	var box := VBoxContainer.new()
+	box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	box.add_theme_constant_override("separation", 3)
+	scroll.add_child(box)
 	for action: StringName in Settings.ACTIONS:
 		var button := Button.new()
 		button.custom_minimum_size.x = 60
@@ -65,20 +92,36 @@ func _ready() -> void:
 		button.pressed.connect(_start_rebind.bind(action))
 		_buttons[action] = button
 		box.add_child(_row(Settings.ACTIONS[action][0], button))
-	_note.add_theme_font_size_override("font_size", 8)
-	_note.modulate = Color("c0cbdc")
-	box.add_child(_note)
-	var back := Button.new()
-	back.text = "Back"
-	back.add_theme_font_size_override("font_size", 8)
-	back.pressed.connect(close)
-	box.add_child(back)
-	_show_keys()
+	return scroll
+
+
+func _set_volume(value: float) -> void:
+	Settings.volume = value
+	Settings.apply()
+
+
+func _set_shake(value: float) -> void:
+	Settings.shake = value
+
+
+## A 0-1 slider in steps of 5%, calling changed and saving on every move.
+func _slider(value: float, changed: Callable) -> HSlider:
+	var slider := HSlider.new()
+	slider.max_value = 1.0
+	slider.step = 0.05
+	slider.value = value
+	slider.custom_minimum_size.x = 80
+	slider.value_changed.connect(
+		func(to: float) -> void:
+			changed.call(to)
+			Settings.save_file()
+	)
+	return slider
 
 
 func open() -> void:
 	_rebinding = &""
-	_note.text = "Click a control, then press its new key (Esc cancels)"
+	_show_note()
 	_show_keys()
 	visible = true
 
@@ -108,6 +151,11 @@ func _input(event: InputEvent) -> void:
 		_note.text = ""
 	_rebinding = &""
 	_show_keys()
+
+
+func _show_note() -> void:
+	var controls := _tabs.current_tab == 1
+	_note.text = "Click a control, then press its new key (Esc cancels)" if controls else ""
 
 
 func _start_rebind(action: StringName) -> void:

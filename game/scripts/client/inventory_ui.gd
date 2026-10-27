@@ -1,12 +1,13 @@
 class_name InventoryUi
 extends CanvasLayer
 ## The inventory screen (Tab or I), in three columns: what is worn and its stats above the
-## backpack grid; an info panel on whatever the mouse is over; and the recipes, each with what
-## it needs against what the player has and, if it can't be crafted, why. Items are dragged to
-## move, stack, wear or take off; right click wears, takes off or eats at once. A line at the bottom
-## says so. With a chest open (show_storage) a fourth column shows it: right click moves a stack
-## from the backpack into it, a click on the chest takes one out. Everything is only a request:
-## the server's inventory comes back through show_inventory, the chest's through show_storage.
+## backpack grid; an info panel on whatever the mouse is over; and the recipes (scrolling), each
+## with what it needs against what the player has and, if it can't be crafted, why. Items are
+## dragged to move, stack, wear or take off; right click wears, takes off or eats at once. A line
+## at the bottom says so. With a chest open (show_storage) a fourth column shows it: right click
+## moves a stack from the backpack into it, a click on the chest takes one out. Everything is only
+## a request: the server's inventory comes back through show_inventory, the chest's through
+## show_storage.
 
 signal move_requested(from: int, to: int)
 signal equip_requested(index: int)
@@ -24,6 +25,8 @@ const HEADING := Color("feae34")
 const OK := Color("63c74d")
 const BAD := Color("e43b44")
 const INFO_WIDTH := 120
+## Height of the scrolling recipe list, so the screen stays inside the 360 px high view.
+const CRAFT_HEIGHT := 280
 ## The line at the bottom; %s is the inventory key.
 const CONTROLS := "Drag: move, stack, wear   Right click: wear, take off, eat   %s: close"
 const CHEST_CONTROLS := "Right click: put in the chest   Click the chest: take out   %s: close"
@@ -293,8 +296,14 @@ func _build_info() -> Control:
 
 
 func _build_crafting() -> Control:
+	var outer := VBoxContainer.new()
+	outer.add_child(_label("Crafting", HEADING))
+	var scroll := ScrollContainer.new()
+	scroll.custom_minimum_size.y = CRAFT_HEIGHT
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	outer.add_child(scroll)
 	var column := VBoxContainer.new()
-	column.add_child(_label("Crafting", HEADING))
+	scroll.add_child(column)
 	# By hand first, then by name.
 	var ids: Array = Content.recipes.keys()
 	ids.sort_custom(
@@ -332,7 +341,7 @@ func _build_crafting() -> Control:
 		button.pressed.connect(func() -> void: craft_requested.emit(id))
 		row.add_child(button)
 		_recipes[id] = {inputs = inputs, status = status, button = button}
-	return column
+	return outer
 
 
 ## data: the open chest's Inventory.to_data from the server, {} once it is closed. Opening one

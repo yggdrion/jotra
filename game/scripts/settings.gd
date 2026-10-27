@@ -1,8 +1,8 @@
 class_name Settings
 extends RefCounted
 ## What the player sets in the settings menu, kept in user://settings.cfg: Master volume,
-## fullscreen, whether the HUD shows its key panel and the keys of the InputMap actions in
-## ACTIONS. apply() puts it all in force.
+## fullscreen, screenshake strength, whether the HUD shows its key panel and the keys of the
+## InputMap actions in ACTIONS. apply() puts it all in force.
 
 const PATH := "user://settings.cfg"
 ## action: [label, default physical keys]. Escape, 1-9 and F3/F11 are fixed.
@@ -24,6 +24,8 @@ const ACTIONS := {
 
 static var volume := 1.0
 static var fullscreen := true
+## Share of the full screenshake, 0 for none.
+static var shake := 0.5
 static var key_panel := true
 ## Goes up on every apply(), so screens showing keys know to redraw them.
 static var changes := 0
@@ -37,6 +39,7 @@ static func load_file() -> void:
 		return
 	volume = clampf(float(file.get_value("audio", "volume", 1.0)), 0.0, 1.0)
 	fullscreen = bool(file.get_value("video", "fullscreen", true))
+	shake = clampf(float(file.get_value("video", "shake", 0.5)), 0.0, 1.0)
 	key_panel = bool(file.get_value("hud", "key_panel", true))
 	for action: StringName in ACTIONS:
 		var key := int(file.get_value("keys", action, 0))
@@ -48,6 +51,7 @@ static func save_file() -> void:
 	var file := ConfigFile.new()
 	file.set_value("audio", "volume", volume)
 	file.set_value("video", "fullscreen", fullscreen)
+	file.set_value("video", "shake", shake)
 	file.set_value("hud", "key_panel", key_panel)
 	for action: StringName in keys:
 		file.set_value("keys", action, keys[action])

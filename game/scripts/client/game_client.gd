@@ -157,7 +157,7 @@ var _knock_vel := Vector2.ZERO
 ## The swing we last made, and when: a hit on an enemy soon after is ours, for hitstop and shake.
 var _last_move: AttackDef
 var _last_swing_ms := 0
-var _hitstop_until := 0
+var _slow_motion := SlowMotion.new()
 ## The rooms and corridors of the dungeon run we are in, empty in the overworld, and its way
 ## out.
 var _area: Array[Rect2] = []
@@ -1046,15 +1046,8 @@ func _hitstop(seconds: float) -> void:
 
 
 func _slow(time_scale: float, seconds: float) -> void:
-	var until := Time.get_ticks_msec() + int(seconds * 1000)
-	if bot or until <= _hitstop_until:
-		return
-	_hitstop_until = until
-	Engine.time_scale = time_scale
-	# Ignores the time scale it is slowing.
-	await get_tree().create_timer(seconds, true, false, true).timeout
-	if Time.get_ticks_msec() >= _hitstop_until:
-		Engine.time_scale = 1.0
+	if not bot:
+		_slow_motion.start(time_scale, seconds, Time.get_ticks_msec())
 
 
 func _exit_tree() -> void:
@@ -1077,6 +1070,7 @@ func _float_text(text: String, color: Color, at: Vector2) -> void:
 
 
 func _process(delta: float) -> void:
+	Engine.time_scale = _slow_motion.scale_at(Time.get_ticks_msec())
 	if bot and not _bot_done and Time.get_ticks_msec() > BOT_TIMEOUT_MS:
 		push_error(
 			(
@@ -1105,7 +1099,7 @@ func _process(delta: float) -> void:
 	else:
 		_tick_draw(bow)
 	_shake = move_toward(_shake, 0.0, 20.0 * delta)
-	_camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * _shake
+	_camera.offset = Vector2(randf_range(-1, 1), randf_range(-1, 1)) * _shake * Settings.shake
 	if _knock_vel != Vector2.ZERO:
 		_walk(_knock_vel * delta)
 		_knock_vel *= exp(-Content.tuning.knock_decay * delta)
@@ -1146,6 +1140,8 @@ func _process(delta: float) -> void:
 	_craft_menu.inventory = _inventory
 	if _craft_menu.visible and _craft_menu.stations.is_empty():
 		_craft_menu.toggle()
+	# Building puts the weapon away, so the menu and the ghost have the player's attention.
+	_me.holding = not _build.visible
 	if _build.visible:
 		var bodies: Array[Vector2] = [_me.position]
 		for view: Node2D in _views.values() + _enemy_views.values():
