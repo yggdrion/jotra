@@ -11,8 +11,8 @@ extends Node2D
 enum Facing { DOWN, UP, LEFT, RIGHT }
 
 const SHEETS: Array[Texture2D] = [
-	preload("res://assets/craftpix/characters/wanderer_walk.png"),
-	preload("res://assets/craftpix/characters/orc_walk.png"),
+	preload("res://assets/craftpix/characters/vampire_walk.png"),
+	preload("res://assets/craftpix/characters/count_walk.png"),
 ]
 ## Multiplied into the sheet, the second half of a look (Net.player_z).
 const TINTS: Array[Color] = [
@@ -244,8 +244,8 @@ func _draw_weapon() -> void:
 		angle += _sweep(p)
 		_draw_smear(center, p)
 	var dir := Vector2.from_angle(angle)
-	# The icon's blade points up: turn it to point along dir.
-	draw_set_transform(center + dir * HAND, angle + PI / 2, Vector2.ONE)
+	# The icon's blade points up and right: turn it to point along dir.
+	draw_set_transform(center + dir * HAND, angle + PI / 4, Vector2.ONE)
 	draw_texture_rect(def.icon, Rect2(-ICON / 2.0, -ICON / 2.0, ICON, ICON), false)
 	draw_set_transform(Vector2.ZERO)
 

@@ -1,9 +1,11 @@
 [gd_resource type="Resource" script_class="ItemDef" format=3]
 
 [ext_resource type="Script" path="res://scripts/content/item_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/craftpix/icons/bone_armor.png" id="icon"]
 
 [resource]
 script = ExtResource("1")
+icon = ExtResource("icon")
 display_name = "Bone armor"
 rarity = 2
 color = Color(0.85, 0.82, 0.7, 1)

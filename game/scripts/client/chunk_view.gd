@@ -27,8 +27,8 @@ class PropView:
 	## How far below the sprite's bottom edge its base stands (the shadow reaches past it), px.
 	const BASE := 4
 	## Sticks and pebbles are the items' own icons.
-	const STICK := preload("res://assets/ninja_adventure/items/stick.png")
-	const PEBBLE := preload("res://assets/ninja_adventure/items/pebble.png")
+	const STICK := preload("res://assets/craftpix/icons/stick.png")
+	const PEBBLE := preload("res://assets/craftpix/icons/pebble.png")
 	const HIGHLIGHT := Color(1.6, 1.6, 1.6)
 
 	var kind: WorldGen.Prop

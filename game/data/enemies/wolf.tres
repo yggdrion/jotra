@@ -1,14 +1,13 @@
 [gd_resource type="Resource" script_class="EnemyDef" format=3]
 
 [ext_resource type="Script" path="res://scripts/content/enemy_def.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/craftpix/characters/draugr_walk.png" id="sheet"]
+[ext_resource type="Texture2D" path="res://assets/wolf_pack/wolf_walk.png" id="sheet"]
 
 [resource]
 script = ExtResource("1")
 sheet = ExtResource("sheet")
 behavior = 2
-tint = Color(0.62, 0.62, 0.68, 1)
-size = 0.8
+size = 1.0
 health = 28.0
 damage = 14.0
 speed = 125.0
