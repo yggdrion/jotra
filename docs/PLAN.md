@@ -275,8 +275,8 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M13 | **Menus** | Escape menu (resume, settings, quit to start menu, quit); settings with volume, fullscreen and controls; C character screen with stats, gear and active buffs; start menu lists solo worlds, creates (name, seed) and deletes them, and "Host a game" picks from the list | Done | v0.17.0 |
 | M14 | **Tools + gathering** | Axe and pickaxe as tools with a tier; trees need an axe and rocks a pickaxe, gathered by swinging at nodes with health; sticks and pebbles by hand so the first tools are craftable | Done | v0.20.0 |
 | M15 | **Ranged combat** | A sim projectile entity sent in snapshots, shared by players and enemies; bow with arrows as ammo, hold to draw, aimed at the mouse | Done | v0.18.0 |
-| M16 | **More enemies** | Draugr archer (telegraphed arrow line), wolf packs (lunge, drop meat and hide), shield draugr (blocks from the front), a swarm or exploder; AI variants as a behavior in `sim_enemy.gd`, spawn mix per day and night | Done | |
-| M17 | **Healing + magic** | Cooked food at the fire regenerates health; a healing draught with a cooldown; a worn rune grants one gear ability on Q (frost bolt, healing ward, shockwave), settling open question 2 | Done | |
+| M16 | **More enemies** | Draugr archer (telegraphed arrow line), wolf packs (lunge, drop meat and hide), shield draugr (blocks from the front), a swarm or exploder; AI variants as a behavior in `sim_enemy.gd`, spawn mix per day and night | Done | v0.21.0 |
+| M17 | **Healing + magic** | Cooked food at the fire regenerates health; a healing draught with a cooldown; a worn rune grants one gear ability on Q (frost bolt, healing ward, shockwave), settling open question 2 | Done | v0.22.0 |
 
 Dedicated (M1) comes before player host (M6) because it is almost free once solo works. It runs locally only; hosting it publicly (M10) was dropped.
 
