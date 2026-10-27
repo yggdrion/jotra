@@ -136,3 +136,7 @@ Melee and shield draugr now hit a 120° cone aimed at windup start (`sweep_arc`)
 
 Draugr speed 110 → 95 (night 114 < walk 120), windup_speed 0.85 → 0.3, sweep 120° → 90°, recovery 0.5 → 0.9 s, cooldown 1.0 → 1.5 s (shield 0.9 / 1.6 s); wolf speed 150 → 125, recovery 0.8 s; exploder slam 70 → 52 px; perfect_stagger 0.8 → 1.3 s (it must stay above recovery); barrow draugr damage 16 → 20 to keep the dungeon. Solo, 6 seeds, 2 days (novice / average / expert deaths a day): 5.25 / 0.33 / 0.25 → 4.25 / 0.08 / 0.00, lowest health 3 / 10 / 14%. Dungeon `--quick` solo, cleared: fresh 0 / 0 / 0%, crafted 0 / 0 / 25%, best 12 / 88 / 100% (expert lowest health 60%). Average and expert overworld are now under their targets; leave it until a playtest says it is too easy.
 
+## v0.28.2 (2026-10-27, longer windups: draugr 0.5 → 0.7 s, shield 0.6 → 0.8 s, wolf 0.35 → 0.5 s)
+
+Playtest: the warning before a hit was too short to react to. Solo, 6 seeds, 2 days (novice / average / expert deaths a day): 4.25 / 0.08 / 0.00 → 4.17 / 0.58 / 0.00. Dungeon solo, cleared (novice / average / expert), barrow draugr damage 20: `--quick` fresh 0 / 0 / 50%, crafted 0 / 0 / 62%, best 38 / 75 / 100%. Damage 23 (full, 20 seeds): fresh 0 / 0 / 20%, crafted 0 / 0 / 55%, best 30 / 45 / 100%: it hurts average bots far more than experts, so it stayed at 20. Off target: experts clear without gear. The perfect dodge carries them (perfect_stagger 1.3 s since v0.28.1, ~50% of their dashes perfect); try perfect_stagger or perfect_window next, not damage.
+
