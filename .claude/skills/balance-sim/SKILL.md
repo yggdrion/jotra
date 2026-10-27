@@ -140,3 +140,7 @@ Draugr speed 110 → 95 (night 114 < walk 120), windup_speed 0.85 → 0.3, sweep
 
 Playtest: the warning before a hit was too short to react to. Solo, 6 seeds, 2 days (novice / average / expert deaths a day): 4.25 / 0.08 / 0.00 → 4.17 / 0.58 / 0.00. Dungeon solo, cleared (novice / average / expert), barrow draugr damage 20: `--quick` fresh 0 / 0 / 50%, crafted 0 / 0 / 62%, best 38 / 75 / 100%. Damage 23 (full, 20 seeds): fresh 0 / 0 / 20%, crafted 0 / 0 / 55%, best 30 / 45 / 100%: it hurts average bots far more than experts, so it stayed at 20. Off target: experts clear without gear. The perfect dodge carries them (perfect_stagger 1.3 s since v0.28.1, ~50% of their dashes perfect); try perfect_stagger or perfect_window next, not damage.
 
+## v0.28.3 (2026-10-27, perfect_stamina 35 → 15)
+
+The perfect dodge's stamina refund let experts chain dodges for free. Dungeon solo, 20 seeds, cleared (novice / average / expert), v0.28.2 → refund 15: fresh 0 / 0 / 30% → 0 / 0 / 5%, crafted 0 / 0 / 65% → 0 / 0 / 25%, best 30 / 55 / 100% → 30 / 50 / 100%. Also tried perfect_stagger 1.3 → 1.0 (fresh expert 20%, crafted 60%: barely moves it) and both (15% / 40%). Solo overworld with refund 15, 6 seeds, 2 days: 5.17 / 0.58 / 0.25 deaths a day (expert lowest health 18%). Off target: best-gear average dungeon clears ~50–55% (target 60–90%), unchanged by this; best-gear experts still 100% with ~50% health left.
+
