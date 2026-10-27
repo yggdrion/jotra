@@ -48,6 +48,26 @@ func test_tier_gates_the_tool() -> void:
 	)
 
 
+func test_a_node_without_a_tool_does_not_shadow_one_with() -> void:
+	var world := _world()
+	var tree := _stand_at(world, WorldGen.Prop.TREE)
+	var rock_id := 0
+	var chunk: SimWorld.SimChunk = world.chunks[tree[0]]
+	# Puts a rock closer to the player than the tree, on a free tile.
+	for id in WorldGen.CHUNK * WorldGen.CHUNK:
+		if (
+			not chunk.props.has(id)
+			and WorldGen.prop_position(tree[0], id).distance_to(world.players[1].position) < 9.0
+		):
+			rock_id = id
+	if rock_id == 0:
+		return  # no free tile that close; the other tests cover the rest
+	chunk.props[rock_id] = WorldGen.Prop.ROCK
+	world.players[1].inventory.add(&"pebble_axe", 1)
+	world.attack(1, false, Vector2.RIGHT, PackedInt32Array())
+	assert_bool(chunk.node_health.has(tree[1])).is_true()
+
+
 func test_a_swing_that_hits_an_enemy_spares_the_tree() -> void:
 	var world := _world()
 	var tree := _stand_at(world, WorldGen.Prop.TREE)

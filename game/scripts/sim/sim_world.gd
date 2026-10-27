@@ -846,7 +846,7 @@ func attack(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> Packe
 			enemy.bleed_by = id
 		_hurt_enemy(enemy, dealt, player)
 	if damaged.is_empty():
-		Gathering.swing(self, player, aim, reach, arc)
+		Gathering.swing(self, player, aim, reach, arc, move.cost)
 	return damaged
 
 

@@ -87,9 +87,11 @@ extends Resource
 ## Health of a tree and a rock, and the tool tier (ItemDef.tool_tier) each needs. A swing that
 ## reaches one takes the best matching tool's damage off; damaged nodes are only remembered
 ## while their chunk is loaded.
-@export var tree_health := 60.0
-@export var rock_health := 90.0
+@export var tree_health := 45.0
+@export var rock_health := 60.0
 @export var tree_tier := 1
+## Stamina a swing that hits a tree or rock costs, in place of its weapon's cost.
+@export var node_swing_cost := 4.0
 @export var rock_tier := 1
 
 @export_group("Loot")

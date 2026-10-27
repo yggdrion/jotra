@@ -33,4 +33,4 @@ light = SubResource("light")
 heavy = SubResource("heavy")
 tool_kind = 1
 tool_tier = 2
-tool_damage = 20.0
+tool_damage = 25.0

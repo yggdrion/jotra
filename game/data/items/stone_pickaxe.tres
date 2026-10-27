@@ -11,4 +11,4 @@ rarity = 0
 color = Color(0.5, 0.55, 0.6, 1)
 tool_kind = 2
 tool_tier = 2
-tool_damage = 25.0
+tool_damage = 30.0

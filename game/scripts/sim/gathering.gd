@@ -2,11 +2,15 @@ class_name Gathering
 ## Swinging at trees and rocks: the closest one in a swing's arc loses health to the best
 ## carried axe or pickaxe and falls at 0.
 
+## Added to the distance of a node the player has no tool for, so another node in the arc wins.
+const UNWORKABLE := 10000.0
+
 
 ## A swing that hit no enemy takes health off the closest tree or rock in its arc, felling it
-## at 0 (the loot drops). With no tool, or too low a tier, it only tells the swinger.
+## at 0 (the loot drops). With no tool, or too low a tier, it only tells the swinger. A hit
+## costs node_swing_cost stamina of the swing's cost.
 static func swing(
-	world: SimWorld, player: SimWorld.SimPlayer, aim: Vector2, reach: float, arc: float
+	world: SimWorld, player: SimWorld.SimPlayer, aim: Vector2, reach: float, arc: float, cost: float
 ) -> void:
 	var best_distance := INF
 	var best_coord := Vector2i.ZERO
@@ -19,9 +23,12 @@ static func swing(
 			if not WorldGen.is_node(chunk.props[prop_id]) or chunk.removed.has(prop_id):
 				continue
 			var at := WorldGen.prop_position(coord, prop_id)
-			var distance := player.position.distance_to(at)
-			if distance < best_distance and Combat.in_arc(player.position, aim, at, reach, arc):
-				best_distance = distance
+			# A node the player can't work only counts when nothing else is in the arc.
+			var rank := player.position.distance_to(at)
+			if not _workable(player, chunk.props[prop_id]):
+				rank += UNWORKABLE
+			if rank < best_distance and Combat.in_arc(player.position, aim, at, reach, arc):
+				best_distance = rank
 				best_coord = coord
 				best_id = prop_id
 	if best_id == -1:
@@ -30,7 +37,7 @@ static func swing(
 	var at := WorldGen.prop_position(best_coord, best_id)
 	var t := Content.tuning
 	var tree: bool = chunk.props[best_id] == WorldGen.Prop.TREE
-	var tool := player.inventory.best_tool(ItemDef.Tool.AXE if tree else ItemDef.Tool.PICKAXE)
+	var tool := _tool_for(player, chunk.props[best_id])
 	var noun := "axe" if tree else "pickaxe"
 	if tool == null:
 		world.events.append(["node", player.id, at, "Needs a%s %s" % ["n" if tree else "", noun]])
@@ -38,6 +45,8 @@ static func swing(
 	if tool.tool_tier < (t.tree_tier if tree else t.rock_tier):
 		world.events.append(["node", player.id, at, "Needs a better %s" % noun])
 		return
+	# Chopping is cheaper than a fight swing, or foraging leaves no stamina for what comes.
+	player.stamina = minf(player.stamina + maxf(cost - t.node_swing_cost, 0.0), t.max_stamina)
 	var left: float = (
 		chunk.node_health.get(best_id, t.tree_health if tree else t.rock_health) - tool.tool_damage
 	)
@@ -82,3 +91,16 @@ static func _remove(
 	chunk.removed[prop_id] = true
 	chunk.dirty = true
 	world.events.append(["prop_removed", coord, prop_id])
+
+
+static func _tool_for(player: SimWorld.SimPlayer, kind: WorldGen.Prop) -> ItemDef:
+	return player.inventory.best_tool(
+		ItemDef.Tool.AXE if kind == WorldGen.Prop.TREE else ItemDef.Tool.PICKAXE
+	)
+
+
+## Whether the player carries a tool of the tier a tree or rock needs.
+static func _workable(player: SimWorld.SimPlayer, kind: WorldGen.Prop) -> bool:
+	var tool := _tool_for(player, kind)
+	var tier := Content.tuning.tree_tier if kind == WorldGen.Prop.TREE else Content.tuning.rock_tier
+	return tool != null and tool.tool_tier >= tier
