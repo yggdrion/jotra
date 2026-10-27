@@ -51,6 +51,14 @@ extends Resource
 @export var point_blank := 8.0
 ## No hit does less than this, whatever the armor.
 @export var min_damage := 1.0
+## Knocked back enemies slide: their speed falls off by this share a second.
+@export var knock_decay := 10.0
+## Seconds for an enemy's poise to come back to full once it is left alone.
+@export var poise_regen_time := 2.0
+## Screen shake and the red edge when the player is hurt: shake in px, and the health share
+## below which the edge shows.
+@export var hurt_shake := 3.0
+@export var low_health := 0.35
 
 @export_group("Projectiles")
 ## A projectile hits a body whose center is this close to its path.
@@ -67,6 +75,11 @@ extends Resource
 ## I-frames from the start of a dash, plus a latency tolerance (PLAN §4.4).
 @export var iframes := 0.25
 @export var iframe_slack := 0.1
+## A dash that starts this long or less before a hit lands dodges it perfectly: stamina back,
+## and the attacker is left open for perfect_stagger seconds.
+@export var perfect_window := 0.2
+@export var perfect_stamina := 35.0
+@export var perfect_stagger := 0.8
 
 @export_group("Spawning")
 ## Each living player is topped up to enemies_per_player × count scaling enemies within

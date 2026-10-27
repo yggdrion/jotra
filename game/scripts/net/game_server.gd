@@ -277,11 +277,17 @@ func _send_events() -> void:
 			"hit":
 				for id: int in world.players:
 					if world.sees(id, event[4]):
-						net.hit.rpc_id(id, event[1], event[2], roundi(event[3]))
+						net.hit.rpc_id(id, event[1], event[2], roundi(event[3]), event[5])
 			"windup":
 				for id: int in world.players:
 					if world.sees(id, event[2]):
 						net.windup.rpc_id(id, event[1], event[3], event[4])
+			"enemy":
+				for id: int in world.players:
+					if world.sees(id, event[3]):
+						net.enemy_event.rpc_id(id, event[1], event[2])
+			"perfect":
+				net.perfect.rpc_id(event[1])
 			"swing":
 				# The swinging client has drawn its own already.
 				for id: int in world.players:

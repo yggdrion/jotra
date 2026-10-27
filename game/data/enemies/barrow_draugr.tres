@@ -1,0 +1,26 @@
+[gd_resource type="Resource" script_class="EnemyDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/enemy_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/characters/skeleton_walk.png" id="sheet"]
+
+[resource]
+script = ExtResource("1")
+sheet = ExtResource("sheet")
+health = 70.0
+damage = 16.0
+speed = 110.0
+notice_radius = 160.0
+attack_range = 22.0
+attack_slack = 8.0
+windup = 0.5
+windup_speed = 0.85
+cooldown = 1.0
+recovery = 0.5
+poise = 40.0
+stagger_time = 0.6
+windup_armor = 30.0
+knock_scale = 1.0
+knock = 12.0
+leash = 400.0
+leash_heal = 0.25
+drops = [{"item": &"bone", "chance": 0.6, "min": 1, "max": 2}, {"item": &"grave_cloth", "chance": 0.35, "min": 1, "max": 1}, {"item": &"amber", "chance": 0.05, "min": 1, "max": 1}]

@@ -4,6 +4,7 @@
 [ext_resource type="Script" path="res://scripts/content/attack_def.gd" id="2"]
 [ext_resource type="Resource" path="res://data/enemies/draugr.tres" id="3"]
 [ext_resource type="Resource" path="res://data/enemies/barrow_king.tres" id="boss"]
+[ext_resource type="Resource" path="res://data/enemies/barrow_draugr.tres" id="barrow"]
 
 [sub_resource type="Resource" id="fists_light"]
 script = ExtResource("2")
@@ -22,6 +23,12 @@ arc = 150.0
 cooldown = 0.8
 cost = 30.0
 knock = 28.0
+poise_damage = 40.0
+swing_time = 0.3
+pull_back = 0.4
+lunge = 8.0
+hitstop = 0.09
+shake = 3.0
 
 [resource]
 script = ExtResource("1")
@@ -53,12 +60,19 @@ point_blank = 8.0
 min_damage = 1.0
 projectile_radius = 8.0
 draw_slack = 0.7
+knock_decay = 10.0
+poise_regen_time = 2.0
+hurt_shake = 3.0
+low_health = 0.35
 dash_distance = 64.0
 dash_time = 0.15
 dash_cost = 25.0
 dash_cooldown = 0.4
 iframes = 0.25
 iframe_slack = 0.1
+perfect_window = 0.2
+perfect_stamina = 35.0
+perfect_stagger = 0.8
 enemy = ExtResource("3")
 enemies_per_player = 3
 spawn_interval = 2.0
@@ -85,7 +99,7 @@ repair_lock_radius = 160.0
 dungeon_entrance = Vector2(-96, -16)
 portal_reach = 40.0
 dungeon_join_window = 30.0
-dungeon_enemy = ExtResource("3")
+dungeon_enemy = ExtResource("barrow")
 dungeon_boss = ExtResource("boss")
 dungeon_rooms_min = 4
 dungeon_rooms_max = 6

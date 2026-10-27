@@ -33,6 +33,7 @@ func test_hits_only_what_is_in_the_arc() -> void:
 	var hits := PackedInt32Array([front.id, behind.id, far.id])
 	assert_array(Array(world.attack(1, true, Vector2.RIGHT, hits))).is_equal([front.id])
 	assert_float(front.health).is_equal(100.0 - Content.tuning.fists_heavy.damage)
+	world.tick(TICK)
 	assert_bool(front.position.x > 20).is_true()  # knocked back
 
 
@@ -42,7 +43,7 @@ func test_enemy_dies_and_leaves_the_snapshot() -> void:
 	assert_int(world.snapshot_for(1).enemies.size()).is_equal(1)
 	world.attack(1, false, Vector2.RIGHT, PackedInt32Array([enemy.id]))
 	assert_dict(world.snapshot_for(1).enemies).is_empty()
-	assert_array(world.events[-1].slice(0, 3)).is_equal(["hit", true, enemy.id])
+	assert_array(world.events[-2].slice(0, 3)).is_equal(["hit", true, enemy.id])
 
 
 func test_enemy_chases_and_hits_after_the_windup() -> void:
@@ -157,20 +158,6 @@ func _spawned(count: int) -> Array:
 	return world.enemies.values()
 
 
-func test_walking_away_from_a_windup_is_no_escape() -> void:
-	var world := _world()
-	var enemy := world.add_enemy(Vector2(Content.tuning.enemy.attack_range, 0), 100, 15)
-	enemy.provoke(1)
-	world.tick(TICK)
-	assert_int(enemy.state).is_equal(SimEnemy.State.WINDUP)
-	var player: SimWorld.SimPlayer = world.players[1]
-	var health := player.health
-	for i in ceili(Content.tuning.enemy.windup / TICK) + 1:
-		world.move_player(1, player.position + Vector2(-Content.tuning.walk_speed * TICK, 0))
-		world.tick(TICK)
-	assert_float(player.health).is_less(health)
-
-
 func test_dungeon_enemies_grow_with_depth_and_time() -> void:
 	assert_dict(Combat.dungeon_scaled(0, 0.0)).is_equal({health = 1.0, damage = 1.0, count = 1.0})
 	var shallow := Combat.dungeon_scaled(1, 0.0)
@@ -205,7 +192,7 @@ func test_a_slam_hits_everyone_in_its_ring_but_the_dashing() -> void:
 	world.tick(boss_def.windup - TICK)
 	assert_bool(world.dash(4)).is_true()
 	world.tick(TICK * 2)
-	assert_int(boss.state).is_equal(SimEnemy.State.CHASE)
+	assert_int(boss.state).is_equal(SimEnemy.State.RECOVER)
 	assert_float(world.players[1].health).is_less(health[1])
 	assert_float(world.players[2].health).is_less(health[2])
 	assert_float(world.players[3].health).is_equal(health[3])

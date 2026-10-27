@@ -21,6 +21,12 @@ arc = 150.0
 cooldown = 0.9
 cost = 32.0
 knock = 30.0
+poise_damage = 40.0
+swing_time = 0.3
+pull_back = 0.4
+lunge = 8.0
+hitstop = 0.09
+shake = 3.0
 
 [resource]
 script = ExtResource("1")
