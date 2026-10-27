@@ -20,15 +20,17 @@ func _ready() -> void:
 	add_child(panel)
 
 
-func toggle(inventory: Inventory, buffs: Buffs, player_name: String) -> void:
+func toggle(inventory: Inventory, buffs: Buffs, player_name: String, regen := "") -> void:
 	visible = not visible
 	if visible:
-		_text.text = describe(inventory, buffs, player_name)
+		_text.text = describe(inventory, buffs, player_name, regen)
 
 
 ## The screen's text; the stats are what the server uses (Combat.swing_damage, armor and
 ## health from gear and buffs).
-static func describe(inventory: Inventory, buffs: Buffs, player_name: String) -> String:
+static func describe(
+	inventory: Inventory, buffs: Buffs, player_name: String, regen := ""
+) -> String:
 	var light := Content.attack(inventory.weapon(), false)
 	var heavy := Content.attack(inventory.weapon(), true)
 	var lines := PackedStringArray(
@@ -42,6 +44,7 @@ static func describe(inventory: Inventory, buffs: Buffs, player_name: String) ->
 			"Armor %d" % (inventory.worn("armor") + buffs.stat("armor")),
 			"Light hit %d" % Combat.swing_damage(light, false, buffs),
 			"Heavy hit %d" % Combat.swing_damage(heavy, true, buffs),
+			"Regeneration %s" % (regen if regen != "" else "none"),
 			"",
 			"Gear",
 		]
@@ -50,6 +53,14 @@ static func describe(inventory: Inventory, buffs: Buffs, player_name: String) ->
 		var item: StringName = inventory.equipment[kind]
 		var worn := Content.item(item).display_name if item != &"" else "-"
 		lines.append("  %s: %s" % [ItemDef.Slot.keys()[kind].capitalize(), worn])
+	var ability := inventory.ability()
+	if ability:
+		lines.append(
+			(
+				"  Q: %s, %d s cooldown, %d stamina"
+				% [ability.display_name, ability.cooldown, ability.stamina_cost]
+			)
+		)
 	lines.append("")
 	lines.append("Buffs")
 	var any := false

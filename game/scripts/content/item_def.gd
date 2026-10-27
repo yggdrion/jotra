@@ -6,8 +6,8 @@ extends Resource
 enum Rarity { COMMON, UNCOMMON, RARE, EPIC }
 ## What a tool breaks: trees need an AXE, rocks a PICKAXE.
 enum Tool { NONE, AXE, PICKAXE }
-## NONE: a material, not wearable.
-enum Slot { NONE, WEAPON, ARMOR }
+## NONE: a material, not wearable. A RUNE grants the ability named by ItemDef.ability (Q).
+enum Slot { NONE, WEAPON, ARMOR, RUNE }
 
 const RARITY_COLORS: Array[Color] = [
 	Color("c0cbdc"), Color("63c74d"), Color("0099db"), Color("b55088")
@@ -23,6 +23,13 @@ const RARITY_COLORS: Array[Color] = [
 @export var slot := Slot.NONE
 ## Hunger restored by eating one; 0: not food.
 @export var food := 0.0
+## Health per second for regen_time seconds after eating it (cooked food); 0: none.
+@export var regen := 0.0
+@export var regen_time := 0.0
+## Health restored at once by drinking it (H); 0: not a draught.
+@export var heal := 0.0
+## The AbilityDef id a worn rune grants.
+@export var ability: StringName = &""
 @export_group("Weapon")
 @export var light: AttackDef
 @export var heavy: AttackDef

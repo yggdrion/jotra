@@ -48,6 +48,8 @@ const BOT_MOVE_PX := 20.0
 ## How close the server's copy of a bot's position must be to its own.
 const BOT_ECHO_PX := 40.0
 ## How long a bot that passed keeps walking before it leaves, so slower bots still see it move.
+## An enemy a frost bolt slows is tinted this.
+const SLOWED := Color(0.55, 0.8, 1.2)
 const BOT_LINGER := 2.0
 ## A roaming bot turns this slowly (seconds per radian), so it circles walk_speed * this out.
 const BOT_ROAM_TURN := 60.0
@@ -129,6 +131,11 @@ var _buffs := Buffs.new()
 var _weapon := &""
 var _attack_ready_ms := 0
 var _dash_ready_ms := 0
+## Ticks (Time.get_ticks_msec) the cooked-food regeneration ends and the draught and the rune
+## ability are ready again, as the server last said.
+var _regen_end_ms := 0
+var _draught_ready_ms := 0
+var _ability_ready_ms := 0
 ## When the bow in hand started being drawn (msec), 0 if it is not.
 var _draw_started_ms := 0
 var _dash_left := 0.0
@@ -190,6 +197,8 @@ func _ready() -> void:
 	)
 	net.enemy_event_received.connect(_on_enemy_event)
 	net.perfect_received.connect(_on_perfect)
+	net.status_received.connect(_on_status)
+	net.effect_received.connect(_on_effect)
 	net.respawned_received.connect(
 		func(at: Vector2) -> void:
 			_me.position = at
@@ -239,6 +248,7 @@ func _ready() -> void:
 		func(recipe: StringName) -> void: net.craft.rpc_id(1, recipe)
 	)
 	_inventory_ui.eat_requested.connect(func(index: int) -> void: net.eat.rpc_id(1, index))
+	_inventory_ui.drink_requested.connect(func() -> void: net.drink.rpc_id(1))
 	_inventory_ui.chest_move_requested.connect(
 		func(from_chest: bool, index: int) -> void: net.chest_move.rpc_id(1, from_chest, index)
 	)
@@ -542,7 +552,7 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed(&"inventory"):
 		_inventory_ui.toggle()
 	elif event.is_action_pressed(&"character"):
-		_character.toggle(_inventory, _buffs, player_name)
+		_character.toggle(_inventory, _buffs, player_name, _regen_text())
 	elif escape and _inventory_ui.visible:
 		_inventory_ui.toggle()
 	elif (escape or event.is_action_pressed(&"interact")) and _craft_menu.visible:
@@ -574,6 +584,10 @@ func _unhandled_input(event: InputEvent) -> void:
 		_dash()
 	elif event.is_action_pressed(&"eat"):
 		net.eat.rpc_id(1, -1)
+	elif event.is_action_pressed(&"heal"):
+		net.drink.rpc_id(1)
+	elif event.is_action_pressed(&"ability"):
+		net.ability.rpc_id(1, _aim())
 	else:
 		return
 	get_viewport().set_input_as_handled()
@@ -762,6 +776,7 @@ func _on_snapshot(
 	_hunger = me.w
 	var t := Content.tuning
 	_hud.show_stats(_health / _max_health, _stamina / t.max_stamina, _hunger / t.max_hunger)
+	_hud.show_status(_status_text())
 	if _time >= 0 and Survival.is_night(_time) != Survival.is_night(time):
 		if Survival.is_night(time):
 			_hud.announce("Night falls: enemies grow stronger", Color("8b9bb4"))
@@ -867,6 +882,60 @@ func _on_enemy_event(id: int, kind: int) -> void:
 			view.give_up()
 			_float_text("?", Color("c0cbdc"), view.position)
 			_sfx.play(&"give_up")
+
+
+## A countdown of ours starts: the draught's or the rune ability's cooldown, or a regeneration.
+func _on_status(kind: int, seconds: float) -> void:
+	var end := Time.get_ticks_msec() + int(seconds * 1000)
+	match kind:
+		Net.Status.DRAUGHT:
+			_draught_ready_ms = end
+		Net.Status.ABILITY:
+			_ability_ready_ms = end
+			_sfx.play(&"dash")
+		Net.Status.REGEN:
+			_regen_end_ms = end
+
+
+## An ability's area in view.
+func _on_effect(kind: int, at: Vector2, radius: float, seconds: float) -> void:
+	var view := EffectView.new()
+	view.kind = kind
+	view.radius = radius
+	view.seconds = seconds
+	view.position = at
+	add_child(view)
+
+
+## "8 s left" while cooked food regenerates health, "" otherwise.
+func _regen_text() -> String:
+	var left := (_regen_end_ms - Time.get_ticks_msec()) / 1000.0
+	return "%d s left" % ceili(left) if left > 0 else ""
+
+
+## The HUD's timers: regeneration, the draught if we carry one and the rune ability if worn.
+func _status_text() -> String:
+	var now := Time.get_ticks_msec()
+	var parts := PackedStringArray()
+	if _regen_end_ms > now:
+		parts.append("Regen %ds" % ceili((_regen_end_ms - now) / 1000.0))
+	if _inventory.first_draught() != -1:
+		parts.append(_timer("Draught", _draught_ready_ms, &"heal", now))
+	var ability := _inventory.ability()
+	if ability:
+		parts.append(_timer(ability.display_name, _ability_ready_ms, &"ability", now))
+	return "  ".join(parts)
+
+
+func _timer(label: String, ready_ms: int, action: StringName, now: int) -> String:
+	var key := ""
+	for event in InputMap.action_get_events(action):
+		var pressed := event as InputEventKey
+		if pressed:
+			key = pressed.as_text_physical_keycode()
+			break
+	var wait := ceili((ready_ms - now) / 1000.0)
+	return "[%s] %s %s" % [key, label, "%ds" % wait if wait > 0 else "ready"]
 
 
 ## The dash we just made dodged a hit perfectly: a flourish and a beat of slow motion.
@@ -1066,6 +1135,7 @@ func _show_enemies(enemies: Dictionary) -> void:
 			continue
 		view.position = Vector2(enemy.x, enemy.y)
 		view.health = Net.enemy_health(enemy.z)
+		view.modulate = SLOWED if Net.enemy_slowed(enemy.z) else Color.WHITE
 		if boss == null and view.def.size > 1:
 			boss = view
 	_hud.show_boss(boss.def.display_name if boss else "", boss.health if boss else 0.0)

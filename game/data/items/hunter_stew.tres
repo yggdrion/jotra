@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="ItemDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/item_def.gd" id="1"]
+[ext_resource type="Texture2D" path="res://assets/ninja_adventure/items/trail_ration.png" id="icon"]
+
+[resource]
+script = ExtResource("1")
+icon = ExtResource("icon")
+display_name = "Hunter stew"
+rarity = 2
+max_stack = 10
+color = Color(0.7, 0.45, 0.25, 1)
+food = 40.0
+regen = 1.5
+regen_time = 15.0

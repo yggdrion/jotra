@@ -112,10 +112,9 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 			_act(id, func(p: SimWorld.SimPlayer) -> void: p.unequip(kind, to))
 	)
 	net.craft_requested.connect(func(id: int, recipe: StringName) -> void: world.craft(id, recipe))
-	net.eat_requested.connect(
-		func(id: int, index: int) -> void:
-			_act(id, func(p: SimWorld.SimPlayer) -> void: p.eat(index))
-	)
+	net.eat_requested.connect(func(id: int, index: int) -> void: world.eat(id, index))
+	net.draught_requested.connect(func(id: int) -> void: world.use_draught(id))
+	net.ability_requested.connect(func(id: int, aim: Vector2) -> void: world.use_ability(id, aim))
 	net.interact_requested.connect(func(id: int) -> void: world.interact(id))
 	net.build_requested.connect(
 		func(id: int, tile: Vector2i, piece: StringName) -> void: world.build(id, tile, piece)
@@ -288,6 +287,12 @@ func _send_events() -> void:
 						net.enemy_event.rpc_id(id, event[1], event[2])
 			"perfect":
 				net.perfect.rpc_id(event[1])
+			"status":
+				net.status.rpc_id(event[1], event[2], event[3])
+			"effect":
+				for id: int in world.players:
+					if world.sees(id, event[2]):
+						net.effect.rpc_id(id, event[1], event[2], event[3], event[4])
 			"swing":
 				# The swinging client has drawn its own already.
 				for id: int in world.players:

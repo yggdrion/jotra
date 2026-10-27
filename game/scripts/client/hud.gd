@@ -28,6 +28,7 @@ var _announce := Label.new()
 var _room := Label.new()
 var _buffs := VBoxContainer.new()
 var _boss := Label.new()
+var _status := Label.new()
 var _boss_bar := Control.new()
 var _boss_health := 0.0
 var _health := 1.0
@@ -69,7 +70,7 @@ func _ready() -> void:
 	_died.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_died.visible = false
 	add_child(_died)
-	for label: Label in [_prompt, _keys, _clock, _announce, _room, _boss]:
+	for label: Label in [_prompt, _keys, _clock, _announce, _room, _boss, _status]:
 		label.add_theme_font_size_override("font_size", 8)
 		label.add_theme_constant_override("outline_size", 2)
 		label.add_theme_color_override("font_outline_color", Color.BLACK)
@@ -80,6 +81,11 @@ func _ready() -> void:
 	_prompt.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_prompt.offset_top = -40
 	_prompt.offset_bottom = -28
+	_status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_status.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM)
+	_status.grow_horizontal = Control.GROW_DIRECTION_BOTH
+	_status.offset_top = -24
+	_status.offset_bottom = -12
 	_keys.text = "[Tab] Inventory and crafting  [M] Map"
 	_keys.modulate = Color(1, 1, 1, 0.6)
 	_keys.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
@@ -154,6 +160,11 @@ func show_prompt(text: String) -> void:
 func show_clock(text: String, night: bool) -> void:
 	_clock.text = text
 	_clock.modulate = Color("8b9bb4") if night else Color.WHITE
+
+
+## The timers under the prompt, e.g. "Regen 8s  [H] Draught 12s  [Q] Frost bolt"; "" hides them.
+func show_status(text: String) -> void:
+	_status.text = text
 
 
 ## The lobby room code, "" for none.

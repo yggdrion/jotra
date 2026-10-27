@@ -15,6 +15,9 @@ var velocity: Vector2
 var damage: float
 ## Distance it can still fly.
 var range_left: float
+## An enemy it hits is slowed to this speed multiplier for slow_time seconds (1: no effect).
+var slow := 1.0
+var slow_time := 0.0
 
 
 func _init(

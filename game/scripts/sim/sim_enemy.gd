@@ -32,6 +32,9 @@ var bleed_dps := 0.0
 var bleed_until := 0.0
 var bleed_by := 0
 var poise: float
+## Speed multiplier from a frost bolt, until the sim time slow_until.
+var slow := 1.0
+var slow_until := 0.0
 ## The knockback it is still sliding along, px a second.
 var knock_vel := Vector2.ZERO
 ## The way it faces, turning toward its target at def.turn_speed.
@@ -106,7 +109,7 @@ func tick(world: SimWorld, delta: float) -> void:
 				_turn(player.position, delta)
 			if player != null and siege == null:
 				var close := maxf(position.distance_to(player.position) - def.attack_range, 0.0)
-				_step(world, player.position, minf(speed * def.windup_speed * delta, close))
+				_step(world, player.position, minf(_speed(world) * def.windup_speed * delta, close))
 			if world.time < _until:
 				return
 			if siege != null:
@@ -144,7 +147,7 @@ func tick(world: SimWorld, delta: float) -> void:
 		State.LEASH:
 			health = minf(health + max_health * def.leash_heal * delta, max_health)
 			# Walled off from home: this is home now.
-			if _step(world, home, speed * delta) != null:
+			if _step(world, home, _speed(world) * delta) != null:
 				home = position
 			if position == home and health >= max_health:
 				state = State.IDLE
@@ -157,7 +160,7 @@ func _approach(world: SimWorld, player: SimWorld.SimPlayer, delta: float) -> boo
 	var away := (position - player.position).normalized()
 	if def.behavior == EnemyDef.Behavior.ARCHER:
 		if distance < def.preferred_distance:
-			_step(world, position + away * 100.0, speed * delta)
+			_step(world, position + away * 100.0, _speed(world) * delta)
 			return true
 	elif def.behavior == EnemyDef.Behavior.PACK:
 		if distance <= def.attack_range and world.time < _ready_at:
@@ -165,11 +168,11 @@ func _approach(world: SimWorld, player: SimWorld.SimPlayer, delta: float) -> boo
 			var side := 1.0 if id % 2 == 0 else -1.0
 			var around := away.rotated(side * PI / 2)
 			var nudge := away * clampf(def.circle_distance - distance, -1.0, 1.0)
-			_step(world, position + (around + nudge) * 100.0, speed * 0.7 * delta)
+			_step(world, position + (around + nudge) * 100.0, _speed(world) * 0.7 * delta)
 			return false
 	if distance <= def.attack_range:
 		return true
-	siege = _step(world, player.position, speed * delta)
+	siege = _step(world, player.position, _speed(world) * delta)
 	return siege != null
 
 
@@ -303,3 +306,13 @@ func _slide(world: SimWorld, delta: float) -> void:
 	knock_vel *= fall
 	if knock_vel.length() < 4.0:
 		knock_vel = Vector2.ZERO
+
+
+## Its speed now, slowed while a frost bolt holds it.
+func _speed(world: SimWorld) -> float:
+	return speed * (slow if world.time < slow_until else 1.0)
+
+
+## Whether a frost bolt slows it now.
+func slowed(world: SimWorld) -> bool:
+	return world.time < slow_until

@@ -13,6 +13,8 @@ const ACTIONS := {
 	&"interact": ["Use / gather", [KEY_E]],
 	&"dash": ["Dash", [KEY_SPACE]],
 	&"eat": ["Eat", [KEY_F]],
+	&"heal": ["Healing draught", [KEY_H]],
+	&"ability": ["Rune ability", [KEY_Q]],
 	&"inventory": ["Inventory", [KEY_TAB, KEY_I]],
 	&"character": ["Character", [KEY_C]],
 	&"build": ["Build", [KEY_B]],

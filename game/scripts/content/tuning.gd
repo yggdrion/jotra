@@ -26,6 +26,9 @@ extends Resource
 ## A respawned player has at least this much hunger.
 @export var respawn_hunger := 50.0
 
+## Seconds before another healing draught can be drunk.
+@export var draught_cooldown := 25.0
+
 @export_group("Day and night")
 ## Seconds of day, then of night; world time 0 is dawn of day 1.
 @export var day_length := 480.0

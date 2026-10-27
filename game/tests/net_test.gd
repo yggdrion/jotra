@@ -27,3 +27,17 @@ func test_an_enemy_keeps_its_kind_and_health_through_packing() -> void:
 			)
 			assert_int(Net.enemy_kind(z)).is_equal(kind)
 			assert_float(Net.enemy_health(z)).is_equal_approx(health, 0.005)
+			assert_bool(Net.enemy_slowed(z)).is_false()
+			var slowed: float = (
+				Net
+				. unpack_entities(
+					Net.pack_entities(
+						{1: Vector3(0, 0, Net.enemy_z(kind, health, true))}, Vector2.ZERO
+					),
+					Vector2.ZERO
+				)[1]
+				. z
+			)
+			assert_int(Net.enemy_kind(slowed)).is_equal(kind)
+			assert_float(Net.enemy_health(slowed)).is_equal_approx(health, 0.01)
+			assert_bool(Net.enemy_slowed(slowed)).is_true()

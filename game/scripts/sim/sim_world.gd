@@ -39,6 +39,12 @@ class SimPlayer:
 	var buffs := Buffs.new()
 	## The tile of the chest the player has open, null if none.
 	var open_chest: Variant = null
+	## Health per second from cooked food, for regen_left more seconds.
+	var regen := 0.0
+	var regen_left := 0.0
+	## Sim times the next healing draught and the next rune ability may be used.
+	var draught_ready_at := -INF
+	var ability_ready_at := -INF
 
 	func _init(player_id: int, player_name: String, spawn: Vector2, now: float) -> void:
 		id = player_id
@@ -71,11 +77,14 @@ class SimPlayer:
 		var slot := inventory.slots[index]
 		if slot.is_empty() or hunger >= Content.tuning.max_hunger:
 			return false
-		var food := Content.item(slot.item).food
-		if food <= 0:
+		var def := Content.item(slot.item)
+		if def.food <= 0:
 			return false
 		inventory.take_at(index, 1)
-		hunger = minf(hunger + food, Content.tuning.max_hunger)
+		hunger = minf(hunger + def.food, Content.tuning.max_hunger)
+		if def.regen > 0:
+			regen = def.regen
+			regen_left = def.regen_time
 		return true
 
 	## Takes off what is worn in an ItemDef.Slot, into inventory slot to if that is free.
@@ -84,6 +93,16 @@ class SimPlayer:
 			return false
 		health = minf(health, max_health())
 		return true
+
+
+## A healing ward standing on the ground until a sim time.
+class SimWard:
+	var id: int
+	var position: Vector2
+	var radius: float
+	## Health per second to every player within radius.
+	var heal_per_second: float
+	var until: float
 
 
 ## Items lying on the ground, or a buff orb inside a run.
@@ -134,6 +153,7 @@ var chunks := {}  # Vector2i -> SimChunk
 var enemies := {}  # id -> SimEnemy
 var drops := {}  # id -> SimDrop
 var projectiles := {}  # id -> SimProjectile
+var wards := {}  # id -> SimWard
 var dungeons := {}  # slot -> Dungeon
 ## {global tile: Building.Piece} of every loaded chunk.
 var pieces := {}
@@ -162,6 +182,7 @@ var _next_enemy_id := 1
 var _next_drop_id := 1
 var _next_projectile_id := 1
 var _next_pack_id := 1
+var _next_ward_id := 1
 var _spawn_due := 0.0
 
 
@@ -200,6 +221,7 @@ func tick(delta: float) -> void:
 		if run:
 			enemy.position = Dungeon.clamp_to(run.area, enemy.position)
 	_tick_projectiles(delta)
+	_tick_wards(delta)
 	if spawn_enemies:
 		_spawn(delta)
 	for id: int in enemies.keys():
@@ -285,6 +307,10 @@ func _tick_player(player: SimPlayer, delta: float) -> void:
 		_close_chest(player)
 	player.hunger = maxf(player.hunger - t.hunger_drain * delta, 0.0)
 	var regen := t.stamina_regen * (1.0 + player.buffs.stat("stamina_regen"))
+	if player.regen_left > 0:
+		var span := minf(delta, player.regen_left)
+		player.regen_left -= span
+		player.heal(player.regen * span)
 	if player.hunger > 0:
 		player.health = minf(player.health + t.health_regen * delta, player.max_health())
 	else:
@@ -297,6 +323,7 @@ func _tick_player(player: SimPlayer, delta: float) -> void:
 
 
 func _die(player: SimPlayer) -> void:
+	player.regen_left = 0.0
 	player.dead_until = time + Content.tuning.respawn_delay
 
 
@@ -910,6 +937,94 @@ func attack(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> Packe
 	return damaged
 
 
+## Eats the food in an inventory slot (-1: the first food) for a player. Cooked food also
+## starts a regeneration, which the client is told of. Returns whether it was eaten.
+func eat(id: int, index: int) -> bool:
+	var player: SimPlayer = players.get(id)
+	if player == null or not player.eat(index):
+		return false
+	if player.regen_left > 0:
+		events.append(["status", id, Net.Status.REGEN, player.regen_left])
+	return true
+
+
+## Drinks the first healing draught for a player, unless it is cooling down. Returns whether it
+## did.
+func use_draught(id: int) -> bool:
+	var player: SimPlayer = players.get(id)
+	if player == null or player.dead_until > 0 or time < player.draught_ready_at:
+		return false
+	var index := player.inventory.first_draught()
+	if index == -1:
+		return false
+	player.heal(Content.item(player.inventory.slots[index].item).heal)
+	player.inventory.take_at(index, 1)
+	player.draught_ready_at = time + Content.tuning.draught_cooldown
+	events.append(["status", id, Net.Status.DRAUGHT, Content.tuning.draught_cooldown])
+	return true
+
+
+## The ability of the worn rune toward aim, unless it is cooling down or there is not the
+## stamina for it. Returns whether it was used.
+func use_ability(id: int, aim: Vector2) -> bool:
+	var player: SimPlayer = players.get(id)
+	if player == null or player.dead_until > 0 or time < player.ability_ready_at:
+		return false
+	var def := player.inventory.ability()
+	if def == null or not _spend(player, def.stamina_cost):
+		return false
+	player.ability_ready_at = time + def.cooldown
+	events.append(["status", id, Net.Status.ABILITY, def.cooldown])
+	var damage := def.damage * (1.0 + player.buffs.stat("damage"))
+	match def.kind:
+		AbilityDef.Kind.FROST_BOLT:
+			var bolt := add_projectile(
+				SimProjectile.Team.PLAYERS,
+				id,
+				player.position,
+				aim if aim != Vector2.ZERO else Vector2.RIGHT,
+				def.speed,
+				damage,
+				def.range
+			)
+			bolt.slow = def.slow
+			bolt.slow_time = def.slow_time
+		AbilityDef.Kind.WARD:
+			var ward := SimWard.new()
+			ward.id = _next_ward_id
+			_next_ward_id += 1
+			ward.position = player.position
+			ward.radius = def.radius
+			ward.heal_per_second = def.heal_per_second
+			ward.until = time + def.duration
+			wards[ward.id] = ward
+			events.append(["effect", def.kind, ward.position, def.radius, def.duration])
+		AbilityDef.Kind.SHOCKWAVE:
+			for enemy: SimEnemy in enemies.values():
+				var offset := enemy.position - player.position
+				if offset.length() > def.radius:
+					continue
+				enemy.provoke(id)
+				enemy.push(
+					offset.normalized() if offset != Vector2.ZERO else Vector2.RIGHT, def.knock
+				)
+				enemy.hit_poise(self, def.poise_damage)
+				_hurt_enemy(enemy, damage, player)
+			events.append(["effect", def.kind, player.position, def.radius, 0.4])
+	return true
+
+
+## Heals the players standing in a ward; a ward is gone when its time is up.
+func _tick_wards(delta: float) -> void:
+	for ward: SimWard in wards.values():
+		if time >= ward.until:
+			wards.erase(ward.id)
+			continue
+		for player: SimPlayer in players.values():
+			if player.dead_until == 0 and player.position.distance_to(ward.position) <= ward.radius:
+				player.heal(ward.heal_per_second * delta)
+
+
 ## Takes health off an enemy, with a damage number if shown. One that dies drops its loot,
 ## inside a run maybe a buff orb (rarer the deeper the run has gone), and feeds by's kill
 ## buffs. Returns whether it died.
@@ -1037,6 +1152,9 @@ func _projectile_hits(p: SimProjectile, radius: float) -> bool:
 				events.append(["enemy", enemy.id, Net.EnemyEvent.BLOCK, enemy.position])
 				_hurt_enemy(enemy, p.damage * enemy.def.block_pass, shooter, false)
 				return true
+			if p.slow < 1.0:
+				enemy.slow = p.slow
+				enemy.slow_until = time + p.slow_time
 			_hurt_enemy(enemy, p.damage, shooter)
 			return true
 	return false
@@ -1130,7 +1248,7 @@ func snapshot_for(id: int) -> Dictionary:
 			near_enemies[enemy.id] = Vector3(
 				enemy.position.x,
 				enemy.position.y,
-				Net.enemy_z(Content.enemy_index(enemy.def), health)
+				Net.enemy_z(Content.enemy_index(enemy.def), health, enemy.slowed(self))
 			)
 	var near_drops := {}
 	for drop: SimDrop in drops.values():

@@ -60,6 +60,34 @@ func test_recipes_and_drop_tables_name_real_items() -> void:
 			)
 
 
+func test_the_fire_cooks_and_every_rune_has_an_ability() -> void:
+	assert_bool(Content.piece(&"fire").station).is_true()
+	var cooked := Content.recipes.values().filter(
+		func(recipe: RecipeDef) -> bool: return recipe.station == &"fire"
+	)
+	assert_int(cooked.size()).is_greater_equal(2)
+	for recipe: RecipeDef in cooked:
+		assert_float(Content.item(recipe.result).regen).is_greater(0.0)
+		assert_float(Content.item(recipe.result).regen_time).is_greater(0.0)
+	assert_float(Content.item(&"healing_draught").heal).is_greater(0.0)
+	assert_float(Content.tuning.draught_cooldown).is_greater(0.0)
+	var granted := {}
+	for id: StringName in Content.items:
+		var item := Content.item(id)
+		if item.slot == ItemDef.Slot.RUNE:
+			(
+				assert_bool(Content.abilities.has(item.ability))
+				. override_failure_message(str(id))
+				. is_true()
+			)
+			granted[item.ability] = true
+		else:
+			assert_str(item.ability).override_failure_message(str(id)).is_empty()
+	for id: StringName in Content.abilities:
+		assert_bool(granted.has(id)).override_failure_message(str(id)).is_true()
+		assert_float(Content.abilities[id].cooldown).is_greater(0.0)
+
+
 func test_pieces_are_complete() -> void:
 	assert_int(Content.piece_ids.size()).is_equal(Content.pieces.size())
 	for id: StringName in Content.pieces:
@@ -72,9 +100,10 @@ func test_pieces_are_complete() -> void:
 		assert_bool(piece.cost.is_empty()).override_failure_message(str(id)).is_false()
 		for item: StringName in piece.cost:
 			assert_object(Content.item(item)).override_failure_message(str(id)).is_not_null()
-		# Nothing stands between a new player and a workbench but wood.
+		# Nothing stands between a new player and a station but wood and stone.
 		if piece.station:
-			assert_array(piece.cost.keys()).is_equal([&"wood"])
+			for item: StringName in piece.cost:
+				assert_bool(item in [&"wood", &"stone"]).override_failure_message(str(id)).is_true()
 
 
 func test_bare_hands_without_a_weapon() -> void:

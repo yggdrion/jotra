@@ -41,7 +41,7 @@ This file is the single source of truth for scope, design and architecture. Buil
 ## 3. Open questions
 
 1. Survival details: which stats beyond health/stamina/hunger (temperature, rest, weather)? How punishing is death in the overworld (Valheim-style corpse run?)
-2. Combat details: weapon types, ability slots, how gear grants abilities
+2. ~~Combat details: weapon types, ability slots, how gear grants abilities~~ Settled in M17: a worn rune (a third equipment slot, `ItemDef.Slot.RUNE`) grants one ability on Q, see 5.2. Weapon types beyond sword/club/bow are still open
 3. Buff list: the first 15 buffs and 4 synergies are in `game/data/buffs/` and `game/data/synergies/` (M7); which ones are fun, and synergies beyond simple stat bonuses, are open
 4. Relics: can any dungeon buff leave as a weakened permanent "relic" with limited slots?
 5. Building depth beyond simple grid placement
@@ -163,6 +163,8 @@ Players, enemies, dropped items, resource nodes, buildings, projectiles. Stable 
 - Damage = weapon damage × modifiers − armor. Damage numbers, hit flash, knockback.
 - Death and respawn (overworld respawn rules: open question 1).
 - Enemy AI v1: idle → notice → chase → attack → leash back.
+- Healing (M17): cooked food from the fire regenerates health for a while (`ItemDef.regen`, `regen_time`); a healing draught (`ItemDef.heal`, H) heals at once with a shared cooldown (`Tuning.draught_cooldown`).
+- Abilities (M17, settles open question 2): gear grants abilities through a **rune slot**, not through weapons, so any weapon can be combined with any ability. A rune item (`ItemDef.Slot.RUNE`) names an `AbilityDef` (`game/data/abilities/`: cooldown, stamina cost, kind-specific numbers); Q uses the worn one, checked on the server. One ability at a time keeps the HUD and the keybinding simple; more slots can come later. Frost bolt (a player projectile that slows), healing ward (a timed healing area) and shockwave (area damage, poise break and knockback). Runes drop from the barrow's end chest and boss; the shock and ward runes can also be crafted.
 
 ### 5.3 Loot and inventory
 
@@ -274,7 +276,7 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M14 | **Tools + gathering** | Axe and pickaxe as tools with a tier; trees need an axe and rocks a pickaxe, gathered by swinging at nodes with health; sticks and pebbles by hand so the first tools are craftable | Done | v0.20.0 |
 | M15 | **Ranged combat** | A sim projectile entity sent in snapshots, shared by players and enemies; bow with arrows as ammo, hold to draw, aimed at the mouse | Done | v0.18.0 |
 | M16 | **More enemies** | Draugr archer (telegraphed arrow line), wolf packs (lunge, drop meat and hide), shield draugr (blocks from the front), a swarm or exploder; AI variants as a behavior in `sim_enemy.gd`, spawn mix per day and night | Done | |
-| M17 | **Healing + magic** | Cooked food at the fire regenerates health; a healing draught with a cooldown; a staff or rune grants one gear ability on Q (frost bolt, healing ward, shockwave), settling open question 2 | Planned | |
+| M17 | **Healing + magic** | Cooked food at the fire regenerates health; a healing draught with a cooldown; a worn rune grants one gear ability on Q (frost bolt, healing ward, shockwave), settling open question 2 | Done | |
 
 Dedicated (M1) comes before player host (M6) because it is almost free once solo works. It runs locally only; hosting it publicly (M10) was dropped.
 

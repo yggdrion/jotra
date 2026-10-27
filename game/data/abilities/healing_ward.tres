@@ -1,0 +1,13 @@
+[gd_resource type="Resource" script_class="AbilityDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/ability_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Healing ward"
+kind = 1
+cooldown = 30.0
+stamina_cost = 25.0
+radius = 72.0
+heal_per_second = 6.0
+duration = 8.0

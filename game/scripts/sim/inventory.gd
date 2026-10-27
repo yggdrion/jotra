@@ -4,8 +4,13 @@ extends RefCounted
 ## hold up to the item's max_stack. Equipment is one item id per ItemDef.Slot, "" when empty.
 ## changed is set on every change, for the server to resend it.
 
+## The save and RPC key of each equipment slot.
+const KEYS := {
+	ItemDef.Slot.WEAPON: "weapon", ItemDef.Slot.ARMOR: "armor", ItemDef.Slot.RUNE: "rune"
+}
+
 var slots: Array[Dictionary] = []
-var equipment := {ItemDef.Slot.WEAPON: &"", ItemDef.Slot.ARMOR: &""}
+var equipment := {ItemDef.Slot.WEAPON: &"", ItemDef.Slot.ARMOR: &"", ItemDef.Slot.RUNE: &""}
 var changed := false
 
 
@@ -168,6 +173,20 @@ func best_tool(kind: int) -> ItemDef:
 	return best
 
 
+## The first slot holding a healing draught (ItemDef.heal), -1 if none does.
+func first_draught() -> int:
+	for i in slots.size():
+		if not slots[i].is_empty() and Content.item(slots[i].item).heal > 0:
+			return i
+	return -1
+
+
+## The ability the worn rune grants, null if none.
+func ability() -> AbilityDef:
+	var rune := Content.item(equipment[ItemDef.Slot.RUNE])
+	return Content.abilities.get(rune.ability) if rune else null
+
+
 func weapon() -> StringName:
 	return equipment[ItemDef.Slot.WEAPON]
 
@@ -182,16 +201,15 @@ func worn(stat: String) -> float:
 
 
 ## Plain arrays and strings, for JSON saves and RPCs: {slots: [[id, count] or []], weapon,
-## armor}.
+## armor, rune}.
 func to_data() -> Dictionary:
 	var out := []
 	for slot in slots:
 		out.append([] if slot.is_empty() else [str(slot.item), slot.count])
-	return {
-		slots = out,
-		weapon = str(equipment[ItemDef.Slot.WEAPON]),
-		armor = str(equipment[ItemDef.Slot.ARMOR]),
-	}
+	var data := {slots = out}
+	for kind: int in KEYS:
+		data[KEYS[kind]] = str(equipment[kind])
+	return data
 
 
 ## The reverse of to_data. Items this build doesn't know any more are dropped.
@@ -202,8 +220,7 @@ func load_data(data: Dictionary) -> void:
 		var known := entry.size() == 2 and Content.item(entry[0]) != null
 		slots[i] = {item = StringName(entry[0]), count = int(entry[1])} if known else {}
 	for kind: int in equipment:
-		var key := "weapon" if kind == ItemDef.Slot.WEAPON else "armor"
-		var item := StringName(data.get(key, ""))
+		var item := StringName(data.get(KEYS[kind], ""))
 		var def := Content.item(item)
 		equipment[kind] = item if def != null and def.slot == kind else &""
 	changed = true

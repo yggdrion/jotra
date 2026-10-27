@@ -13,6 +13,7 @@ signal equip_requested(index: int)
 signal unequip_requested(kind: int, to: int)
 signal craft_requested(recipe: StringName)
 signal eat_requested(index: int)
+signal drink_requested
 signal chest_move_requested(from_chest: bool, index: int)
 
 const SLOT := 20
@@ -150,6 +151,13 @@ static func describe(id: StringName) -> String:
 				)
 			else:
 				lines.append("Light hit %d, heavy hit %d" % [def.light.damage, def.heavy.damage])
+		ItemDef.Slot.RUNE:
+			lines[0] += " rune"
+			var ability: AbilityDef = Content.abilities[def.ability]
+			lines.append("Q: %s" % ability.display_name)
+			lines.append(
+				"Cooldown %d s, costs %d stamina" % [ability.cooldown, ability.stamina_cost]
+			)
 		ItemDef.Slot.ARMOR:
 			lines[0] += " armor"
 			lines.append("Blocks %d damage per hit" % def.armor)
@@ -157,6 +165,11 @@ static func describe(id: StringName) -> String:
 		_ when def.food > 0:
 			lines[0] += " food"
 			lines.append("Restores %d hunger" % def.food)
+			if def.regen > 0:
+				lines.append("Then %.1f health a second for %d s" % [def.regen, def.regen_time])
+		_ when def.heal > 0:
+			lines[0] += " potion"
+			lines.append("Heals %d health, H or right click" % def.heal)
 		_ when def.tool_kind != ItemDef.Tool.NONE:
 			lines[0] += " tool"
 		_:
@@ -244,10 +257,10 @@ func _build_inventory() -> Control:
 	column.add_child(_label("Equipped", HEADING))
 	var worn := HBoxContainer.new()
 	column.add_child(worn)
-	for kind: int in [ItemDef.Slot.WEAPON, ItemDef.Slot.ARMOR]:
+	for kind: int in [ItemDef.Slot.WEAPON, ItemDef.Slot.ARMOR, ItemDef.Slot.RUNE]:
 		var view := _slot_view()
 		view.worn = kind
-		view.hint = "W" if kind == ItemDef.Slot.WEAPON else "A"
+		view.hint = ["W", "A", "R"][kind - 1]
 		worn.add_child(view)
 		_worn[kind] = view
 	_stats.custom_minimum_size.x = COLUMNS * (SLOT + 4)
@@ -459,6 +472,8 @@ func _on_slot_input(event: InputEvent, view: SlotView) -> void:
 		equip_requested.emit(view.index)
 	elif Content.item(view.item) and Content.item(view.item).food > 0:
 		eat_requested.emit(view.index)
+	elif Content.item(view.item) and Content.item(view.item).heal > 0:
+		drink_requested.emit()
 
 
 ## A click on a chest slot takes it out.
@@ -487,6 +502,8 @@ func _show_info(id: StringName, worn := false) -> void:
 		text += "\n\n" + ("Right click to take off." if worn else "Right click to wear.")
 	elif def.food > 0:
 		text += "\n\nRight click or F to eat."
+	elif def.heal > 0:
+		text += "\n\nRight click or H to drink."
 	_info_body.text = text
 
 

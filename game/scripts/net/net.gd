@@ -17,6 +17,8 @@ signal equip_requested(peer_id: int, index: int)
 signal unequip_requested(peer_id: int, kind: int, to: int)
 signal craft_requested(peer_id: int, recipe: StringName)
 signal eat_requested(peer_id: int, index: int)
+signal draught_requested(peer_id: int)
+signal ability_requested(peer_id: int, aim: Vector2)
 signal interact_requested(peer_id: int)
 signal build_requested(peer_id: int, tile: Vector2i, piece: StringName)
 signal unbuild_requested(peer_id: int, tile: Vector2i)
@@ -43,6 +45,8 @@ signal hit_received(enemy: bool, id: int, amount: int, push: Vector2)
 signal enemy_event_received(enemy_id: int, kind: int)
 signal perfect_received
 signal windup_received(enemy_id: int, seconds: float, radius: float, line: Vector2)
+signal status_received(kind: int, seconds: float)
+signal effect_received(kind: int, at: Vector2, radius: float, seconds: float)
 signal respawned_received(position: Vector2)
 signal swing_received(player_id: int, heavy: bool, aim: Vector2, weapon: StringName)
 signal inventory_received(data: Dictionary)
@@ -56,6 +60,9 @@ signal ponged(sent_ms: int)
 
 ## What happened to an enemy in view, see enemy_event.
 enum EnemyEvent { STAGGER, STRIKE, DIED, GAVE_UP, BLOCK }
+## What a status RPC counts down: the draught's cooldown, the rune ability's cooldown, or the
+## regeneration from cooked food.
+enum Status { DRAUGHT, ABILITY, REGEN }
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
@@ -121,6 +128,18 @@ func craft(recipe: StringName) -> void:
 @rpc("any_peer", "reliable")
 func eat(index: int) -> void:
 	eat_requested.emit(multiplayer.get_remote_sender_id(), index)
+
+
+## Drink the first healing draught (H).
+@rpc("any_peer", "reliable")
+func drink() -> void:
+	draught_requested.emit(multiplayer.get_remote_sender_id())
+
+
+## Use the worn rune's ability toward aim (Q).
+@rpc("any_peer", "reliable")
+func ability(aim: Vector2) -> void:
+	ability_requested.emit(multiplayer.get_remote_sender_id(), aim)
 
 
 ## E at the dungeon entrance, the run's exit or its end chest.
@@ -200,19 +219,30 @@ func snapshot(
 	)
 
 
-## An enemy's kind (Content.enemy_index) and health 0..1 in one snapshot z, split by
-## enemy_kind and enemy_health. The 0.99 keeps full health below the next kind; a half float
-## keeps health to about 0.005 up to a few dozen kinds.
-static func enemy_z(kind: int, health: float) -> float:
-	return kind + health * 0.99
+## An enemy's kind (Content.enemy_index), health 0..1 and whether a frost bolt slows it in one
+## snapshot z, split by enemy_kind, enemy_health and enemy_slowed. The 0.99 keeps full health
+## below the next kind; a slowed enemy's z is negated and moved below zero. A half float keeps
+## health to about 0.005 up to a few dozen kinds.
+static func enemy_z(kind: int, health: float, slowed := false) -> float:
+	var z := kind + health * 0.99
+	return -z - 1.0 if slowed else z
 
 
 static func enemy_kind(z: float) -> int:
-	return floori(z)
+	return floori(_enemy_base(z))
 
 
 static func enemy_health(z: float) -> float:
-	return (z - enemy_kind(z)) / 0.99
+	return (_enemy_base(z) - enemy_kind(z)) / 0.99
+
+
+## Whether a frost bolt slows the enemy.
+static func enemy_slowed(z: float) -> bool:
+	return z < 0.0
+
+
+static func _enemy_base(z: float) -> float:
+	return -z - 1.0 if z < 0.0 else z
 
 
 ## {id: Vector3(x, y, z)} in ENTITY_BYTES each, a third of a Dictionary: the id, x and y in
@@ -277,6 +307,19 @@ func node_hit(at: Vector2, note: String) -> void:
 @rpc("authority", "reliable")
 func hit(enemy: bool, id: int, amount: int, push: Vector2) -> void:
 	hit_received.emit(enemy, id, amount, push)
+
+
+## A countdown (Status) of the receiving player starts: seconds of cooldown or regeneration left.
+@rpc("authority", "reliable")
+func status(kind: int, seconds: float) -> void:
+	status_received.emit(kind, seconds)
+
+
+## An ability's effect in view: a ward of that radius standing for seconds, or a shockwave
+## (AbilityDef.Kind) bursting out.
+@rpc("authority", "reliable")
+func effect(kind: int, at: Vector2, radius: float, seconds: float) -> void:
+	effect_received.emit(kind, at, radius, seconds)
 
 
 ## An enemy in view started an attack that lands in seconds: the telegraph to dash from. It

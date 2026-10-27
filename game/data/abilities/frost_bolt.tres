@@ -1,0 +1,15 @@
+[gd_resource type="Resource" script_class="AbilityDef" format=3]
+
+[ext_resource type="Script" path="res://scripts/content/ability_def.gd" id="1"]
+
+[resource]
+script = ExtResource("1")
+display_name = "Frost bolt"
+kind = 0
+cooldown = 8.0
+stamina_cost = 15.0
+damage = 14.0
+speed = 300.0
+range = 260.0
+slow = 0.45
+slow_time = 3.5

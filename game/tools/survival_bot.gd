@@ -22,6 +22,11 @@ const EAT_BELOW := 0.5
 const FOOD_STOCK := 40.0
 ## Berries beyond this are made into trail rations.
 const SPARE_BERRIES := 12
+## Berries it stews at a fire from this many on, and the draughts it keeps in stock.
+const STEW_BERRIES := 8
+const DRAUGHT_STOCK := 2
+## Drinks a draught below this share of max health.
+const DRINK_BELOW := 0.5
 ## Retreats below RETREAT_BELOW of max health, until back over RETREAT_UNTIL: backs off from
 ## enemies closer than SAFE, gets on with other things further away and only fights what
 ## comes within CORNERED.
@@ -50,6 +55,7 @@ var damage_day := 0.0
 var damage_night := 0.0
 var hits_taken := 0
 var dodged := 0
+var drunk := 0
 var kills := 0
 var starving := 0.0
 var food_eaten := 0.0
@@ -130,6 +136,8 @@ func act(delta: float) -> void:
 		_spend("fight", delta)
 		return
 	_eat()
+	if me.health < me.max_health() * DRINK_BELOW and world.use_draught(id):
+		drunk += 1
 	var health := me.health / me.max_health()
 	if retreats and health < RETREAT_BELOW:
 		_retreating = true
@@ -226,7 +234,7 @@ func _eat() -> void:
 	if index == -1:
 		return
 	var food := Content.item(me.inventory.slots[index].item).food
-	if me.eat(index):
+	if world.eat(id, index):
 		food_eaten += food
 
 
@@ -269,6 +277,12 @@ func _craft(delta: float) -> bool:
 	var wanted := _wanted_tools() + _wanted_gear()
 	if player().inventory.count_of(&"berries") >= SPARE_BERRIES:
 		wanted.append(&"trail_ration")
+	if player().inventory.count_of(&"healing_draught") < DRAUGHT_STOCK:
+		wanted.append(&"healing_draught")
+	if player().inventory.count_of(&"berries") >= STEW_BERRIES:
+		wanted.append(&"stewed_berries")
+	if player().inventory.count_of(&"meat") > 0:
+		wanted.append(&"cooked_meat")
 	for item in wanted:
 		var recipe: RecipeDef = Content.recipes[item]
 		match Crafting.status(
