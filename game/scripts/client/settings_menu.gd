@@ -1,7 +1,8 @@
 class_name SettingsMenu
 extends CanvasLayer
-## Volume, fullscreen and the controls (Settings.ACTIONS: click one, press its new key), saved
-## as they change. Used by the start menu and the escape menu; close() ends it and emits closed.
+## Volume, fullscreen, the HUD's key panel and the controls (Settings.ACTIONS: click one, press
+## its new key), saved as they change. Used by the start menu and the escape menu; close() ends
+## it and emits closed.
 
 signal closed
 
@@ -47,6 +48,15 @@ func _ready() -> void:
 			Settings.save_file()
 	)
 	box.add_child(_row("Fullscreen (F11)", fullscreen))
+	var key_panel := CheckBox.new()
+	key_panel.button_pressed = Settings.key_panel
+	key_panel.toggled.connect(
+		func(on: bool) -> void:
+			Settings.key_panel = on
+			Settings.apply()
+			Settings.save_file()
+	)
+	box.add_child(_row("Key panel", key_panel))
 	box.add_child(_label("Controls", 8))
 	for action: StringName in Settings.ACTIONS:
 		var button := Button.new()

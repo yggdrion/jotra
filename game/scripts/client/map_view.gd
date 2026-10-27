@@ -1,7 +1,7 @@
 class_name MapView
 extends CanvasLayer
-## The map of the chunks this player has been near: a minimap above the key hint in the
-## bottom-right corner and, toggled with M, a big one over the whole screen. Terrain is painted
+## The map of the chunks this player has been near: a minimap in the bottom-right
+## corner and, toggled with M, a big one over the whole screen. Terrain is painted
 ## from the world seed like the chunks themselves; dots mark us, the other players and the
 ## barrow. The explored chunks are kept per world seed in `dir`.
 
@@ -34,8 +34,6 @@ func _ready() -> void:
 	_mini.set_anchors_and_offsets_preset(
 		Control.PRESET_BOTTOM_RIGHT, Control.PRESET_MODE_KEEP_SIZE, MARGIN
 	)
-	_mini.offset_top -= 14
-	_mini.offset_bottom -= 14
 	_mini.clip_contents = true
 	_big.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_big.visible = false

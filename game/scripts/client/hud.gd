@@ -2,10 +2,11 @@ class_name Hud
 extends CanvasLayer
 ## Health, stamina and hunger bars in the bottom-left corner with the day above them, "You
 ## died" in the middle while dead, announcements like nightfall at the top, a prompt for what
-## the player can do right here above the bottom edge, and the inventory key in the
-## bottom-right corner, the room code friends join with in the top-right one when hosting,
-## the dungeon buffs held in the top-left one and a boss's name and health bar at the top
-## while one is in view. The minimap sits above the key hint.
+## the player can do right here above the bottom edge, the key panel (the main actions and
+## their current keys, KeyHint.PANEL) above the day unless turned off in the settings, the
+## room code friends join with in the top-right corner when hosting, the dungeon buffs held
+## in the top-left one and a boss's name and health bar at the top while one is in view. The
+## minimap sits in the bottom-right corner.
 ## A red edge closes in on the screen's border when health is low, and flashes when hit.
 ## Anchored to the screen, as the visible area differs per player
 ## (PLAN §6).
@@ -22,7 +23,9 @@ const ANNOUNCE_TIME := 3.0
 var _bars := Control.new()
 var _died := Label.new()
 var _prompt := Label.new()
-var _keys := Label.new()
+var _keys := GridContainer.new()
+## Settings.changes when the key panel was last filled.
+var _keys_seen := -1
 var _clock := Label.new()
 var _announce := Label.new()
 var _room := Label.new()
@@ -70,7 +73,7 @@ func _ready() -> void:
 	_died.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_died.visible = false
 	add_child(_died)
-	for label: Label in [_prompt, _keys, _clock, _announce, _room, _boss, _status]:
+	for label: Label in [_prompt, _clock, _announce, _room, _boss, _status]:
 		label.add_theme_font_size_override("font_size", 8)
 		label.add_theme_constant_override("outline_size", 2)
 		label.add_theme_color_override("font_outline_color", Color.BLACK)
@@ -86,18 +89,21 @@ func _ready() -> void:
 	_status.grow_horizontal = Control.GROW_DIRECTION_BOTH
 	_status.offset_top = -24
 	_status.offset_bottom = -12
-	_keys.text = "[Tab] Inventory and crafting  [M] Map"
-	_keys.modulate = Color(1, 1, 1, 0.6)
-	_keys.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	_keys.set_anchors_and_offsets_preset(
-		Control.PRESET_BOTTOM_RIGHT, Control.PRESET_MODE_MINSIZE, MARGIN
-	)
-	_keys.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_keys.grow_vertical = Control.GROW_DIRECTION_BEGIN
 	_clock.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
 	_clock.offset_left = MARGIN
 	_clock.offset_bottom = -MARGIN - _bars.size.y - 1
 	_clock.offset_top = _clock.offset_bottom - 12
+	_keys.columns = 2
+	_keys.add_theme_constant_override("h_separation", 4)
+	_keys.add_theme_constant_override("v_separation", -3)
+	_keys.modulate = Color(1, 1, 1, 0.7)
+	_keys.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_keys.set_anchors_and_offsets_preset(Control.PRESET_BOTTOM_LEFT)
+	_keys.grow_vertical = Control.GROW_DIRECTION_BEGIN
+	_keys.offset_left = MARGIN
+	_keys.offset_bottom = _clock.offset_top - 2
+	_keys.offset_top = _keys.offset_bottom
+	add_child(_keys)
 	_announce.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_announce.set_anchors_and_offsets_preset(Control.PRESET_CENTER_TOP)
 	_announce.grow_horizontal = Control.GROW_DIRECTION_BOTH
@@ -145,12 +151,43 @@ func hurt() -> void:
 
 
 func _process(delta: float) -> void:
+	if _keys_seen != Settings.changes:
+		_keys_seen = Settings.changes
+		_fill_keys()
 	_hurt = move_toward(_hurt, 0.0, delta * 3.0)
 	var beat := 0.8 + 0.2 * sin(Time.get_ticks_msec() / 160.0)
 	_vignette.modulate.a = maxf(_low * beat, _hurt * 0.7)
 
 
-## What the player can do here, e.g. "[E] Fell tree"; "" hides it.
+## The key panel anew from the InputMap, or hidden if turned off.
+func _fill_keys() -> void:
+	_keys.visible = Settings.key_panel
+	for child in _keys.get_children():
+		_keys.remove_child(child)
+		child.queue_free()
+	for row: Array in KeyHint.panel_rows():
+		for cell: int in 2:
+			var label := Label.new()
+			label.text = row[cell]
+			label.add_theme_font_size_override("font_size", 8)
+			label.add_theme_constant_override("outline_size", 2)
+			label.add_theme_color_override("font_outline_color", Color.BLACK)
+			if cell == 0:
+				label.modulate = STAMINA_COLOR
+				label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
+			label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_keys.add_child(label)
+
+
+## The key panel's text, for tests.
+func key_panel_text() -> String:
+	var cells := PackedStringArray()
+	for child: Label in _keys.get_children():
+		cells.append(child.text)
+	return " ".join(cells) if _keys.visible else ""
+
+
+## What the player can do here, e.g. "[E] Pick up stick"; "" hides it.
 func show_prompt(text: String) -> void:
 	_prompt.text = text
 	_prompt.visible = text != ""

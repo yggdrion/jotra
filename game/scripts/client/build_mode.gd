@@ -89,11 +89,12 @@ func prompt(inventory: Inventory) -> String:
 		costs.append("%d %s (%d)" % [def.cost[item], name, inventory.count_of(item)])
 	var reason: String = REASONS[status]
 	return (
-		"%s: %s%s   [LMB] build  [RMB] remove  [1-%d] hotbar  [B] done"
+		"%s: %s%s   [LMB] build  [RMB] remove  [1-%d] hotbar  %s done"
 		% [
 			def.display_name,
 			", ".join(costs),
 			"  - " + reason if reason != "" else "",
 			BuildMenu.HOTBAR,
+			KeyHint.tag(&"build"),
 		]
 	)

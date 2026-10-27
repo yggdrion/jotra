@@ -450,22 +450,24 @@ func _on_buffs(data: Dictionary) -> void:
 	_hud.show_buffs(lines)
 
 
-## The prompt for the entrance, or in a run for its end chest or way out, when we stand at
-## one; "" when not. E sends interact only for one starting with "[E]": a chest an enemy is
-## near says so instead, as the server would refuse it.
-func _interaction() -> String:
+## The entrance, or in a run its end chest or way out, when we stand at one: [what interact
+## does there, "" if nothing, and whether interact may be sent]. A chest an enemy is near says
+## so but may not, as the server would refuse it.
+func _interaction() -> Array:
 	var reach := Content.tuning.portal_reach
 	if _area.is_empty():
 		var near := _me.position.distance_to(Content.tuning.dungeon_entrance) <= reach
-		return "[E] Enter the barrow" if near else ""
+		return ["Enter the barrow", true] if near else ["", false]
 	if _me.position.distance_to(_chest) <= reach and not _chest_opened:
 		var enemies: Array[Vector2] = []
 		for view: EnemyView in _enemy_views.values():
 			enemies.append(view.position)
 		if Dungeon.locked(_chest, enemies):
-			return "Clear the chamber to open the chest"
-		return "[E] Open the chest"
-	return "[E] Leave with your loot" if _me.position.distance_to(_exit) <= reach else ""
+			return ["Clear the chamber to open the chest", false]
+		return ["Open the chest", true]
+	if _me.position.distance_to(_exit) <= reach:
+		return ["Leave with your loot", true]
+	return ["", false]
 
 
 ## pieces: [index in chunk, Building.to_net...] each.
@@ -576,7 +578,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			net.use_piece.rpc_id(1, _use_tile)
 		elif not _target.is_empty():
 			net.remove_prop.rpc_id(1, _target[0], _target[1])
-		elif _interaction().begins_with("[E]"):
+		elif _interaction()[1]:
 			net.interact.rpc_id(1)
 		elif not _inventory_ui.stations.is_empty():
 			_craft_menu.toggle()
@@ -730,13 +732,15 @@ func _update_target() -> void:
 		if not best.is_empty():
 			_chunks[best[0]].highlight(best[1], true)
 	var prompt := ""
+	var use := KeyHint.tag(&"interact")
 	var food := _inventory.first_food()
 	var hungry := _hunger < Content.tuning.max_hunger * HUNGRY
 	if _health <= 0:
 		prompt = ""
 	elif hungry and food != -1:
 		var meal := Content.item(_inventory.slots[food].item).display_name
-		prompt = "%s: [F] Eat %s" % ["Starving" if _hunger <= 0 else "Hungry", meal.to_lower()]
+		var hunger := "Starving" if _hunger <= 0 else "Hungry"
+		prompt = "%s: %s Eat %s" % [hunger, KeyHint.tag(&"eat"), meal.to_lower()]
 	elif _hunger <= 0:
 		prompt = "Starving: fell trees for berries"
 	elif _build.visible:
@@ -746,15 +750,16 @@ func _update_target() -> void:
 		var verb := "Open"
 		if piece.def().door and piece.open:
 			verb = "Close"
-		prompt = "[E] %s %s" % [verb, piece.def().display_name.to_lower()]
+		prompt = "%s %s %s" % [use, verb, piece.def().display_name.to_lower()]
 	elif not _target.is_empty():
 		var stick: bool = _chunks[_target[0]].kind_of(_target[1]) == WorldGen.Prop.STICK
-		prompt = "[E] Pick up stick" if stick else "[E] Pick up pebble"
-	elif _interaction() != "":
-		prompt = _interaction()
+		prompt = "%s Pick up %s" % [use, "stick" if stick else "pebble"]
+	elif _interaction()[0] != "":
+		var here: Array = _interaction()
+		prompt = "%s %s" % [use, here[0]] if here[1] else here[0]
 	elif not _inventory_ui.stations.is_empty():
 		var station: StringName = _inventory_ui.stations.keys()[0]
-		prompt = "[E] Craft at the %s" % Content.piece(station).display_name.to_lower()
+		prompt = "%s Craft at the %s" % [use, Content.piece(station).display_name.to_lower()]
 	_hud.show_prompt(prompt)
 
 
@@ -932,14 +937,8 @@ func _status_text() -> String:
 
 
 func _timer(label: String, ready_ms: int, action: StringName, now: int) -> String:
-	var key := ""
-	for event in InputMap.action_get_events(action):
-		var pressed := event as InputEventKey
-		if pressed:
-			key = pressed.as_text_physical_keycode()
-			break
 	var wait := ceili((ready_ms - now) / 1000.0)
-	return "[%s] %s %s" % [key, label, "%ds" % wait if wait > 0 else "ready"]
+	return "%s %s %s" % [KeyHint.tag(action), label, "%ds" % wait if wait > 0 else "ready"]
 
 
 ## The dash we just made dodged a hit perfectly: a flourish and a beat of slow motion.

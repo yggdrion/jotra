@@ -20,6 +20,7 @@ var _search := LineEdit.new()
 var _recipes := {}
 ## {category: its heading Label}
 var _headings := {}
+var _close_hint: Label
 var _statuses := {}
 
 
@@ -68,12 +69,14 @@ func _ready() -> void:
 			_headings[recipe.category] = _label(recipe.category, HEADING)
 			list.add_child(_headings[recipe.category])
 		list.add_child(_row(id, recipe))
-	rows.add_child(_label("E or Esc: close", Color(1, 1, 1, 0.35)))
+	_close_hint = _label("", Color(1, 1, 1, 0.35))
+	rows.add_child(_close_hint)
 
 
 func toggle() -> void:
 	visible = not visible
 	if visible:
+		_close_hint.text = "%s or Esc: close" % KeyHint.key(&"interact")
 		_search.clear()
 		_filter()
 

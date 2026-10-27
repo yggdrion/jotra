@@ -24,8 +24,9 @@ const HEADING := Color("feae34")
 const OK := Color("63c74d")
 const BAD := Color("e43b44")
 const INFO_WIDTH := 120
-const CONTROLS := "Drag: move, stack, wear   Right click: wear, take off, eat   Tab: close"
-const CHEST_CONTROLS := "Right click: put in the chest   Click the chest: take out   Tab: close"
+## The line at the bottom; %s is the inventory key.
+const CONTROLS := "Drag: move, stack, wear   Right click: wear, take off, eat   %s: close"
+const CHEST_CONTROLS := "Right click: put in the chest   Click the chest: take out   %s: close"
 const STATUS_TEXT := {
 	Crafting.Status.READY: "",
 	Crafting.Status.MISSING_ITEMS: "Missing items",
@@ -169,7 +170,7 @@ static func describe(id: StringName) -> String:
 				lines.append("Then %.1f health a second for %d s" % [def.regen, def.regen_time])
 		_ when def.heal > 0:
 			lines[0] += " potion"
-			lines.append("Heals %d health, H or right click" % def.heal)
+			lines.append("Heals %d health, %s or right click" % [def.heal, KeyHint.key(&"heal")])
 		_ when def.tool_kind != ItemDef.Tool.NONE:
 			lines[0] += " tool"
 		_:
@@ -245,9 +246,10 @@ func _ready() -> void:
 	columns.add_child(_chest_column)
 	_chest_column.visible = false
 	_chest_column.add_child(_label("Chest", HEADING))
-	_controls = _label(CONTROLS, DIM)
+	_controls = _label("", DIM)
 	_controls.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	rows.add_child(_controls)
+	_show_controls()
 	_show_info(&"")
 	_refresh()
 
@@ -338,7 +340,7 @@ func _build_crafting() -> Control:
 func show_storage(data: Dictionary) -> void:
 	var slots: Array = data.get("slots", [])
 	_chest_column.visible = not slots.is_empty()
-	_controls.text = CONTROLS if slots.is_empty() else CHEST_CONTROLS
+	_show_controls()
 	if slots.is_empty():
 		return
 	if _chest_slots.size() != slots.size():
@@ -365,7 +367,13 @@ func show_storage(data: Dictionary) -> void:
 
 func toggle() -> void:
 	visible = not visible
+	_show_controls()
 	_show_info(&"")
+
+
+func _show_controls() -> void:
+	var line := CHEST_CONTROLS if _chest_column.visible else CONTROLS
+	_controls.text = line % KeyHint.key(&"inventory")
 
 
 ## data: Inventory.to_data, from the server.

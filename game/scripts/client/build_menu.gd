@@ -36,13 +36,13 @@ static func remember(bar: Array[StringName], id: StringName, size: int) -> Array
 static func describe(def: PieceDef) -> String:
 	var facts := PackedStringArray()
 	if def.door:
-		facts.append("E opens and closes it")
+		facts.append("%s opens and closes it" % KeyHint.key(&"interact"))
 	elif def.blocks:
 		facts.append("blocks players and enemies")
 	if def.station:
 		facts.append("craft next to it")
 	if def.storage > 0:
-		facts.append("E opens its %d slots" % def.storage)
+		facts.append("%s opens its %d slots" % [KeyHint.key(&"interact"), def.storage])
 	if def.light > 0:
 		facts.append("lights the night")
 	if def.flat:
