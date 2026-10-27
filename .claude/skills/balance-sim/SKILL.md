@@ -65,6 +65,8 @@ Deaths per day (novice / average / expert): solo 3.83 / 0.22 / 0.06, groups of 2
 
 Co-op scaling sweep (groups of 4, 2 days, 6 seeds; average bot deaths/day): count/health/damage 0.5/0.15/0.1 → 0.96, 0.3/0.15/0 → 0.54, 0.3/0/0 → 0.58, 0.15/0.3/0 → 0.71. Damage scaling was what hurt groups most.
 
+M17 (2026-10-27, healing + magic; solo, 6 seeds, 3 days, novice / average / expert deaths per day): main before 3.72 / 0.33 / 0.50, after 3.56 / 0.50 / 0.50, within noise. Night damage per minute 107 / 30 / 40 before, 106 / 35 / 43 after. The bots craft and drink healing draughts (only from bones beyond what gear needs) and cook meat at a fire when wolves drop it; they use no rune abilities. A bot that stewed berries at a fire made things clearly worse (novice 5.7 deaths a day, foraging 42% of play), so the bots leave stewing out. Groups were not rerun.
+
 ## Dungeon runs (`--dungeon`)
 
 `python tools/balance_sim.py --dungeon [--quick] [--players 1]` puts `DelveBot`s (`game/tools/delve_bot.gd`, a `SurvivalBot` that dodges the same way) at the barrow with one of three gear tiers and 5 trail rations, and they take one run together: fight what comes within 220 px, walk over buff orbs, follow the corridors, open the end chest, leave. They never back off inside (nothing heals but a cleared room). A run ends when a bot walks out or dies; 20 minutes counts as stuck. Tiers: `fresh` (nothing), `crafted` (club, cloth tunic), `best` (bone sword, bone armor). `--quick` is 8 seeds (~1 min per group size), the default 20.

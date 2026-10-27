@@ -66,7 +66,7 @@ enum Status { DRAUGHT, ABILITY, REGEN }
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 16
+const PROTOCOL_VERSION := 17
 const ENTITY_BYTES := 10
 
 @rpc("any_peer", "reliable")

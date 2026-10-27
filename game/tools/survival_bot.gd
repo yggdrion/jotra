@@ -22,8 +22,7 @@ const EAT_BELOW := 0.5
 const FOOD_STOCK := 40.0
 ## Berries beyond this are made into trail rations.
 const SPARE_BERRIES := 12
-## Berries it stews at a fire from this many on, and the draughts it keeps in stock.
-const STEW_BERRIES := 8
+## The draughts it keeps in stock, and the bones it leaves for gear.
 const DRAUGHT_STOCK := 2
 const SPARE_BONES := 14
 ## Drinks a draught below this share of max health.
@@ -284,8 +283,6 @@ func _craft(delta: float) -> bool:
 		and player().inventory.count_of(&"bone") > SPARE_BONES
 	):
 		wanted.append(&"healing_draught")
-	if player().inventory.count_of(&"berries") >= STEW_BERRIES:
-		wanted.append(&"stewed_berries")
 	if player().inventory.count_of(&"meat") > 0:
 		wanted.append(&"cooked_meat")
 	for item in wanted:
