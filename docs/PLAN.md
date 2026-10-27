@@ -40,7 +40,7 @@ This file is the single source of truth for scope, design and architecture. Buil
 
 ## 3. Open questions
 
-1. Survival details: which stats beyond health/stamina/hunger (temperature, rest, weather)? How punishing is death in the overworld (Valheim-style corpse run?)
+1. Survival details: which stats beyond health/stamina/hunger (temperature, rest, weather)? ~~How punishing is death in the overworld~~ Settled 2026-10-27: a corpse run (M18)
 2. ~~Combat details: weapon types, ability slots, how gear grants abilities~~ Settled in M17: a worn rune (a third equipment slot, `ItemDef.Slot.RUNE`) grants one ability on Q, see 5.2. Weapon types beyond sword/club/bow are still open
 3. Buff list: the first 15 buffs and 4 synergies are in `game/data/buffs/` and `game/data/synergies/` (M7); which ones are fun, and synergies beyond simple stat bonuses, are open
 4. Relics: can any dungeon buff leave as a weakened permanent "relic" with limited slots?
@@ -277,10 +277,12 @@ Each milestone ends with its checks green in CI and a short playtest, then a rel
 | M15 | **Ranged combat** | A sim projectile entity sent in snapshots, shared by players and enemies; bow with arrows as ammo, hold to draw, aimed at the mouse | Done | v0.18.0 |
 | M16 | **More enemies** | Draugr archer (telegraphed arrow line), wolf packs (lunge, drop meat and hide), shield draugr (blocks from the front), a swarm or exploder; AI variants as a behavior in `sim_enemy.gd`, spawn mix per day and night | Done | v0.21.0 |
 | M17 | **Healing + magic** | Cooked food at the fire regenerates health; a healing draught with a cooldown; a worn rune grants one gear ability on Q (frost bolt, healing ward, shockwave), settling open question 2 | Done | v0.22.0 |
+| M17a | **Combat + bot leftovers** | Arrows wear poise and push like a light swing; lifesteal, bleed and kill buffs apply to arrow and ability hits; magic (frost bolt, shockwave) goes through a shield, arrows stay blocked; snapshots carry an enemy's `facing` and the client draws the shield arc from it; an exploder killed in its windup still detonates; bots use their rune ability and the draught, dodge inside the perfect window and stew berries without foraging far more (cause found); `balance_sim.py` (solo, groups, `--dungeon`) rerun with groups of 4 dying ≤ ~3× solo | Next | |
+| M18 | **Death + base** | Overworld death drops the inventory (not equipment) as a saved grave at the death spot that its owner loots with E, marked on screen until looted; a bed piece sets its owner's respawn point (saved with the player); enemies path around blocking pieces to reach a player and siege only when no way is open; a key panel in a screen corner always shows the current bindings of the main actions, and every on-screen key hint reads the InputMap, so rebinds show everywhere | Planned | |
 
 Dedicated (M1) comes before player host (M6) because it is almost free once solo works. It runs locally only; hosting it publicly (M10) was dropped.
 
-**Ideas not yet scheduled (2026-10-27 playtest):** overworld death rule (corpse run, open question 1), bed as respawn point, enemy pathing around walls, biome 2 with its boss gate, animals and a cooking station, map markers, first-minute tutorial prompts (dodge, eat, build), the final art pass (open question 6) before content grows much further.
+**Ideas not yet scheduled (2026-10-27 playtest):** biome 2 with its boss gate, more animals, map markers, first-minute tutorial prompts (dodge, eat, build; the M18 key panel comes first), sprites for runes, wolves and armor, the final art pass (open question 6) before content grows much further.
 
 **First prototype scope (after M9):** one biome, one dungeon type, ~15 buffs, one boss, basic building, all placeholders, 1–10 player co-op in all three modes.
 
