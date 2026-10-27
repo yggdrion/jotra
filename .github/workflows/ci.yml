@@ -10,6 +10,10 @@ on:
   push:
   workflow_dispatch:
 
+env:
+  # Tools inside the checkout, where the caches below look for them.
+  JOTRA_TOOLS: .tools
+
 jobs:
   lint:
     runs-on: ubuntu-latest

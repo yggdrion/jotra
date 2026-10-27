@@ -2,14 +2,17 @@
 
 Usage: python tools/install.py [godot|gdunit4|webrtc|bun|templates]   (default: godot)
 
-  godot      Godot from .godot-version into .tools/godot/<version>/ (gitignored), checked
+  godot      Godot from .godot-version into <TOOLS>/godot/<version>/, checked
              against tools/godot-<version>.sha512, plus webrtc. Prints the binary path.
   gdunit4    gdUnit4 into game/addons/gdUnit4 (gitignored).
   webrtc     the webrtc-native GDExtension (player host) into game/addons/webrtc_native
              (gitignored); exports ship its library next to the game.
-  bun        Bun (the lobby in lobby/) into .tools/bun/<version>/ (gitignored). Prints the path.
+  bun        Bun (the lobby in lobby/) into <TOOLS>/bun/<version>/. Prints the path.
   templates  the Linux and Windows release export templates into the directory Godot
              reads them from; only the ones we ship are extracted from the ~1.3 GB .tpz. Prints it.
+
+<TOOLS> is $JOTRA_TOOLS, else %LOCALAPPDATA%/jotra/tools (Windows) or ~/.cache/jotra/tools:
+one install shared by all checkouts, so the firewall allows each binary once per version.
 
 Logs go to stderr.
 """
@@ -37,6 +40,9 @@ BUN_SHA256 = {
     "darwin-aarch64": "c240d7f0ccb90c263a849fcdb09b7ee62630d921348ed6aafda86b9d577bc510",
     "darwin-x64": "50a3491f73abc2fe81673171a85762d3bc2cc1680ccecadd983de99adf77977e",
 }
+TOOLS = ROOT / (os.environ.get("JOTRA_TOOLS") or (
+    Path(os.environ["LOCALAPPDATA"]) if platform.system() == "Windows"
+    else Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")) / "jotra" / "tools")
 TEMPLATES = ["version.txt", "linux_release.x86_64", "windows_release_x86_64.exe"]
 
 
@@ -53,7 +59,7 @@ def godot():
     else:
         fail(f"Unsupported platform: {system} {machine}")
 
-    dest = ROOT / ".tools" / "godot" / VERSION
+    dest = TOOLS / "godot" / VERSION
     path = dest / binary
     if path.exists():
         return path
@@ -119,7 +125,7 @@ def bun():
     target = {"Windows": "windows", "Darwin": "darwin", "Linux": "linux"}.get(system, "") + f"-{arch}"
     if target not in BUN_SHA256:
         fail(f"Unsupported platform for bun: {system} {machine}")
-    dest = ROOT / ".tools" / "bun" / BUN_VERSION
+    dest = TOOLS / "bun" / BUN_VERSION
     path = dest / ("bun.exe" if system == "Windows" else "bun")
     if path.exists():
         return path

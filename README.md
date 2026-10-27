@@ -10,7 +10,7 @@ Needs Python 3.12+ and git. Safe to re-run:
     python tools/setup.py
 
 Installs gdtoolkit and pre-commit, the pinned Godot (`.godot-version`, checked against
-`tools/godot-<version>.sha512`, into `.tools/`), the webrtc-native GDExtension, gdUnit4, the
+`tools/godot-<version>.sha512`, into a per-user dir shared by all checkouts, see `tools/install.py`), the webrtc-native GDExtension, gdUnit4, the
 pinned Bun (for the lobby) and the pre-push hook.
 
 ## Run
@@ -83,7 +83,7 @@ Prometheus metrics (`jotra_*`: players, enemies, drops, tick time, bandwidth, lo
 `lobby/` is the Bun lobby that hands out room codes and relays WebRTC signaling; it never sees
 gameplay. Locally:
 
-    .tools/bun/1.4.4/bun lobby/src/server.ts                       # PORT=8080 by default
+    "$(python tools/install.py bun)" lobby/src/server.ts           # PORT=8080 by default
     python tools/godot.py --path game -- --host --lobby=ws://127.0.0.1:8080/ws
 
 Friends on the same network join with `-- --join=CODE --lobby=ws://<host's ip>:8080/ws`.
