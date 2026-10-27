@@ -1,8 +1,10 @@
 class_name BuildMenu
 extends CanvasLayer
-## The piece picker shown in build mode: every piece under its category heading with what it costs
+## The piece picker shown in build mode, a column at the top right (clear of the player, the
+## tiles in reach and the minimap): every piece under its category heading with what it costs
 ## against what the player has, an info line on the one the mouse is over, and a hotbar of the
-## recent pieces (1-6). A click only says picked; BuildMode owns the choice.
+## recent pieces (1-6). A click only says picked; BuildMode owns the choice. Its buttons never
+## take the keyboard focus, so keys still move the player and pick hotbar slots.
 
 signal picked(id: StringName)
 
@@ -11,7 +13,8 @@ const FONT_SIZE := 8
 const HEADING := Color("feae34")
 const OK := Color("63c74d")
 const BAD := Color("e43b44")
-const BOTTOM := 48
+const MARGIN := 6
+const ROW := 16
 
 ## The hotbar, newest first.
 var recent: Array[StringName] = []
@@ -60,26 +63,27 @@ func _ready() -> void:
 	theme.set_constant("icon_max_width", "Button", 16)
 	var panel := _panel
 	panel.theme = theme
-	panel.set_anchors_and_offsets_preset(Control.PRESET_CENTER_BOTTOM, Control.PRESET_MODE_MINSIZE)
-	panel.grow_horizontal = Control.GROW_DIRECTION_BOTH
-	panel.grow_vertical = Control.GROW_DIRECTION_BEGIN
-	panel.offset_bottom = -BOTTOM
+	panel.set_anchors_and_offsets_preset(
+		Control.PRESET_TOP_RIGHT, Control.PRESET_MODE_MINSIZE, MARGIN
+	)
+	panel.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 	add_child(panel)
 	var rows := VBoxContainer.new()
 	panel.add_child(rows)
 	rows.add_child(_hotbar)
-	var columns := HBoxContainer.new()
-	columns.add_theme_constant_override("separation", 12)
+	var columns := VBoxContainer.new()
+	columns.add_theme_constant_override("separation", 4)
 	rows.add_child(columns)
 	var by_category := {}
 	for id in Content.piece_ids:
 		var category: String = Content.piece(id).category
 		if not by_category.has(category):
 			by_category[category] = VBoxContainer.new()
+			by_category[category].add_theme_constant_override("separation", 2)
 			columns.add_child(by_category[category])
 			by_category[category].add_child(_label(category, HEADING))
 		by_category[category].add_child(_row(id))
-	_info.custom_minimum_size.x = 260
+	_info.custom_minimum_size.x = 150
 	_info.autowrap_mode = TextServer.AUTOWRAP_WORD
 	rows.add_child(_info)
 	_show_recent()
@@ -119,8 +123,11 @@ func _row(id: StringName) -> Control:
 	var button := Button.new()
 	button.text = def.display_name
 	button.icon = def.icon
-	button.custom_minimum_size.x = 80
+	# Icons fit the row, however tall the sprite.
+	button.expand_icon = true
+	button.custom_minimum_size = Vector2(80, ROW)
 	button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+	button.focus_mode = Control.FOCUS_NONE
 	button.pressed.connect(func() -> void: picked.emit(id))
 	button.mouse_entered.connect(func() -> void: _info.text = describe(def))
 	row.add_child(button)
@@ -138,9 +145,12 @@ func _show_recent() -> void:
 		var id := recent[i]
 		var button := Button.new()
 		button.toggle_mode = true
+		button.focus_mode = Control.FOCUS_NONE
 		button.button_pressed = id == selected
 		button.text = str(i + 1)
 		button.icon = Content.piece(id).icon
+		button.expand_icon = true
+		button.custom_minimum_size = Vector2(28, ROW)
 		button.pressed.connect(func() -> void: picked.emit(id))
 		_hotbar.add_child(button)
 
