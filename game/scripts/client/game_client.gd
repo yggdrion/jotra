@@ -1164,6 +1164,7 @@ func _process(delta: float) -> void:
 		_craft_menu.toggle()
 	# Building puts the weapon away, so the menu and the ghost have the player's attention.
 	_me.holding = not _build.visible
+	_me.aim = _aim()
 	if _build.visible:
 		var bodies: Array[Vector2] = [_me.position]
 		for view: Node2D in _views.values() + _enemy_views.values():

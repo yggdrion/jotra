@@ -63,6 +63,9 @@ var pose_offset := Vector2.ZERO
 var pose_rot := 0.0
 var pose_scale := Vector2.ONE
 var pose_alpha := 1.0
+## Where this one looks between swings (the own player: toward the mouse); zero looks along
+## the walking direction.
+var aim := Vector2.ZERO
 
 var _flash_until := 0
 var _hurt_until := 0
@@ -151,7 +154,10 @@ func _process(delta: float) -> void:
 	_last_position = position
 	if moved.length() > 0.01:
 		_walk_until = now + WALK_GRACE_MS
-		if swing_progress() < 0.0:
+	if swing_progress() < 0.0:
+		if aim != Vector2.ZERO:
+			_face(aim)
+		elif moved.length() > 0.01:
 			_face(moved)
 	if moved.length() > DASH_SPEED * delta and delta > 0.0 and now - _ghost_at >= GHOST_EVERY_MS:
 		_ghost_at = now
@@ -219,7 +225,8 @@ func _draw_weapon() -> void:
 	if def == null or def.icon == null or (p < 0.0 and not holding):
 		return
 	var center := Vector2(0, -RADIUS) + pose_offset
-	var angle := _swing_aim.angle() if p >= 0.0 else _facing_vector().angle() + 0.9
+	var idle := aim if aim != Vector2.ZERO else _facing_vector()
+	var angle := _swing_aim.angle() if p >= 0.0 else idle.angle() + 0.9
 	if p >= 0.0:
 		angle += _sweep(p)
 		_draw_smear(center, p)
