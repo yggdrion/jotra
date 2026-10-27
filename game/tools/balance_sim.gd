@@ -8,11 +8,12 @@ extends SceneTree
 ## Prints one "RUN key=value ..." line per bot and run. With --dungeon, DelveBots take one
 ## dungeon run together instead, per skill, gear tier and seed, and print "DELVE ..." lines.
 
-## Bot skill levels: chance to dodge a telegraphed hit, and whether it backs off to heal.
+## Bot skill levels: chance to dodge a telegraphed hit, the share of those dodges timed inside
+## the perfect window, and whether it backs off to heal.
 const SKILLS := {
-	novice = {dodge = 0.2, retreats = false},
-	average = {dodge = 0.5, retreats = true},
-	expert = {dodge = 0.85, retreats = true},
+	novice = {dodge = 0.2, perfect = 0.0, retreats = false},
+	average = {dodge = 0.5, perfect = 0.25, retreats = true},
+	expert = {dodge = 0.85, perfect = 0.6, retreats = true},
 }
 const TICK := 1.0 / 30
 const ACTIVITIES := ["fight", "forage", "gather", "craft", "retreat", "grave", "wander", "dead"]
@@ -22,6 +23,8 @@ const TIERS := {
 	crafted = [&"club", &"cloth_tunic"],
 	best = [&"bone_sword", &"bone_armor"],
 }
+## Runes the best-geared DelveBots wear, one each in turn by seed and player.
+const RUNES: Array[StringName] = [&"frost_rune", &"ward_rune", &"shock_rune"]
 ## Trail rations each DelveBot brings.
 const RATIONS := 5
 ## A dungeon run that takes longer than this counts as stuck.
@@ -59,9 +62,10 @@ func _run(skill: String, players: int, days: float, seed_value: int) -> void:
 	for i in players:
 		world.add_player(i + 1, "bot%d" % i)
 		var bot := SurvivalBot.new(world, i + 1, seed_value * 100 + i)
-		bot.dodge = SKILLS[skill].dodge
-		bot.retreats = SKILLS[skill].retreats
+		_set_skill(bot, skill)
 		bots.append(bot)
+	for bot in bots:
+		bot.group = bots
 	var length := days * (t.day_length + t.night_length)
 	for step in roundi(length / TICK):
 		world.tick(TICK)
@@ -88,6 +92,11 @@ func _run(skill: String, players: int, days: float, seed_value: int) -> void:
 			dmg_night_min = snappedf(bot.damage_night / night_minutes, 0.1),
 			hits = bot.hits_taken,
 			dodged = bot.dodged,
+			perfect = bot.perfects,
+			drunk = bot.drunk,
+			abilities = bot.abilities,
+			stewed = bot.stewed,
+			rune = _rune(bot),
 			starving = snappedf(bot.starving, 1),
 			food_eaten = snappedf(bot.food_eaten, 1),
 			lowest_health = snappedf(bot.lowest_health, 0.01),
@@ -114,15 +123,19 @@ func _delve(skill: String, tier: String, players: int, seed_value: int) -> void:
 	for i in players:
 		var player := world.add_player(i + 1, "bot%d" % i)
 		player.position = Content.tuning.dungeon_entrance + Vector2(i * 4, 0)
-		for item: StringName in TIERS[tier]:
+		var gear: Array = TIERS[tier].duplicate()
+		if tier == "best":
+			gear.append(RUNES[(seed_value + i) % RUNES.size()])
+		for item: StringName in gear:
 			player.inventory.add(item, 1)
 			player.equip(player.inventory.slots.find({item = item, count = 1}))
 		player.health = player.max_health()
 		player.inventory.add(&"trail_ration", RATIONS)
 		var bot := DelveBot.new(world, i + 1, seed_value * 100 + i)
-		bot.dodge = SKILLS[skill].dodge
-		bot.retreats = SKILLS[skill].retreats
+		_set_skill(bot, skill)
 		bots.append(bot)
+	for bot in bots:
+		bot.group = bots
 	var steps := 0
 	while (
 		steps < roundi(DELVE_LIMIT / TICK)
@@ -156,8 +169,23 @@ func _delve(skill: String, tier: String, players: int, seed_value: int) -> void:
 			lowest_health = snappedf(bot.lowest_health, 0.01),
 			hits = bot.hits_taken,
 			dodged = bot.dodged,
+			perfect = bot.perfects,
+			drunk = bot.drunk,
+			abilities = bot.abilities,
 		}
 		var line := PackedStringArray()
 		for key: String in fields:
 			line.append("%s=%s" % [key, fields[key]])
 		print("DELVE " + " ".join(line))
+
+
+func _set_skill(bot: SurvivalBot, skill: String) -> void:
+	bot.dodge = SKILLS[skill].dodge
+	bot.perfect = SKILLS[skill].perfect
+	bot.retreats = SKILLS[skill].retreats
+
+
+## The rune it wears at the end, or none.
+func _rune(bot: SurvivalBot) -> StringName:
+	var rune: StringName = bot.player().inventory.equipment[ItemDef.Slot.RUNE]
+	return rune if rune != &"" else &"none"

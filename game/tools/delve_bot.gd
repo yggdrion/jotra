@@ -1,9 +1,10 @@
 class_name DelveBot
 extends SurvivalBot
 ## Plays one player through a dungeon run for the balance sim: enters at the barrow, fights
-## what comes near (dodging like SurvivalBot, but never backing off: nothing heals inside but a
-## cleared room, so a person pushes on too), walks over buff orbs it sees,
-## follows the corridors room by room, opens the end chest once the chamber is clear and leaves.
+## what comes near (dodging and using its rune and draughts like SurvivalBot, but never backing
+## off: nothing heals inside but a cleared room, so a person pushes on too), walks over buff
+## orbs it sees, follows the corridors room by room, opens the end chest once the chamber is
+## clear and leaves.
 ## Its run ends when it walks out or dies (dying puts it back at the entrance). It records how
 ## far it got.
 
@@ -50,8 +51,10 @@ func act(delta: float) -> void:
 		_spend("fight", delta)
 		return
 	_eat()
+	_drink()
 	var enemy := _nearest_enemy()
 	var distance := enemy.position.distance_to(me.position) if enemy else INF
+	_use_ability(enemy, distance)
 	if distance <= DELVE_ENGAGE:
 		_spend("fight", delta)
 		_fight(enemy, delta)

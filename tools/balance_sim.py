@@ -135,6 +135,15 @@ def died_deepest(rows):
     return f"{statistics.median(deaths):.0f}" if deaths else "-"
 
 
+def perfect_share(rows):
+    dodged = sum(r["dodged"] for r in rows)
+    return f"{100 * sum(r['perfect'] for r in rows) / dodged:.0f}%" if dodged else "-"
+
+
+def rune_share(rows):
+    return f"{100 * sum(r['rune'] != 'none' for r in rows) / len(rows):.0f}%"
+
+
 if args.dungeon:
     print(f"Dungeon runs, {seeds} seeds per skill and tier; per bot")
     for tier in TIERS:
@@ -149,6 +158,9 @@ if args.dungeon:
             ("died in room", died_deepest),
             ("clear min", cleared_minutes),
             ("buffs", lambda rows: f"{mean(rows, 'buffs'):.1f}"),
+            ("perfect/dodge", perfect_share),
+            ("draughts", lambda rows: f"{mean(rows, 'drunk'):.1f}"),
+            ("abilities", lambda rows: f"{mean(rows, 'abilities'):.1f}"),
             ("kills", lambda rows: f"{mean(rows, 'kills'):.1f}"),
             ("lowest hp", lambda rows: f"{100 * mean(rows, 'lowest_health'):.0f}%"),
         ], [r for r in runs if r["tier"] == tier])
@@ -170,6 +182,15 @@ show("Danger", [
 show("Hunger", [
     ("starving s/day", per_day("starving")),
     ("eaten/day", per_day("food_eaten")),
+])
+show("Tools (per day; rune: bots wearing one at the end)", [
+    ("dodges", per_day("dodged")),
+    ("perfect", per_day("perfect")),
+    ("perfect/dodge", perfect_share),
+    ("draughts", per_day("drunk")),
+    ("abilities", per_day("abilities")),
+    ("rune", rune_share),
+    ("stewed", per_day("stewed")),
 ])
 show("Time spent (% of play)", [
     (a, lambda rows, a=a: f"{100 * sum(r['t_' + a] for r in rows) / sum(sum(r['t_' + x] for x in ACTIVITIES) for r in rows):.0f}%")
