@@ -204,7 +204,7 @@ func test_a_melee_sweep_hits_the_cone_aimed_at_windup_start() -> void:
 	var world := _world()
 	var def: EnemyDef = Content.enemies[&"draugr"]
 	assert_float(def.sweep_arc).is_greater(0.0)
-	world.add_player(2, "p2").position = Vector2(4, 18)  # in front, to the side: in the cone
+	world.add_player(2, "p2").position = Vector2(6, 10)  # in front, to the side: in the cone
 	world.add_player(3, "p3").position = Vector2(20, -24)  # beside it: out of the cone
 	var enemy := world.add_enemy(Vector2(20, 0), 1000, 30, def)
 	enemy.provoke(1)

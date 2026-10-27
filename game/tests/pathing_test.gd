@@ -86,9 +86,12 @@ func test_walled_in_gets_sieged() -> void:
 		full += pieces[tile].def().health
 		health += world.pieces[tile].health if world.pieces.has(tile) else 0.0
 	assert_float(health).is_less(full)
+	# Through the broken wall it gets at the player (a killing hit respawns it at full health).
+	var lowest := player.health
 	for i in 300:
 		world.tick(TICK)
-	assert_float(player.health).is_less(player.max_health())
+		lowest = minf(lowest, player.health)
+	assert_float(lowest).is_less(player.max_health())
 
 
 func test_path_searches_share_a_tick_budget() -> void:
