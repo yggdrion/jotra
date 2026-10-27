@@ -207,9 +207,9 @@ func _ready() -> void:
 		func(at: Vector2, note: String) -> void: _float_text(note, Color("c0cbdc"), at)
 	)
 	net.windup_received.connect(
-		func(id: int, seconds: float, radius: float, line: Vector2) -> void:
+		func(id: int, seconds: float, radius: float, line: Vector2, arc: float) -> void:
 			if _enemy_views.has(id):
-				_enemy_views[id].windup(seconds, radius, line)
+				_enemy_views[id].windup(seconds, radius, line, arc)
 				_sfx.play(&"windup")
 	)
 	net.enemy_event_received.connect(_on_enemy_event)

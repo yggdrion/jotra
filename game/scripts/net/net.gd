@@ -48,7 +48,7 @@ signal node_hit_received(at: Vector2, note: String)
 signal hit_received(enemy: bool, id: int, amount: int, push: Vector2)
 signal enemy_event_received(enemy_id: int, kind: int)
 signal perfect_received
-signal windup_received(enemy_id: int, seconds: float, radius: float, line: Vector2)
+signal windup_received(enemy_id: int, seconds: float, radius: float, line: Vector2, arc: float)
 signal status_received(kind: int, seconds: float)
 signal effect_received(kind: int, at: Vector2, radius: float, seconds: float)
 signal respawned_received(position: Vector2)
@@ -70,7 +70,7 @@ enum Status { DRAUGHT, ABILITY, REGEN }
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 18
+const PROTOCOL_VERSION := 19
 const ENTITY_BYTES := 10
 
 @rpc("any_peer", "reliable")
@@ -386,11 +386,11 @@ func effect(kind: int, at: Vector2, radius: float, seconds: float) -> void:
 
 
 ## An enemy in view started an attack that lands in seconds: the telegraph to dash from. It
-## hits everyone within radius of the enemy, or, with a line (a unit vector), the strip that
-## far along it.
+## hits everyone within radius of the enemy; with a line (a unit vector), the strip that far
+## along it, or with an arc too, the cone of arc degrees around the line (a melee sweep).
 @rpc("authority", "reliable")
-func windup(enemy_id: int, seconds: float, radius: float, line: Vector2) -> void:
-	windup_received.emit(enemy_id, seconds, radius, line)
+func windup(enemy_id: int, seconds: float, radius: float, line: Vector2, arc: float) -> void:
+	windup_received.emit(enemy_id, seconds, radius, line, arc)
 
 
 ## An enemy in view staggered (its windup is off), struck, died, gave up its chase or blocked

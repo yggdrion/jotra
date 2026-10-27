@@ -14,6 +14,7 @@ damage = 26.0
 speed = 80.0
 windup = 0.6
 windup_speed = 0.5
+sweep_arc = 120.0
 cooldown = 1.2
 recovery = 0.6
 poise = 60.0

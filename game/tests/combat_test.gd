@@ -198,3 +198,39 @@ func test_a_slam_hits_everyone_in_its_ring_but_the_dashing() -> void:
 	assert_float(world.players[2].health).is_less(health[2])
 	assert_float(world.players[3].health).is_equal(health[3])
 	assert_float(world.players[4].health).is_equal(health[4])
+
+
+func test_a_melee_sweep_hits_the_cone_aimed_at_windup_start() -> void:
+	var world := _world()
+	var def: EnemyDef = Content.enemies[&"draugr"]
+	assert_float(def.sweep_arc).is_greater(0.0)
+	world.add_player(2, "p2").position = Vector2(4, 18)  # in front, to the side: in the cone
+	world.add_player(3, "p3").position = Vector2(20, -24)  # beside it: out of the cone
+	var enemy := world.add_enemy(Vector2(20, 0), 1000, 30, def)
+	enemy.provoke(1)
+	world.tick(TICK)
+	assert_int(enemy.state).is_equal(SimEnemy.State.WINDUP)
+	var windup: Array = world.events.filter(func(e: Array) -> bool: return e[0] == "windup")[0]
+	assert_vector(windup[5]).is_equal(Vector2.LEFT)
+	assert_float(windup[6]).is_equal(def.sweep_arc)
+	var health := {}
+	for id: int in world.players:
+		health[id] = world.players[id].health
+	world.tick(def.windup + TICK)
+	assert_float(world.players[1].health).is_less(health[1])
+	assert_float(world.players[2].health).is_less(health[2])
+	assert_float(world.players[3].health).is_equal(health[3])
+
+
+func test_stepping_out_of_a_sweep_dodges_it() -> void:
+	var world := _world()
+	var def: EnemyDef = Content.enemies[&"draugr"]
+	var enemy := world.add_enemy(Vector2(20, 0), 1000, 30, def)
+	enemy.provoke(1)
+	world.tick(TICK)
+	assert_int(enemy.state).is_equal(SimEnemy.State.WINDUP)
+	var health: float = world.players[1].health
+	world.players[1].position = Vector2(20, -26)  # round to its side
+	world.tick(def.windup + TICK)
+	assert_int(enemy.state).is_equal(SimEnemy.State.RECOVER)
+	assert_float(world.players[1].health).is_equal(health)

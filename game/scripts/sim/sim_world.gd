@@ -191,7 +191,8 @@ var spawn_kind: EnemyDef
 ## What happened this tick for clients to show, drained by GameServer: ["hit", enemy: bool,
 ## id, amount, position, push: the way and px the hit shoves the one hit],
 ## ["windup", enemy id, position, seconds, radius of the area it will hit, line: the unit
-## vector of an arrow line of that length instead of the disc, zero for a disc],
+## vector of an arrow line of that length instead of the disc, zero for a disc, arc: with a line,
+## the degrees of the melee sweep cone around it, 0 for an arrow line or a disc],
 ## ["enemy", enemy id, Net.EnemyEvent, position], ["perfect", player id] for a perfectly
 ## dodged hit,
 ## ["respawn", player id, position], ["swing", player id, heavy, aim, position, weapon],

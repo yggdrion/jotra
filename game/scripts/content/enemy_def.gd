@@ -30,6 +30,10 @@ enum Behavior { MELEE, ARCHER, PACK, SHIELD, EXPLODER }
 ## escape and only a dash dodges.
 @export var windup_speed := 0.0
 @export var cooldown := 1.0
+## Above 0, the melee hit is a sweep over this many degrees (total) in front, aimed when the
+## windup starts: it hits every player in that cone within reach, and stepping out of it dodges.
+## 0 hits the target anywhere in reach.
+@export var sweep_arc := 0.0
 ## Above 0, the windup ends in a slam that hits every player this close instead of the target.
 @export var slam_radius := 0.0
 ## Gives up when its target is further than this from home, then walks back and heals

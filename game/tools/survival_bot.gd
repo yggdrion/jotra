@@ -257,7 +257,7 @@ func _plan_dash(event: Array) -> void:
 	)
 	var way := THROUGH if late else Vector2.ZERO
 	var line: Vector2 = event[5]
-	if line != Vector2.ZERO:
+	if line != Vector2.ZERO and event[6] == 0.0:
 		var enemy: SimEnemy = world.enemies[event[1]]
 		var flight := enemy.position.distance_to(player().position) / enemy.def.arrow_speed
 		at = world.time + event[3] + flight - Content.tuning.iframes / 2

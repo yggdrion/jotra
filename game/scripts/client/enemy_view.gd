@@ -35,8 +35,10 @@ var dying := false
 var _windup_start := 0
 var _windup_end := 0
 var _area := 0.0
-## The unit vector of an arrow line telegraph, zero for a disc.
+## The unit vector of an arrow line or sweep telegraph, zero for a disc.
 var _line := Vector2.ZERO
+## Degrees of the sweep cone around _line, 0 for an arrow line.
+var _arc := 0.0
 var _block_at := -1000
 var _strike_at := -1000
 var _stagger_at := -1000
@@ -47,9 +49,11 @@ var _died_at := 0
 
 
 ## An attack that lands in seconds on everything within radius of the enemy, or, with a line
-## (a unit vector), on the strip that far along it.
-func windup(seconds: float, radius: float, line := Vector2.ZERO) -> void:
+## (a unit vector), on the strip that far along it, or with an arc too, on the cone of arc
+## degrees around the line.
+func windup(seconds: float, radius: float, line := Vector2.ZERO, arc := 0.0) -> void:
 	_line = line
+	_arc = arc
 	_windup_start = Time.get_ticks_msec()
 	_windup_end = _windup_start + int(seconds * 1000)
 	_area = radius
@@ -146,7 +150,9 @@ func _draw() -> void:
 	if now < _windup_end and not dying:
 		var r := _area / scale.x
 		var p := float(now - _windup_start) / maxf(_windup_end - _windup_start, 1.0)
-		if _line != Vector2.ZERO:
+		if _arc > 0.0:
+			_draw_cone(r, p)
+		elif _line != Vector2.ZERO:
 			draw_line(Vector2.ZERO, _line * r, Color(AREA, 0.3), 3.0)
 			draw_line(Vector2.ZERO, _line * r * p, Color(AREA, 0.85), 2.0)
 		else:
@@ -159,3 +165,19 @@ func _draw() -> void:
 		var color := SHIELD.lerp(Color.WHITE, lit)
 		draw_arc(Vector2(0, -6), 12, heading - edge, heading + edge, 12, color, 2.0)
 	super()
+
+
+## The sweep telegraph: the cone filling out from the enemy as the windup runs, its edge drawn.
+func _draw_cone(r: float, p: float) -> void:
+	var half := deg_to_rad(_arc) / 2
+	var heading := _line.angle()
+	var fill := PackedVector2Array([Vector2.ZERO])
+	var edge := PackedVector2Array([Vector2.ZERO])
+	for i in 13:
+		var dir := Vector2.from_angle(heading - half + 2 * half * i / 12.0)
+		fill.append(dir * r * p)
+		edge.append(dir * r)
+	edge.append(Vector2.ZERO)
+	if p > 0.05:
+		draw_colored_polygon(fill, Color(AREA, 0.35))
+	draw_polyline(edge, Color(AREA, 0.85), 1.0)

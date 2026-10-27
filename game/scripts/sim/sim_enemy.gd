@@ -19,6 +19,10 @@ enum State { IDLE, CHASE, WINDUP, LEASH, RECOVER, STAGGER }
 const REPATH := 0.5
 ## Tiles one path search may expand.
 const PATH_NODES := 300
+## Behaviors whose melee hit can be a sweep (EnemyDef.sweep_arc).
+const SWEEPERS := [EnemyDef.Behavior.MELEE, EnemyDef.Behavior.SHIELD]
+## Players closer than this to it are in its sweep whatever the angle.
+const SWEEP_CORE := 6.0
 
 var id: int
 var def: EnemyDef
@@ -116,17 +120,23 @@ func tick(world: SimWorld, delta: float) -> void:
 				def.slam_radius if def.slam_radius > 0 else def.attack_range + def.attack_slack
 			)
 			var line := Vector2.ZERO
+			var arc := 0.0
 			if def.behavior == EnemyDef.Behavior.ARCHER:
 				area = def.arrow_range
 				line = _aim
-			world.events.append(["windup", id, position, def.windup, area, line])
+			elif _sweeps():
+				line = _aim
+				arc = def.sweep_arc
+			world.events.append(["windup", id, position, def.windup, area, line, arc])
 		State.WINDUP:
 			var player: SimWorld.SimPlayer = world.players.get(target)
 			if player != null:
 				_turn(player.position, delta)
 			if player != null and siege == null:
 				var close := maxf(position.distance_to(player.position) - def.attack_range, 0.0)
-				_step(world, player.position, minf(_speed(world) * def.windup_speed * delta, close))
+				# A sweep presses on along its locked aim, so a step to the side gets out of it.
+				var to := position + _aim * 100.0 if _sweeps() else player.position
+				_step(world, to, minf(_speed(world) * def.windup_speed * delta, close))
 			if world.time < _until:
 				return
 			if siege != null:
@@ -231,9 +241,24 @@ func _step(world: SimWorld, to: Vector2, distance: float) -> Variant:
 	return null
 
 
-## The melee hit, or a slam on everyone near.
+## Whether its melee hit is a sweep (EnemyDef.sweep_arc) rather than a slam or a hit anywhere
+## in reach.
+func _sweeps() -> bool:
+	return def.sweep_arc > 0 and def.slam_radius <= 0 and def.behavior in SWEEPERS
+
+
+## The melee hit: a sweep over everyone in the cone of its aim, a slam on everyone near, or a
+## hit on the target anywhere in reach.
 func _strike(world: SimWorld, player: SimWorld.SimPlayer) -> void:
-	if def.slam_radius > 0:
+	if _sweeps():
+		var reach := def.attack_range + def.attack_slack
+		var half := deg_to_rad(def.sweep_arc) / 2
+		for other: SimWorld.SimPlayer in world.players.values():
+			var to := other.position - position
+			var inside := to.length() <= SWEEP_CORE or absf(_aim.angle_to(to)) <= half
+			if to.length() <= reach and inside:
+				world.damage_player(other.id, damage, self)
+	elif def.slam_radius > 0:
 		for other: SimWorld.SimPlayer in world.players.values():
 			if position.distance_to(other.position) <= def.slam_radius:
 				world.damage_player(other.id, damage, self)
