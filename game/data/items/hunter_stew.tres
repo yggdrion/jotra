@@ -10,6 +10,6 @@ display_name = "Hunter stew"
 rarity = 2
 max_stack = 10
 color = Color(0.7, 0.45, 0.25, 1)
-food = 40.0
+food = 55.0
 regen = 1.5
 regen_time = 15.0

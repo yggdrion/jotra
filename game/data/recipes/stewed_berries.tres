@@ -5,6 +5,6 @@
 [resource]
 script = ExtResource("1")
 result = &"stewed_berries"
-inputs = {&"berries": 5}
+inputs = {&"berries": 3}
 station = &"fire"
 category = "Food"

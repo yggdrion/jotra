@@ -5,6 +5,6 @@
 [resource]
 script = ExtResource("1")
 result = &"healing_draught"
-inputs = {&"berries": 4, &"bone": 2}
+inputs = {&"berries": 4, &"bone": 1}
 station = &"workbench"
 category = "Potions"
