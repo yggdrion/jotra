@@ -1,7 +1,7 @@
 [gd_resource type="Resource" script_class="EnemyDef" format=3]
 
 [ext_resource type="Script" path="res://scripts/content/enemy_def.gd" id="1"]
-[ext_resource type="Texture2D" path="res://assets/ninja_adventure/characters/caveman_walk.png" id="sheet"]
+[ext_resource type="Texture2D" path="res://assets/craftpix/characters/draugr_walk.png" id="sheet"]
 
 [resource]
 script = ExtResource("1")

@@ -4,25 +4,27 @@ extends Node2D
 ## and built pieces as children y-sorted with the players.
 # ponytail: tiles drawn one by one in _draw until the art needs a TileMapLayer (autotiled edges).
 
-const GROUND := preload("res://assets/ninja_adventure/tilesets/TilesetFloor.png")
+const GROUND := preload("res://assets/craftpix/tiles/ground.png")
 ## Per biome, the top-left of a row of five ground tiles: plain, then four with tufts.
-const GROUND_ROWS: Array[Vector2] = [
-	Vector2(0, 192), Vector2(176, 192), Vector2(176, 304), Vector2(0, 304)
-]
+const GROUND_ROWS: Array[Vector2] = [Vector2(0, 0), Vector2(0, 16), Vector2(0, 32), Vector2(0, 48)]
 ## One tile in this many gets tufts.
 const TUFT_EVERY := 5
 
 
-## Tree or rock, standing on its tile's center; brighter while E acts on it.
+## Tree or rock, standing on its tile's center at its own size; brighter while E acts on it.
 class PropView:
 	extends Node2D
 
-	const NATURE := preload("res://assets/ninja_adventure/tilesets/TilesetNature.png")
-	## Tree per biome (meadow, forest, marsh, bone hills), 32×32.
-	const TREES: Array[Rect2] = [
-		Rect2(0, 0, 32, 32), Rect2(32, 0, 32, 32), Rect2(64, 0, 32, 32), Rect2(64, 0, 32, 32)
+	## Tree per biome (meadow, forest, marsh, bone hills).
+	const TREES: Array[Texture2D] = [
+		preload("res://assets/craftpix/props/tree_meadow.png"),
+		preload("res://assets/craftpix/props/tree_forest.png"),
+		preload("res://assets/craftpix/props/tree_marsh.png"),
+		preload("res://assets/craftpix/props/tree_bone.png"),
 	]
-	const ROCK := Rect2(288, 144, 16, 16)
+	const ROCK := preload("res://assets/craftpix/props/rock.png")
+	## How far below the sprite's bottom edge its base stands (the shadow reaches past it), px.
+	const BASE := 4
 	## Sticks and pebbles are the items' own icons.
 	const STICK := preload("res://assets/ninja_adventure/items/stick.png")
 	const PEBBLE := preload("res://assets/ninja_adventure/items/pebble.png")
@@ -38,10 +40,10 @@ class PropView:
 
 	func _draw() -> void:
 		var tint := HIGHLIGHT if highlighted else Color.WHITE
-		if kind == WorldGen.Prop.TREE:
-			draw_texture_rect_region(NATURE, Rect2(-16, -29, 32, 32), TREES[biome], tint)
-		elif kind == WorldGen.Prop.ROCK:
-			draw_texture_rect_region(NATURE, Rect2(-8, -13, 16, 16), ROCK, tint)
+		if WorldGen.is_node(kind):
+			var texture := TREES[biome] if kind == WorldGen.Prop.TREE else ROCK
+			var size := texture.get_size()
+			draw_texture(texture, Vector2(-size.x / 2, -size.y + BASE), tint)
 		else:
 			var icon := STICK if kind == WorldGen.Prop.STICK else PEBBLE
 			draw_texture_rect(icon, Rect2(-8, -12, 16, 16), false, tint)

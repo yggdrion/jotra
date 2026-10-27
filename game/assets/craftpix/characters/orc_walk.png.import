@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cktnudd5dwulb"
-path="res://.godot/imported/hunter_walk.png-e81bbba6afd491dece7afb6f995abc5a.ctex"
+uid="uid://drm6i1sbxuplm"
+path="res://.godot/imported/orc_walk.png-a4404703bb95898f6a1272ce9c00ab14.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ninja_adventure/characters/hunter_walk.png"
-dest_files=["res://.godot/imported/hunter_walk.png-e81bbba6afd491dece7afb6f995abc5a.ctex"]
+source_file="res://assets/craftpix/characters/orc_walk.png"
+dest_files=["res://.godot/imported/orc_walk.png-a4404703bb95898f6a1272ce9c00ab14.ctex"]
 
 [params]
 

@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://6pyqtm1m1nsy"
-path="res://.godot/imported/TilesetNature.png-05ebd087f0aa006d7c15dbfd95275f28.ctex"
+uid="uid://cd0nj1oaypnb4"
+path="res://.godot/imported/dungeon_wall.png-efb900747bde2042fbe6dc7c0c0cb0de.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ninja_adventure/tilesets/TilesetNature.png"
-dest_files=["res://.godot/imported/TilesetNature.png-05ebd087f0aa006d7c15dbfd95275f28.ctex"]
+source_file="res://assets/craftpix/tiles/dungeon_wall.png"
+dest_files=["res://.godot/imported/dungeon_wall.png-efb900747bde2042fbe6dc7c0c0cb0de.ctex"]
 
 [params]
 

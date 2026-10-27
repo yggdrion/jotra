@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bpmdpb25qteef"
-path="res://.godot/imported/skeleton_walk.png-a730e01729f406cd0ca4140e96d1c467.ctex"
+uid="uid://3xx12vtp8mc1"
+path="res://.godot/imported/draugr_walk.png-e9b2aa2314abfd91ce136b240234ad54.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/ninja_adventure/characters/skeleton_walk.png"
-dest_files=["res://.godot/imported/skeleton_walk.png-a730e01729f406cd0ca4140e96d1c467.ctex"]
+source_file="res://assets/craftpix/characters/draugr_walk.png"
+dest_files=["res://.godot/imported/draugr_walk.png-e9b2aa2314abfd91ce136b240234ad54.ctex"]
 
 [params]
 

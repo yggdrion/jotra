@@ -112,7 +112,8 @@ static func preview(look: int, size: int) -> TextureRect:
 static func _set_preview(rect: TextureRect, look: int) -> void:
 	var frame := AtlasTexture.new()
 	frame.atlas = PlayerView.SHEETS[PlayerView.sheet_of(look)]
-	frame.region = Rect2(0, 0, PlayerView.FRAME, PlayerView.FRAME)
+	var size := PlayerView.frame_of(frame.atlas)
+	frame.region = Rect2(0, 0, size, size)
 	rect.texture = frame
 	rect.modulate = PlayerView.TINTS[PlayerView.tint_of(look)]
 

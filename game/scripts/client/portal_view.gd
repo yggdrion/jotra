@@ -1,17 +1,16 @@
 class_name PortalView
 extends Node2D
-## A way into or out of a dungeon: a barrow mound with a dark doorway, standing on its position,
-## with its name above it.
+## A way into or out of a dungeon: a skull with a gaping mouth for a doorway, standing on its
+## position, with its name above it.
 
 const FONT_SIZE := 8
-const SHEET := preload("res://assets/ninja_adventure/tilesets/TilesetHouse.png")
-const MOUND := Rect2(0, 112, 48, 48)
+const DOOR := preload("res://assets/craftpix/props/barrow.png")
 
 var label := ""
 
 
 func _draw() -> void:
-	draw_texture_rect_region(SHEET, Rect2(-24, -44, 48, 48), MOUND)
+	draw_texture(DOOR, Vector2(-DOOR.get_width() / 2.0, -DOOR.get_height() + 4))
 	var font := ThemeDB.fallback_font
 	var at := Vector2(-40, -48)
 	var center := HORIZONTAL_ALIGNMENT_CENTER

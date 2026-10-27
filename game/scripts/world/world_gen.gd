@@ -15,7 +15,7 @@ const CHUNK_PX := TILE * CHUNK
 
 # ponytail: placeholder biomes picked from one noise value; real biomes come with art and lore.
 const BIOME_COLORS: Array[Color] = [
-	Color("3e8948"), Color("265c42"), Color("3a4466"), Color("8b9bb4")
+	Color("6f736a"), Color("454d49"), Color("57654e"), Color("9b957e")
 ]
 ## Upper noise bound of MARSH, MEADOW, FOREST; above the last is BONE_HILLS.
 const BIOME_BOUNDS: Array[float] = [-0.3, 0.05, 0.35]

@@ -7,12 +7,12 @@ extends Node2D
 ## the side the last one ended on, a heavy one pulling back first), steps the body toward the
 ## aim and leaves a smear behind the blade.
 
-## Sheet columns per facing.
+## Sheet columns per facing; rows are walk frames, square, as many as fit.
 enum Facing { DOWN, UP, LEFT, RIGHT }
 
 const SHEETS: Array[Texture2D] = [
-	preload("res://assets/ninja_adventure/characters/hunter_walk.png"),
-	preload("res://assets/ninja_adventure/characters/caveman_walk.png"),
+	preload("res://assets/craftpix/characters/wanderer_walk.png"),
+	preload("res://assets/craftpix/characters/orc_walk.png"),
 ]
 ## Multiplied into the sheet, the second half of a look (Net.player_z).
 const TINTS: Array[Color] = [
@@ -23,8 +23,13 @@ const TINTS: Array[Color] = [
 	Color(1.0, 0.95, 0.65),
 	Color(0.85, 0.75, 1.0),
 ]
-const FRAME := 16
-const FRAME_MS := 150
+const FRAME_MS := 110
+## How far below a frame's bottom edge the feet stand, px.
+const FEET := 3
+## Weapon icons, px square.
+const ICON := 16
+## The body's height above the feet, where the health bar goes.
+const BODY := 28
 ## Keeps walking this long after the last move, so frames without one don't flicker to idle.
 const WALK_GRACE_MS := 100
 const FLASH_MS := 100
@@ -120,6 +125,11 @@ func tint() -> Color:
 	return HURT if now < _hurt_until else TINTS[tint_of(look)]
 
 
+## A sheet's frame size: four facings side by side.
+static func frame_of(of_sheet: Texture2D) -> int:
+	return of_sheet.get_width() / Facing.size()
+
+
 ## The sheet index of a look (Net.player_z), the first half of it.
 static func sheet_of(of_look: int) -> int:
 	return clampi(of_look / TINTS.size(), 0, SHEETS.size() - 1)
@@ -188,28 +198,31 @@ func _pose(_now: int) -> void:
 
 
 func _row(now: int) -> int:
-	return (now / FRAME_MS) % 4 if now < _walk_until else 0
+	var frames := sheet().get_height() / frame_of(sheet())
+	return (now / FRAME_MS) % frames if now < _walk_until else 0
 
 
 func _draw() -> void:
 	var now := Time.get_ticks_msec()
+	var frame := frame_of(sheet())
+	var body := Rect2(-frame / 2.0, -frame + FEET, frame, frame)
 	for ghost: Array in _ghosts:
 		var fade := 1.0 - float(now - ghost[0]) / GHOST_MS
 		var at: Vector2 = to_local(ghost[1])
 		draw_texture_rect_region(
 			sheet(),
-			Rect2(at + Vector2(-FRAME / 2.0, -FRAME), Vector2(FRAME, FRAME)),
-			Rect2(ghost[3] * FRAME, ghost[2] * FRAME, FRAME, FRAME),
+			Rect2(at + body.position, body.size),
+			Rect2(ghost[3] * frame, ghost[2] * frame, frame, frame),
 			Color(GHOST, GHOST.a * fade)
 		)
-	var region := Rect2(_facing * FRAME, _row(now) * FRAME, FRAME, FRAME)
+	var region := Rect2(_facing * frame, _row(now) * frame, frame, frame)
 	draw_set_transform(pose_offset, pose_rot, pose_scale)
 	var color := tint()
 	color.a *= pose_alpha
-	draw_texture_rect_region(sheet(), Rect2(-FRAME / 2.0, -FRAME, FRAME, FRAME), region, color)
+	draw_texture_rect_region(sheet(), body, region, color)
 	draw_set_transform(Vector2.ZERO)
 	if health < 1.0:
-		var bar := Rect2(-BAR_WIDTH / 2, -FRAME - 5, BAR_WIDTH, 2)
+		var bar := Rect2(-BAR_WIDTH / 2, -BODY - 5, BAR_WIDTH, 2)
 		draw_rect(bar, Color.BLACK)
 		draw_rect(Rect2(bar.position, Vector2(bar.size.x * health, bar.size.y)), Color("e43b44"))
 	if draw_share > 0.0:
@@ -233,7 +246,7 @@ func _draw_weapon() -> void:
 	var dir := Vector2.from_angle(angle)
 	# The icon's blade points up: turn it to point along dir.
 	draw_set_transform(center + dir * HAND, angle + PI / 2, Vector2.ONE)
-	draw_texture_rect(def.icon, Rect2(-FRAME / 2.0, -FRAME / 2.0, FRAME, FRAME), false)
+	draw_texture_rect(def.icon, Rect2(-ICON / 2.0, -ICON / 2.0, ICON, ICON), false)
 	draw_set_transform(Vector2.ZERO)
 
 
