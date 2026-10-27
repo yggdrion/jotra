@@ -123,6 +123,32 @@ func test_moves_through_the_walls_are_dropped() -> void:
 	)
 
 
+func test_an_enemy_walks_home_around_a_corner() -> void:
+	var world := _world()
+	world.interact(1)
+	var run: Dungeon = world.players[1].run
+	var west := run.rooms[0]
+	var east := run.rooms[1]
+	var corridor := run.area[0]
+	# From near the top corner of the lower-topped room toward home near the top of the other:
+	# the straight way runs into the corner the corridor leaves below it, where the clamp back
+	# into the area kept it.
+	var from := Vector2(west.end.x - 12, west.position.y + 4)
+	var home := Vector2(east.position.x + 12, east.position.y + 4)
+	if east.position.y > west.position.y:
+		from = Vector2(east.position.x + 12, east.position.y + 4)
+		home = Vector2(west.end.x - 12, west.position.y + 4)
+	assert_float(corridor.position.y).is_greater(from.y + 4)
+	var enemy := world.add_enemy(from, 10, 1)
+	enemy.home = home
+	enemy.state = SimEnemy.State.LEASH
+	assert_bool(Pathing.clear(run.walls, enemy.position, home)).is_false()
+	for i in 200:
+		world.tick(TICK)
+	assert_vector(enemy.position).is_equal(home)
+	assert_int(enemy.state).is_not_equal(SimEnemy.State.LEASH)
+
+
 func test_dying_inside_restores_the_inventory_from_entering() -> void:
 	var world := _world()
 	var player: SimWorld.SimPlayer = world.players[1]

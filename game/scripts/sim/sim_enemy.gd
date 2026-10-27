@@ -5,13 +5,14 @@ extends RefCounted
 ## in at windup_speed meanwhile; a slam hits everyone near instead), then stand open for
 ## def.recovery. Hits push it (it slides) and wear down its poise: broken, or hit by a heavy
 ## during a windup, it staggers. It gives up when its target is led further than def.leash
-## from home and walks home, healing on the way. It walks around blocking pieces to its target
-## (Pathing, searched again when pieces change or its target moves to another tile); when no
-## way is open it attacks the piece in its way at the end of the best route until it breaks.
+## from home and walks home, healing on the way. It walks around blocking pieces and dungeon
+## walls to its target or home (Pathing, searched again when pieces change or its target moves
+## to another tile); when no way is open it attacks the piece in its way at the end of the best
+## route until it breaks.
 ## def.behavior changes the parts that differ (approach, what the windup ends in): an archer
 ## keeps its distance and shoots along the line it locked, a wolf circles and lunges and its
 ## pack comes along, a shield blocks hits from the front, an exploder blows up.
-# ponytail: leashing walks straight home; it only takes the spot it is walled off at as home.
+# ponytail: when a piece walls it off from home, it takes that spot as home.
 
 enum State { IDLE, CHASE, WINDUP, LEASH, RECOVER, STAGGER }
 
@@ -174,7 +175,7 @@ func tick(world: SimWorld, delta: float) -> void:
 		State.LEASH:
 			health = minf(health + max_health * def.leash_heal * delta, max_health)
 			# Walled off from home: this is home now.
-			if _step(world, home, _speed(world) * delta) != null:
+			if _step(world, _waypoint(world, home), _speed(world) * delta) != null:
 				home = position
 			if position == home and health >= max_health:
 				state = State.IDLE
@@ -218,7 +219,7 @@ func _waypoint(world: SimWorld, goal: Vector2) -> Vector2:
 	var moved := tile != _path_goal and world.time >= _repath_at
 	var due := _stuck or moved or _path_version != world.pieces_version
 	if due and (_stuck or world.path_budget >= PATH_NODES):
-		var route := Pathing.find(world.blocked_tiles(), position, goal, PATH_NODES)
+		var route := Pathing.find(world.blocked_at(position), position, goal, PATH_NODES)
 		world.path_budget -= route.used
 		_path = route.points
 		_open = route.open

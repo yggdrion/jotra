@@ -28,6 +28,9 @@ var rooms: Array[Rect2] = []
 var defs: Array[RoomDef] = []
 ## Rooms and corridors: where players and enemies may be.
 var area: Array[Rect2] = []
+## {tile: true} of the tiles around the area whose center lies outside it, the walls enemies
+## path around (Pathing.find).
+var walls := {}
 var spawn: Vector2
 var exit: Vector2
 ## The end chest, in the middle of the end room, and {player id: true} of those who opened it.
@@ -71,6 +74,16 @@ func _init(run_slot: int, now: float, rng: RandomNumberGenerator) -> void:
 	var end := rooms.back() as Rect2
 	exit = Vector2(end.end.x - DOOR_INSET, end.get_center().y)
 	chest = end.get_center()
+	var bounds := rooms[0]
+	for rect in area:
+		bounds = bounds.merge(rect)
+	var low := Building.tile_of(bounds.position) - Vector2i.ONE
+	var high := Building.tile_of(bounds.end) + Vector2i.ONE
+	for y in range(low.y, high.y + 1):
+		for x in range(low.x, high.x + 1):
+			var center := Building.tile_center(Vector2i(x, y))
+			if clamp_to(area, center) != center:
+				walls[Vector2i(x, y)] = true
 
 
 ## Whether an enemy stands within Tuning.chest_lock_radius of the chest, keeping it shut. The

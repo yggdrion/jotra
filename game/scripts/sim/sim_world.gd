@@ -1111,6 +1111,13 @@ func blocked_tiles() -> Dictionary:
 	return _blocked
 
 
+## What an enemy at at paths around: its run's walls in a dungeon (nobody builds there), else
+## blocked_tiles().
+func blocked_at(at: Vector2) -> Dictionary:
+	var run := _run_at(at)
+	return run.walls if run else blocked_tiles()
+
+
 func _remove_piece(tile: Vector2i) -> void:
 	var piece: Building.Piece = pieces[tile]
 	if piece.items:
