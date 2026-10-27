@@ -103,6 +103,8 @@ class SimChunk:
 	var props: Dictionary
 	## {id: true} of props removed since.
 	var removed := {}
+	## {id: health left} of trees and rocks swung at, only while the chunk stays loaded.
+	var node_health := {}
 	## {global tile: Building.Piece} built in it.
 	var pieces := {}
 	var dirty := false
@@ -144,7 +146,9 @@ var spawn_enemies := true
 ## ["loot", player id, item, count] for a pickup, ["full", player id] when loot didn't fit,
 ## ["dungeon", player id, area, exit, chest, position] when a player entered a run or (area
 ## empty) is back in the overworld, ["chest", player id] when one opened its run's end
-## chest, ["piece", tile] when a piece was built, changed (damage, door) or is gone,
+## chest, ["node", player id, position, note] when a swing hit a tree or rock (the damage, or
+## what it needs), ["prop_removed", chunk, prop id], ["piece", tile] when a piece was built,
+## changed (damage, door) or is gone,
 ## ["storage", player id, Inventory.to_data of its open chest, {} once closed].
 var events: Array[Array] = []
 ## Seeded by the balance sim for repeatable runs.
@@ -650,29 +654,10 @@ func _leave_run(player: SimPlayer, restore: bool) -> void:
 			drops.erase(id)
 
 
-## Removes a prop the player stands next to, at most one per gather_time; it drops what it is
-## made of. Returns whether it was removed.
+## Picks up a stick or pebble the player stands next to, at most one per gather_time; trees and
+## rocks are swung at instead (attack). Returns whether it was picked up.
 func remove_prop(id: int, coord: Vector2i, prop_id: int) -> bool:
-	var player: SimPlayer = players.get(id)
-	var chunk: SimChunk = chunks.get(coord)
-	if player == null or chunk == null or player.dead_until > 0:
-		return false
-	if time - player.gathered_at < Content.tuning.gather_time:
-		return false
-	if not chunk.props.has(prop_id) or chunk.removed.has(prop_id):
-		return false
-	var reach := player.position.distance_to(WorldGen.prop_position(coord, prop_id))
-	if reach > REACH + REACH_SLACK:
-		return false
-	chunk.removed[prop_id] = true
-	chunk.dirty = true
-	player.gathered_at = time
-	var t := Content.tuning
-	_drop_loot(
-		t.tree_drops if chunk.props[prop_id] == WorldGen.Prop.TREE else t.rock_drops,
-		WorldGen.prop_position(coord, prop_id)
-	)
-	return true
+	return Gathering.pick_up(self, id, coord, prop_id)
 
 
 ## Crafts a recipe with the station pieces near the player.
@@ -870,6 +855,8 @@ func attack(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> Packe
 			enemy.bleed_until = time + t.bleed_time
 			enemy.bleed_by = id
 		_hurt_enemy(enemy, dealt, player)
+	if damaged.is_empty():
+		Gathering.swing(self, player, aim, reach, arc, move.cost)
 	return damaged
 
 

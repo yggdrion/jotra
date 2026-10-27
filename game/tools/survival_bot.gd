@@ -11,6 +11,8 @@ extends RefCounted
 const GEAR: Array[StringName] = [
 	&"club", &"cloth_tunic", &"stone_axe", &"bone_armor", &"bone_sword"
 ]
+## Hand-made tools it makes first, by what they break: sticks and pebbles come off the ground.
+const TOOLS := {ItemDef.Tool.AXE: &"pebble_axe", ItemDef.Tool.PICKAXE: &"pebble_pickaxe"}
 ## Enemies this close are fought.
 const ENGAGE := 150.0
 ## Seconds from a windup's start to the dash at the earliest, when it dodges.
@@ -144,7 +146,8 @@ func act(delta: float) -> void:
 	if _craft(delta):
 		_spend("craft", delta)
 		return
-	if _food_carried() < FOOD_STOCK and _gather(WorldGen.Prop.TREE, delta):
+	var has_axe := player().inventory.best_tool(ItemDef.Tool.AXE) != null
+	if has_axe and _food_carried() < FOOD_STOCK and _gather(WorldGen.Prop.TREE, delta):
 		_spend("forage", delta)
 	else:
 		_provide(delta)
@@ -233,7 +236,7 @@ func _fight(enemy: SimEnemy, delta: float) -> void:
 ## whether that is what it is doing.
 func _craft(delta: float) -> bool:
 	var me := player()
-	var wanted := _wanted_gear()
+	var wanted := _wanted_tools() + _wanted_gear()
 	if player().inventory.count_of(&"berries") >= SPARE_BERRIES:
 		wanted.append(&"trail_ration")
 	for item in wanted:
@@ -288,6 +291,15 @@ func _wear(item: StringName) -> void:
 			return
 
 
+## The hand-made tools it still has none of.
+func _wanted_tools() -> Array[StringName]:
+	var out: Array[StringName] = []
+	for kind: int in TOOLS:
+		if player().inventory.best_tool(kind) == null:
+			out.append(TOOLS[kind])
+	return out
+
+
 ## The gear still worth making: better than what is worn and not carried already.
 func _wanted_gear() -> Array[StringName]:
 	var out: Array[StringName] = []
@@ -319,7 +331,7 @@ func _food_carried() -> float:
 ## from enemies.
 func _needed_prop() -> int:
 	var inventory := player().inventory
-	for item in _wanted_gear():
+	for item in _wanted_tools() + _wanted_gear():
 		var recipe: RecipeDef = Content.recipes[item]
 		var inputs := recipe.inputs.duplicate()
 		# With no station in view, also what building one takes.
@@ -330,6 +342,10 @@ func _needed_prop() -> int:
 		for input: StringName in inputs:
 			if inventory.count_of(input) >= inputs[input]:
 				continue
+			if input == &"stick":
+				return WorldGen.Prop.STICK
+			if input == &"pebble":
+				return WorldGen.Prop.PEBBLE
 			if input == &"wood":
 				return WorldGen.Prop.TREE
 			if input == &"stone":
@@ -337,7 +353,8 @@ func _needed_prop() -> int:
 	return -1
 
 
-## Walks to the nearest prop of a kind in view and removes it. False if none is in view.
+## Walks to the nearest prop of a kind in view and picks it up, or swings at it if it is a tree
+## or rock. False if none is in view.
 func _gather(kind: int, delta: float) -> bool:
 	var me := player()
 	var best := []
@@ -355,8 +372,11 @@ func _gather(kind: int, delta: float) -> bool:
 				best_distance = distance
 	if best.is_empty():
 		return false
+	var at := WorldGen.prop_position(best[0], best[1])
 	if best_distance > SimWorld.REACH * 0.8:
-		_walk_to(WorldGen.prop_position(best[0], best[1]), delta)
+		_walk_to(at, delta)
+	elif WorldGen.is_node(kind):
+		world.attack(id, false, at - me.position, PackedInt32Array())
 	else:
 		world.remove_prop(id, best[0], best[1])
 	return true

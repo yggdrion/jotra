@@ -4,6 +4,8 @@ extends Resource
 ## stack, food is eaten, gear goes in an equipment slot and changes the wearer's stats.
 
 enum Rarity { COMMON, UNCOMMON, RARE, EPIC }
+## What a tool breaks: trees need an AXE, rocks a PICKAXE.
+enum Tool { NONE, AXE, PICKAXE }
 ## NONE: a material, not wearable.
 enum Slot { NONE, WEAPON, ARMOR }
 
@@ -42,3 +44,10 @@ const RARITY_COLORS: Array[Color] = [
 @export var armor := 0.0
 ## Added to the wearer's max health.
 @export var health := 0.0
+@export_group("Tool")
+## A tool works from anywhere in the inventory; of several, the best damage counts.
+@export var tool_kind := Tool.NONE
+## Nodes (Tuning.tree_tier, rock_tier) need a tool of at least this tier.
+@export var tool_tier := 0
+## Health taken off a node per swing.
+@export var tool_damage := 0.0

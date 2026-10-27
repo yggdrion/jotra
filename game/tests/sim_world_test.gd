@@ -103,9 +103,19 @@ func test_world_survives_a_restart() -> void:
 func _some_prop(world: SimWorld) -> Array:
 	for coord: Vector2i in world.chunks:
 		for id: int in world.chunks[coord].props:
-			if WorldGen.prop_position(coord, id).length() > SimWorld.REACH * 4:
+			if (
+				not WorldGen.is_node(world.chunks[coord].props[id])
+				and WorldGen.prop_position(coord, id).length() > SimWorld.REACH * 4
+			):
 				return [coord, id]
 	return []
+
+
+## Ids of the sticks and pebbles in a chunk.
+func _pickups(world: SimWorld, coord: Vector2i) -> Array:
+	return world.chunks[coord].props.keys().filter(
+		func(id: int) -> bool: return not WorldGen.is_node(world.chunks[coord].props[id])
+	)
 
 
 func test_gathering_takes_time() -> void:
@@ -113,7 +123,7 @@ func test_gathering_takes_time() -> void:
 	world.add_player(1, "p1")
 	world.tick(0.1)
 	var coord: Vector2i = _some_prop(world)[0]
-	var ids: Array = world.chunks[coord].props.keys()
+	var ids := _pickups(world, coord)
 	var player: SimWorld.SimPlayer = world.players[1]
 	player.position = WorldGen.prop_position(coord, ids[0])
 	assert_bool(world.remove_prop(1, coord, ids[0])).is_true()

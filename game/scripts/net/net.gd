@@ -38,6 +38,7 @@ signal chunk_received(coord: Vector2i, removed: PackedInt32Array, pieces: Array)
 signal piece_received(coord: Vector2i, index: int, data: Array)
 signal storage_received(data: Dictionary)
 signal prop_removed_received(coord: Vector2i, prop_id: int)
+signal node_hit_received(at: Vector2, note: String)
 signal hit_received(enemy: bool, id: int, amount: int, push: Vector2)
 signal enemy_event_received(enemy_id: int, kind: int)
 signal perfect_received
@@ -262,6 +263,12 @@ func storage(data: Dictionary) -> void:
 @rpc("authority", "reliable")
 func prop_removed(coord: Vector2i, prop_id: int) -> void:
 	prop_removed_received.emit(coord, prop_id)
+
+
+## Your swing hit a tree or rock: the damage dealt, or what it takes to hurt it.
+@rpc("authority", "reliable")
+func node_hit(at: Vector2, note: String) -> void:
+	node_hit_received.emit(at, note)
 
 
 ## An enemy or player in view took damage: flash and damage number. push is the way and

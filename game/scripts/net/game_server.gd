@@ -293,6 +293,12 @@ func _send_events() -> void:
 				for id: int in world.players:
 					if id != event[1] and world.sees(id, event[4]):
 						net.swing.rpc_id(id, event[1], event[2], event[3], event[5])
+			"node":
+				net.node_hit.rpc_id(event[1], event[2], event[3])
+			"prop_removed":
+				for id: int in _sent_chunks:
+					if _sent_chunks[id].has(event[1]):
+						net.prop_removed.rpc_id(id, event[1], event[2])
 			"loot":
 				net.looted.rpc_id(event[1], event[2], event[3])
 			"full":
@@ -392,11 +398,7 @@ func _on_hello(id: int, version: int, player_name: String) -> void:
 
 
 func _on_prop_remove_requested(id: int, coord: Vector2i, prop_id: int) -> void:
-	if not world.remove_prop(id, coord, prop_id):
-		return
-	for peer: int in _sent_chunks:
-		if _sent_chunks[peer].has(coord):
-			net.prop_removed.rpc_id(peer, coord, prop_id)
+	world.remove_prop(id, coord, prop_id)
 
 
 func _on_peer_disconnected(id: int) -> void:

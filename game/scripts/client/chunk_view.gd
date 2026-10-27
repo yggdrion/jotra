@@ -23,6 +23,9 @@ class PropView:
 		Rect2(0, 0, 32, 32), Rect2(32, 0, 32, 32), Rect2(64, 0, 32, 32), Rect2(64, 0, 32, 32)
 	]
 	const ROCK := Rect2(288, 144, 16, 16)
+	## Sticks and pebbles are the items' own icons.
+	const STICK := preload("res://assets/ninja_adventure/items/stick.png")
+	const PEBBLE := preload("res://assets/ninja_adventure/items/pebble.png")
 	const HIGHLIGHT := Color(1.6, 1.6, 1.6)
 
 	var kind: WorldGen.Prop
@@ -37,8 +40,11 @@ class PropView:
 		var tint := HIGHLIGHT if highlighted else Color.WHITE
 		if kind == WorldGen.Prop.TREE:
 			draw_texture_rect_region(NATURE, Rect2(-16, -29, 32, 32), TREES[biome], tint)
-		else:
+		elif kind == WorldGen.Prop.ROCK:
 			draw_texture_rect_region(NATURE, Rect2(-8, -13, 16, 16), ROCK, tint)
+		else:
+			var icon := STICK if kind == WorldGen.Prop.STICK else PEBBLE
+			draw_texture_rect(icon, Rect2(-8, -12, 16, 16), false, tint)
 
 
 var coord: Vector2i
@@ -114,10 +120,13 @@ func highlight(id: int, on: bool) -> void:
 		_props[id].highlighted = on
 
 
-## [prop id, distance] of the prop closest to a world position, or [] if none is within reach.
+## [prop id, distance] of the pickup (stick or pebble) closest to a world position, or [] if
+## none is within reach; trees and rocks are swung at, not used.
 func nearest_prop(world_position: Vector2, reach: float) -> Array:
 	var best := []
 	for id: int in _props:
+		if WorldGen.is_node(_props[id].kind):
+			continue
 		var distance := world_position.distance_to(position + _props[id].position)
 		if distance <= reach and (best.is_empty() or distance < best[1]):
 			best = [id, distance]

@@ -4,7 +4,9 @@ class_name WorldGen
 ## grid math both sides use.
 
 enum Biome { MEADOW, FOREST, MARSH, BONE_HILLS }
-enum Prop { TREE, ROCK }
+## TREE and ROCK are nodes with health, swung at with a tool; STICK and PEBBLE are picked up
+## by hand.
+enum Prop { TREE, ROCK, STICK, PEBBLE }
 
 const TILE := 16
 ## Tiles per chunk side.
@@ -19,6 +21,8 @@ const BIOME_COLORS: Array[Color] = [
 const BIOME_BOUNDS: Array[float] = [-0.3, 0.05, 0.35]
 ## Chance per tile of [tree, rock], by biome.
 const PROP_CHANCE: Array[Array] = [[0.02, 0.005], [0.12, 0.01], [0.03, 0.0], [0.0, 0.06]]
+## Chance per tile without a tree or rock of [stick, pebble], by biome.
+const SMALL_CHANCE: Array[Array] = [[0.015, 0.01], [0.03, 0.005], [0.015, 0.0], [0.0, 0.03]]
 ## Noise frequency per tile: biomes span a few hundred tiles.
 const BIOME_FREQUENCY := 0.004
 
@@ -31,6 +35,9 @@ static func chunk(world_seed: int, coord: Vector2i) -> Dictionary:
 	noise.frequency = BIOME_FREQUENCY
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([world_seed, coord])
+	# Its own stream, so trees and rocks stand where they always did.
+	var small := RandomNumberGenerator.new()
+	small.seed = hash([world_seed, coord, "small"])
 	var tiles := PackedByteArray()
 	tiles.resize(CHUNK * CHUNK)
 	var props := {}
@@ -46,7 +53,19 @@ static func chunk(world_seed: int, coord: Vector2i) -> Dictionary:
 				props[id] = Prop.TREE
 			elif roll < chance[0] + chance[1]:
 				props[id] = Prop.ROCK
+			else:
+				var small_roll := small.randf()
+				var small_chance: Array = SMALL_CHANCE[biome]
+				if small_roll < small_chance[0]:
+					props[id] = Prop.STICK
+				elif small_roll < small_chance[0] + small_chance[1]:
+					props[id] = Prop.PEBBLE
 	return {tiles = tiles, props = props}
+
+
+## Whether a prop kind is a node with health (tree, rock) and not a pickup.
+static func is_node(kind: Prop) -> bool:
+	return kind == Prop.TREE or kind == Prop.ROCK
 
 
 static func _biome(value: float) -> Biome:
