@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c0odm303d6vlw"
-path="res://.godot/imported/barrow.png-6654470664d5583a9ea6acbba4911021.ctex"
+uid="uid://cytk04r2y04gl"
+path="res://.godot/imported/horn.png-d67a87b7285c6292139ef1e04a060fac.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/craftpix/props/barrow.png"
-dest_files=["res://.godot/imported/barrow.png-6654470664d5583a9ea6acbba4911021.ctex"]
+source_file="res://assets/craftpix/props/decor/horn.png"
+dest_files=["res://.godot/imported/horn.png-d67a87b7285c6292139ef1e04a060fac.ctex"]
 
 [params]
 

@@ -11,16 +11,17 @@ const GROUND_ROWS: Array[Vector2] = [Vector2(0, 0), Vector2(0, 16), Vector2(0, 3
 const TUFT_EVERY := 5
 
 
-## Tree or rock, standing on its tile's center at its own size; brighter while E acts on it.
+## Tree or rock, standing on its tile's center at its own size, maybe mirrored; brighter while
+## E acts on it.
 class PropView:
 	extends Node2D
 
-	## Tree per biome (meadow, forest, marsh, bone hills).
-	const TREES: Array[Texture2D] = [
-		preload("res://assets/craftpix/props/tree_meadow.png"),
-		preload("res://assets/craftpix/props/tree_forest.png"),
-		preload("res://assets/craftpix/props/tree_marsh.png"),
-		preload("res://assets/craftpix/props/tree_bone.png"),
+	## Trees per biome (meadow, forest, marsh, bone hills), one picked per tile by variant.
+	const TREES := [
+		["tree_meadow", "tree_meadow", "tree_big", "tree_drip"],
+		["tree_forest", "tree_forest", "tree_forest", "tree_drip_small"],
+		["tree_marsh", "tree_marsh", "tree_forest", "tree_drip_small"],
+		["tree_bone", "tree_bone", "tree_pale"],
 	]
 	const ROCK := preload("res://assets/craftpix/props/rock.png")
 	## How far below the sprite's bottom edge its base stands (the shadow reaches past it), px.
@@ -32,6 +33,8 @@ class PropView:
 
 	var kind: WorldGen.Prop
 	var biome: WorldGen.Biome
+	## Any hash of the tile: picks the tree and whether it is mirrored.
+	var variant := 0
 	var highlighted := false:
 		set(value):
 			if value != highlighted:
@@ -41,9 +44,15 @@ class PropView:
 	func _draw() -> void:
 		var tint := HIGHLIGHT if highlighted else Color.WHITE
 		if WorldGen.is_node(kind):
-			var texture := TREES[biome] if kind == WorldGen.Prop.TREE else ROCK
+			var texture: Texture2D = ROCK
+			if kind == WorldGen.Prop.TREE:
+				var trees: Array = TREES[biome]
+				texture = Decor.sprite(trees[variant % trees.size()])
 			var size := texture.get_size()
+			if variant & 8:
+				draw_set_transform(Vector2.ZERO, 0.0, Vector2(-1, 1))
 			draw_texture(texture, Vector2(-size.x / 2, -size.y + BASE), tint)
+			draw_set_transform(Vector2.ZERO)
 		else:
 			var icon := STICK if kind == WorldGen.Prop.STICK else PEBBLE
 			draw_texture_rect(icon, Rect2(-8, -12, 16, 16), false, tint)
@@ -53,6 +62,7 @@ var coord: Vector2i
 var _tiles: PackedByteArray
 var _props := {}  # id -> PropView
 var _pieces := {}  # index in chunk -> PieceView
+var _decor := {}  # index in chunk -> Decor.View
 
 
 func _init(world_seed: int, chunk_coord: Vector2i, removed: PackedInt32Array) -> void:
@@ -69,15 +79,19 @@ func _init(world_seed: int, chunk_coord: Vector2i, removed: PackedInt32Array) ->
 		var prop := PropView.new()
 		prop.kind = data.props[id]
 		prop.biome = _tiles[id] as WorldGen.Biome
+		prop.variant = _roll(world_seed, id)
 		prop.position = WorldGen.prop_offset(id)
 		prop.z_index = 1
 		add_child(prop)
 		_props[id] = prop
+	_scatter(world_seed, data.props)
 
 
 ## Shows a piece on a tile of this chunk, or none there for null.
 func set_piece(index: int, piece: Building.Piece) -> void:
 	var view: PieceView = _pieces.get(index)
+	if _decor.has(index):
+		_decor[index].visible = piece == null
 	if piece == null:
 		if view:
 			view.queue_free()
@@ -91,6 +105,32 @@ func set_piece(index: int, piece: Building.Piece) -> void:
 	# Floors lie with the ground, the rest stands level with the players.
 	view.z_index = 0 if piece.def().flat else 1
 	view.piece = piece
+
+
+## Scenery on the tiles without a prop (felled ones included), from the seed.
+func _scatter(world_seed: int, props: Dictionary) -> void:
+	for id in WorldGen.CHUNK * WorldGen.CHUNK:
+		if props.has(id):
+			continue
+		var roll := _roll(world_seed, id)
+		var piece := Decor.pick(_tiles[id], roll)
+		if piece == "":
+			continue
+		var view := Decor.View.new()
+		view.texture = Decor.sprite("decor/" + piece)
+		view.flip = roll & 16 != 0
+		# Off the tile's center by up to 4 px, so the scatter doesn't line up.
+		var jitter := Vector2((roll >> 5) % 9 - 4, (roll >> 9) % 9 - 4)
+		view.position = WorldGen.prop_offset(id) + jitter
+		view.z_index = 0 if piece in Decor.FLAT else 1
+		add_child(view)
+		_decor[id] = view
+
+
+## A hash of a tile of this chunk, stable per world.
+func _roll(world_seed: int, id: int) -> int:
+	var tile := coord * WorldGen.CHUNK + Vector2i(id % WorldGen.CHUNK, id / WorldGen.CHUNK)
+	return absi(hash([world_seed, tile.x, tile.y]))
 
 
 func set_join_mask(index: int, mask: int) -> void:
