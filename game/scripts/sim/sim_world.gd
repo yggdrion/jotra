@@ -132,7 +132,10 @@ var pieces := {}
 ## Off in tests that place their own enemies.
 var spawn_enemies := true
 ## What happened this tick for clients to show, drained by GameServer: ["hit", enemy: bool,
-## id, amount, position], ["windup", enemy id, position, seconds, slam radius or 0],
+## id, amount, position, push: the way and px the hit shoves the one hit],
+## ["windup", enemy id, position, seconds, radius of the area it will hit],
+## ["enemy", enemy id, Net.EnemyEvent, position], ["perfect", player id] for a perfectly
+## dodged hit,
 ## ["respawn", player id, position], ["swing", player id, heavy, aim, position, weapon],
 ## ["loot", player id, item, count] for a pickup, ["full", player id] when loot didn't fit,
 ## ["dungeon", player id, area, exit, chest, position] when a player entered a run or (area
@@ -851,8 +854,9 @@ func attack(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> Packe
 			continue
 		# Rolled only with a crit buff, so runs without buffs draw the same numbers.
 		var dealt := damage * (2.0 if crit > 0 and rng.randf() < crit else 1.0)
-		enemy.position += (enemy.position - player.position).normalized() * move.knock
 		enemy.provoke(id)
+		enemy.push((enemy.position - player.position).normalized(), move.knock)
+		enemy.hit_poise(self, move.poise_damage)
 		damaged.append(enemy.id)
 		player.heal(dealt * b.stat("lifesteal"))
 		if b.stat("bleed") > 0:
@@ -869,9 +873,10 @@ func attack(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> Packe
 func _hurt_enemy(enemy: SimEnemy, amount: float, by: SimPlayer, shown := true) -> bool:
 	enemy.health -= amount
 	if shown:
-		events.append(["hit", true, enemy.id, amount, enemy.position])
+		events.append(["hit", true, enemy.id, amount, enemy.position, enemy.pushed()])
 	if enemy.health > 0:
 		return false
+	events.append(["enemy", enemy.id, Net.EnemyEvent.DIED, enemy.position])
 	enemies.erase(enemy.id)
 	_drop_loot(enemy.def.drops, enemy.position)
 	var run := _run_at(enemy.position)
@@ -915,21 +920,15 @@ func _spend(player: SimPlayer, cost: float) -> bool:
 	return true
 
 
-## An enemy hit lands, less the player's armor, unless the player is dead or dashing. With
-## thorns, the enemy that hit (from) takes them back. Returns whether it landed.
+## An enemy hit lands (Combat.hit_player), unless the player is dead or dashing. With thorns,
+## the enemy that hit (from) takes them back. Returns whether it landed.
 func damage_player(id: int, amount: float, from: SimEnemy = null) -> bool:
 	var player: SimPlayer = players.get(id)
-	if player == null or player.dead_until > 0:
+	if player == null or player.dead_until > 0 or not Combat.hit_player(self, player, amount, from):
 		return false
-	var t := Content.tuning
-	var b := player.buffs
-	if time - player.dashed_at <= t.iframes + b.stat("iframes") + t.iframe_slack:
-		return false
-	var taken := Combat.after_armor(amount, player.inventory.worn("armor") + b.stat("armor"))
-	player.health = maxf(player.health - taken, 0.0)
-	events.append(["hit", false, id, taken, player.position])
-	if from and b.stat("thorns") > 0 and enemies.has(from.id):
-		_hurt_enemy(from, b.stat("thorns"), player)
+	var thorns := player.buffs.stat("thorns")
+	if from and thorns > 0 and enemies.has(from.id):
+		_hurt_enemy(from, thorns, player)
 	if player.health == 0:
 		_die(player)
 	return true

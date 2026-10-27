@@ -32,8 +32,10 @@ signal chunk_received(coord: Vector2i, removed: PackedInt32Array, pieces: Array)
 signal piece_received(coord: Vector2i, index: int, data: Array)
 signal storage_received(data: Dictionary)
 signal prop_removed_received(coord: Vector2i, prop_id: int)
-signal hit_received(enemy: bool, id: int, amount: int)
-signal windup_received(enemy_id: int, seconds: float, slam_radius: float)
+signal hit_received(enemy: bool, id: int, amount: int, push: Vector2)
+signal enemy_event_received(enemy_id: int, kind: int)
+signal perfect_received
+signal windup_received(enemy_id: int, seconds: float, radius: float)
 signal respawned_received(position: Vector2)
 signal swing_received(player_id: int, heavy: bool, aim: Vector2, weapon: StringName)
 signal inventory_received(data: Dictionary)
@@ -45,9 +47,12 @@ signal dungeon_received(area: Array, exit: Vector2, chest: Vector2, at: Vector2)
 signal chest_opened_received
 signal ponged(sent_ms: int)
 
+## What happened to an enemy in view, see enemy_event.
+enum EnemyEvent { STAGGER, STRIKE, DIED, GAVE_UP }
+
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 14
+const PROTOCOL_VERSION := 15
 const ENTITY_BYTES := 10
 
 @rpc("any_peer", "reliable")
@@ -244,17 +249,30 @@ func prop_removed(coord: Vector2i, prop_id: int) -> void:
 	prop_removed_received.emit(coord, prop_id)
 
 
-## An enemy or player in view took damage: flash and damage number.
+## An enemy or player in view took damage: flash and damage number. push is the way and
+## distance (px) the hit shoves the one hit, the player sliding it on its own screen.
 @rpc("authority", "reliable")
-func hit(enemy: bool, id: int, amount: int) -> void:
-	hit_received.emit(enemy, id, amount)
+func hit(enemy: bool, id: int, amount: int, push: Vector2) -> void:
+	hit_received.emit(enemy, id, amount, push)
 
 
-## An enemy in view started an attack that lands in seconds: the telegraph to dash from. A
-## slam_radius above 0 hits everyone that close.
+## An enemy in view started an attack that lands in seconds: the telegraph to dash from. It
+## hits everyone within radius of the enemy.
 @rpc("authority", "reliable")
-func windup(enemy_id: int, seconds: float, slam_radius: float) -> void:
-	windup_received.emit(enemy_id, seconds, slam_radius)
+func windup(enemy_id: int, seconds: float, radius: float) -> void:
+	windup_received.emit(enemy_id, seconds, radius)
+
+
+## An enemy in view staggered (its windup is off), struck, died or gave up its chase (EnemyEvent).
+@rpc("authority", "reliable")
+func enemy_event(enemy_id: int, kind: int) -> void:
+	enemy_event_received.emit(enemy_id, kind)
+
+
+## The receiving player's dash just dodged a hit perfectly.
+@rpc("authority", "reliable")
+func perfect() -> void:
+	perfect_received.emit()
 
 
 ## Another player in view swung weapon (or "" bare-handed): draw it.

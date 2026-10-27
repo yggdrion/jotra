@@ -54,3 +54,27 @@ static func in_arc(
 ## min_damage.
 static func after_armor(amount: float, armor: float) -> float:
 	return maxf(amount - armor, minf(Content.tuning.min_damage, amount))
+
+
+## A hit of amount from an enemy (null: none) on a player, less its armor. Nothing lands while
+## the player's dash i-frames run; a dash that began perfect_window or less before a hit dodges
+## it perfectly: stamina back and the enemy left open. Returns whether it landed.
+static func hit_player(
+	world: SimWorld, player: SimWorld.SimPlayer, amount: float, from: SimEnemy
+) -> bool:
+	var t := Content.tuning
+	var b := player.buffs
+	var since := world.time - player.dashed_at
+	if since <= t.iframes + b.stat("iframes") + t.iframe_slack:
+		if from and since <= t.perfect_window:
+			player.stamina = minf(player.stamina + t.perfect_stamina, t.max_stamina)
+			from.punish(t.perfect_stagger)
+			world.events.append(["perfect", player.id])
+		return false
+	var taken := after_armor(amount, player.inventory.worn("armor") + b.stat("armor"))
+	player.health = maxf(player.health - taken, 0.0)
+	var push := Vector2.ZERO
+	if from:
+		push = (player.position - from.position).normalized() * from.def.knock
+	world.events.append(["hit", false, player.id, taken, player.position, push])
+	return true
