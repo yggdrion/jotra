@@ -20,12 +20,16 @@ const LOWER_S := 4
 const LOWER_W := 8
 const CLIFF := 16
 const RAMP := 32
-## A tile's face byte (faces_of): its row of a south face in the low two bits (1 just above the
-## lower ground, up to FACE_ROWS, 0 off a face), and whether that row of face ends on its west
-## or east side.
-const FACE_ROW := 3
-const END_W := 4
-const END_E := 8
+## The cliff art (looks_of) is the tileset's 5×6 plateau: row 0 the spikes a top edge pokes
+## into the ground north of it, row 1 the top edge, row 2 the sides, rows 3-5 the south face from
+## its top down; column 0 and 4 the rock a left or right edge throws onto the lower ground beside
+## it, 1 and 3 the edges themselves, 2 the middle. A look packs the tile's own piece and up to
+## three such overhangs (row * 5 + column, plus one; 0 for none) in LOOK_BITS each, STAIRS, and
+## the shadow a face south of a tile's north neighbour or a plateau's east side casts on it.
+const LOOK_BITS := 6
+const STAIRS := 1 << 24
+const SHADOW_N := 1 << 25
+const SHADOW_W := 1 << 26
 ## Rows of rock face a south edge shows, and how many of them (from the bottom) block.
 const FACE_ROWS := 3
 const FACE_SOLID := 2
@@ -182,26 +186,89 @@ class Field:
 				i += 1
 		return out
 
-	## The face bytes (FACE_ROW, END_W, END_E) of the side² tiles from origin, for drawing; a ramp
-	## is no face, so the faces beside it end there.
+	## The face rows (0 off a face) of the side² tiles from origin; no prop stands on one.
 	func faces_of(origin: Vector2i, side: int) -> PackedByteArray:
 		var out := PackedByteArray()
-		out.resize(side * side)
 		var w := _covered.size.x
 		for y in side:
 			var i := (origin.y + y - _covered.position.y) * w + origin.x - _covered.position.x
-			for x in side:
-				var tile := origin + Vector2i(x, y)
-				var row := _face_row(i)
-				if row > 0 and not _ramp_at(tile + Vector2i(0, row - 1)):
-					var face := row
-					if not _same_face(i - 1, row, tile + Vector2i(-1, 0)):
-						face |= END_W
-					if not _same_face(i + 1, row, tile + Vector2i(1, 0)):
-						face |= END_E
-					out[y * side + x] = face
-				i += 1
+			out.append_array(_rows.slice(i, i + side))
 		return out
+
+	## The looks (see LOOK_BITS) of the side² tiles from origin, row by row, for drawing.
+	func looks_of(origin: Vector2i, side: int) -> PackedInt32Array:
+		# Own pieces a tile further out too, as overhangs come from the neighbours.
+		var outer := side + 2
+		var own := PackedInt32Array()
+		own.resize(outer * outer)
+		for y in outer:
+			for x in outer:
+				own[y * outer + x] = _own_piece(origin + Vector2i(x - 1, y - 1))
+		var out := PackedInt32Array()
+		out.resize(side * side)
+		for y in side:
+			for x in side:
+				var k := (y + 1) * outer + x + 1
+				var look := own[k] + 1
+				if own[k] < 0:
+					var shift := LOOK_BITS
+					for piece in _overhangs(own, k, outer):
+						look |= (piece + 1) << shift
+						shift += LOOK_BITS
+				var tile := origin + Vector2i(x, y)
+				if _rows[_index(tile)] == 1 and _ramp_at(tile):
+					look |= STAIRS
+				if own[k] < 0 and own[k - outer] >= 25:
+					look |= SHADOW_N
+				if own[k] < 0 and own[k - 1] >= 0 and own[k - 1] % 5 == 3:
+					look |= SHADOW_W
+				out[y * side + x] = look
+		return out
+
+	## The piece of the plateau art a tile shows of itself, -1 for none (no edge, or a ramp).
+	func _own_piece(tile: Vector2i) -> int:
+		var i := _index(tile)
+		var w := _covered.size.x
+		var level := _grid[i]
+		var west := _grid[i - 1] < level
+		var east := _grid[i + 1] < level
+		var row := _rows[i]
+		if row > 0:
+			if _ramp_at(tile + Vector2i(0, row - 1)):
+				return -1
+			var column := 2
+			if west or not _same_face(i - 1, row, tile + Vector2i(-1, 0)):
+				column = 1
+			elif east or not _same_face(i + 1, row, tile + Vector2i(1, 0)):
+				column = 3
+			return (6 - row) * 5 + column
+		var north := _grid[i - w] < level
+		if not (north or west or east) or _ramp_at(tile):
+			return -1
+		var column := 1 if west else (3 if east else 2)
+		return (5 if north else 10) + column
+
+	## The rock the neighbours' edges throw onto a tile without a piece of its own.
+	func _overhangs(own: PackedInt32Array, k: int, outer: int) -> Array[int]:
+		var out: Array[int] = []
+		var east := own[k + 1]
+		if east >= 0 and east % 5 == 1:
+			out.append(east - 1)
+		var west := own[k - 1]
+		if west >= 0 and west % 5 == 3:
+			out.append(west + 1)
+		var south := own[k + outer]
+		if south >= 5 and south < 10:
+			out.append(south - 5)
+		elif own[k + outer + 1] == 6 and east < 0:
+			out.append(0)
+		elif own[k + outer - 1] == 8 and west < 0:
+			out.append(4)
+		return out
+
+	func _index(tile: Vector2i) -> int:
+		var at := tile - _covered.position
+		return at.y * _covered.size.x + at.x
 
 	func is_cliff(tile: Vector2i) -> bool:
 		var level := level_at(tile)

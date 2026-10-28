@@ -28,10 +28,11 @@ const BIOME_FREQUENCY := 0.0013
 
 
 ## {tiles: PackedByteArray of Biome, levels: of Terrain.Level, terrain: of Terrain bits (cliffs
-## and ramps), faces: of Terrain face bytes, all row by row; props: {id: Prop}}. A prop's id is
-## its tile index in the chunk, so it is stable and unique per chunk. No prop stands on a cliff,
-## ramp or face, or in front of a ramp.
-static func chunk(world_seed: int, coord: Vector2i) -> Dictionary:
+## and ramps), faces: rows of south faces (Terrain.faces_of), all row by row; props: {id: Prop}}.
+## A prop's id is its tile index in the chunk, so it is stable and unique per chunk. No prop
+## stands on a cliff, ramp or face, or in front of a ramp.
+## With looks (the client draws them), also looks: a PackedInt32Array of Terrain looks.
+static func chunk(world_seed: int, coord: Vector2i, looks := false) -> Dictionary:
 	var noise := biome_noise(world_seed)
 	var field := Terrain.Field.new(world_seed)
 	var margin := Terrain.MARGIN
@@ -68,7 +69,10 @@ static func chunk(world_seed: int, coord: Vector2i) -> Dictionary:
 					props[id] = Prop.STICK
 				elif small_roll < small_chance[0] + small_chance[1]:
 					props[id] = Prop.PEBBLE
-	return {tiles = tiles, levels = levels, terrain = terrain, faces = faces, props = props}
+	var out := {tiles = tiles, levels = levels, terrain = terrain, faces = faces, props = props}
+	if looks:
+		out.looks = field.looks_of(coord * CHUNK, CHUNK)
+	return out
 
 
 ## Whether one of the two tiles north of a tile (in its chunk) is a ramp: its foot stays clear.
