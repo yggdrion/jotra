@@ -15,6 +15,8 @@ const DELVE_ENGAGE := 220.0
 const ORB_RANGE := 120.0
 ## How far into a corridor or room it aims past a doorway, so it is through it.
 const STEP_IN := 8.0
+## Seconds before the route to a walk target is searched again.
+const REPATH := 0.5
 
 var entered := false
 ## Walked out through the exit.
@@ -32,6 +34,12 @@ var most_synergies := 0
 var entered_at := -1.0
 var ended_at := -1.0
 var _boss_id := 0
+## The route to the last walk target around the run's obstacles, searched again when the target
+## changes tile, the run clears a room or REPATH has passed.
+var _route: Array[Vector2] = []
+var _route_tile := Vector2i(-99999, -99999)
+var _route_cleared := -1
+var _route_at := -1.0
 
 
 ## Its run is over: it walked out or died.
@@ -109,6 +117,13 @@ func _delve(delta: float) -> void:
 			ended_at = world.time
 		return
 	if room >= 0:
+		# The gate at the end of corridor `room` stays shut until the room is cleared: go and
+		# fight what is left of it instead of waiting.
+		if run.cleared < room:
+			var left := _nearest_in_run()
+			if left:
+				_walk_to(left.position, delta)
+				return
 		# The corridor leaving room i is area[i]: aim just inside its west end.
 		var out := run.area[room]
 		_walk_to(Vector2(out.position.x + STEP_IN, out.get_center().y), delta)
@@ -155,11 +170,44 @@ func _stacks() -> int:
 	return total
 
 
-## Inside the run's rooms and corridors, sliding along the walls.
+## The nearest living enemy standing in its run.
+func _nearest_in_run() -> SimEnemy:
+	var best: SimEnemy = null
+	var me := player()
+	for enemy: SimEnemy in world.enemies.values():
+		if not me.run.owns(enemy.position):
+			continue
+		if (
+			best == null
+			or enemy.position.distance_to(me.position) < best.position.distance_to(me.position)
+		):
+			best = enemy
+	return best
+
+
+## Inside the run's rooms and corridors, around its obstacles and shut gates, sliding along the
+## walls.
 func _walk_to(target: Vector2, delta: float) -> void:
 	var me := player()
 	var speed := Content.tuning.walk_speed * (1.0 + me.buffs.stat("move_speed"))
-	var step := me.position.move_toward(target, speed * delta)
+	var aim := target
+	if me.run:
+		aim = _waypoint(me.run, target)
+	var step := me.position.move_toward(aim, speed * delta)
 	if me.run:
 		step = Dungeon.clamp_to(me.run.area, step)
 	world.move_player(id, step)
+
+
+## The next point on the way to target: the first waypoint of the cached route.
+func _waypoint(run: Dungeon, target: Vector2) -> Vector2:
+	var me := player()
+	var tile := Building.tile_of(target)
+	if tile != _route_tile or run.cleared != _route_cleared or world.time >= _route_at:
+		_route = Pathing.find(run.blocked, me.position, target, SimEnemy.PATH_NODES).points
+		_route_tile = tile
+		_route_cleared = run.cleared
+		_route_at = world.time + REPATH
+	while not _route.is_empty() and me.position.distance_to(_route[0]) <= 2.0:
+		_route.pop_front()
+	return target if _route.is_empty() else _route[0]
