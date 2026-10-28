@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dnuboyp2dj2w7"
-path="res://.godot/imported/vampire_walk.png-1a0c6688486802c3f8009690f2978da4.ctex"
+uid="uid://5awjc4ielra4"
+path="res://.godot/imported/knight_blue_walk.png-61ae8babe1ae98dd412b9f6ed2769cfb.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/craftpix/characters/vampire_walk.png"
-dest_files=["res://.godot/imported/vampire_walk.png-1a0c6688486802c3f8009690f2978da4.ctex"]
+source_file="res://assets/dark_knight/knight_blue_walk.png"
+dest_files=["res://.godot/imported/knight_blue_walk.png-61ae8babe1ae98dd412b9f6ed2769cfb.ctex"]
 
 [params]
 

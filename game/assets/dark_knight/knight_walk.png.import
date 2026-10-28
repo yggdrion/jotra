@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://be3ifb7d5yxt2"
-path="res://.godot/imported/count_walk.png-d6067b1a055636c7174036204580b3c5.ctex"
+uid="uid://6n6akmrjjenh"
+path="res://.godot/imported/knight_walk.png-ba6d09412a82c1709a5cc7513fcca22a.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/craftpix/characters/count_walk.png"
-dest_files=["res://.godot/imported/count_walk.png-d6067b1a055636c7174036204580b3c5.ctex"]
+source_file="res://assets/dark_knight/knight_walk.png"
+dest_files=["res://.godot/imported/knight_walk.png-ba6d09412a82c1709a5cc7513fcca22a.ctex"]
 
 [params]
 

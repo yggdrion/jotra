@@ -11,8 +11,8 @@ extends Node2D
 enum Facing { DOWN, UP, LEFT, RIGHT }
 
 const SHEETS: Array[Texture2D] = [
-	preload("res://assets/craftpix/characters/vampire_walk.png"),
-	preload("res://assets/craftpix/characters/count_walk.png"),
+	preload("res://assets/dark_knight/knight_walk.png"),
+	preload("res://assets/dark_knight/knight_blue_walk.png"),
 ]
 ## Multiplied into the sheet, the second half of a look (Net.player_z).
 const TINTS: Array[Color] = [
