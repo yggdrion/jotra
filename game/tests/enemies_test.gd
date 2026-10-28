@@ -219,3 +219,21 @@ func _windup(world: SimWorld) -> Array:
 		world.tick(TICK)
 	fail("no windup")
 	return []
+
+
+func test_a_pack_takes_turns_to_lunge() -> void:
+	var world := _world()
+	var def: EnemyDef = Content.enemies[&"wolf"]
+	var pack: Array[SimEnemy] = []
+	for at in [Vector2(40, 0), Vector2(-40, 0), Vector2(0, 40)]:
+		var wolf := world.add_enemy(at, 28, 14, def)
+		wolf.pack = 3
+		wolf.provoke(1)
+		pack.append(wolf)
+	for i in 60:
+		world.tick(TICK)
+		var busy := pack.filter(
+			func(w: SimEnemy) -> bool:
+				return w.state in [SimEnemy.State.WINDUP, SimEnemy.State.RECOVER]
+		)
+		assert_int(busy.size()).is_less_equal(1)

@@ -191,8 +191,8 @@ func _approach(world: SimWorld, player: SimWorld.SimPlayer, delta: float) -> boo
 			_step(world, position + away * 100.0, _speed(world) * delta)
 			return true
 	elif def.behavior == EnemyDef.Behavior.PACK:
-		if distance <= def.attack_range and world.time < _ready_at:
-			# Circles at circle_distance, to the side picked by id.
+		if distance <= def.attack_range and (world.time < _ready_at or _pack_busy(world)):
+			# Circles at circle_distance, to the side picked by id, while a packmate lunges.
 			var side := 1.0 if id % 2 == 0 else -1.0
 			var around := away.rotated(side * PI / 2)
 			var nudge := away * clampf(def.circle_distance - distance, -1.0, 1.0)
@@ -302,6 +302,16 @@ func blocks(from: Vector2) -> bool:
 	if def.block_arc <= 0.0 or state == State.STAGGER or state == State.LEASH:
 		return false
 	return absf(facing.angle_to(from - position)) <= deg_to_rad(def.block_arc) / 2
+
+
+## Whether a packmate is winding up or recovering from a lunge: a pack takes turns.
+func _pack_busy(world: SimWorld) -> bool:
+	if pack == 0:
+		return false
+	for other: SimEnemy in world.enemies.values():
+		if other != self and other.pack == pack and other.state in [State.WINDUP, State.RECOVER]:
+			return true
+	return false
 
 
 ## The first time it chases, its pack wakes with it.
