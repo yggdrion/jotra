@@ -912,7 +912,7 @@ func _on_snapshot(
 	_show_projectiles(projectiles)
 
 
-## projectiles: {id: Vector3(x, y, flight angle)}.
+## projectiles: {id: Vector3(x, y, Net.projectile_z)}.
 func _show_projectiles(projectiles: Dictionary) -> void:
 	for id: int in _projectile_views.keys():
 		if not projectiles.has(id):
@@ -922,8 +922,9 @@ func _show_projectiles(projectiles: Dictionary) -> void:
 		var p: Vector3 = projectiles[id]
 		if not _projectile_views.has(id):
 			_projectile_views[id] = ProjectileView.new()
+			_projectile_views[id].frost = Net.projectile_frost(p.z)
 			add_child(_projectile_views[id])
-		_projectile_views[id].update(Vector2(p.x, p.y), p.z)
+		_projectile_views[id].update(Vector2(p.x, p.y), Net.projectile_angle(p.z))
 
 
 ## drops: {id: Vector3(x, y, item index, or -1 - buff index for an orb)}. Most lie still;

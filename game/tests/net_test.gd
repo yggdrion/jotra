@@ -1,6 +1,6 @@
 extends GdUnitTestSuite
 ## Net: snapshot entities survive packing to quarter pixels and half floats, enemies with their
-## kind, a shield's facing in a byte.
+## kind, a shield's facing in a byte, a projectile whether it is a frost bolt.
 
 
 func test_entities_survive_packing() -> void:
@@ -41,6 +41,17 @@ func test_an_enemy_keeps_its_kind_and_health_through_packing() -> void:
 			assert_int(Net.enemy_kind(slowed)).is_equal(kind)
 			assert_float(Net.enemy_health(slowed)).is_equal_approx(health, 0.01)
 			assert_bool(Net.enemy_slowed(slowed)).is_true()
+
+
+func test_a_projectile_keeps_its_angle_and_frost_through_packing() -> void:
+	for angle: float in [-PI, -1.0, 0.0, 2.5, PI]:
+		for frost: bool in [false, true]:
+			var entities := {1: Vector3(0, 0, Net.projectile_z(angle, frost))}
+			var z: float = (
+				Net.unpack_entities(Net.pack_entities(entities, Vector2.ZERO), Vector2.ZERO)[1].z
+			)
+			assert_bool(Net.projectile_frost(z)).is_equal(frost)
+			assert_float(Net.projectile_angle(z)).is_equal_approx(angle, 0.01)
 
 
 func test_a_facing_survives_its_byte() -> void:

@@ -1507,10 +1507,10 @@ func sees(id: int, at: Vector2) -> bool:
 
 ## What one player's client is sent: {players: {id: Vector3(x, y, Net.player_z)}, enemies: the
 ## same with Net.enemy_z for z, drops: {id: Vector3(x, y, Content.item_index, or -1 - the
-## index in Content.buff_ids for a buff orb)}, projectiles: {id: Vector3(x, y, flight angle in
-## radians)}, facings: {id: angle in radians} of the enemies with a shield, me: Vector4(health,
-## stamina, max health, hunger), time: the world's time for the day/night clock}, with only
-## the players (itself included), enemies, drops and projectiles near it.
+## index in Content.buff_ids for a buff orb)}, projectiles: {id: Vector3(x, y,
+## Net.projectile_z)}, facings: {id: angle in radians} of the enemies with a shield,
+## me: Vector4(health, stamina, max health, hunger), time: the world's time for the day/night
+## clock}, with only the players (itself included), enemies, drops and projectiles near it.
 func snapshot_for(id: int) -> Dictionary:
 	var near := {}
 	for other: SimPlayer in players.values():
@@ -1542,7 +1542,8 @@ func snapshot_for(id: int) -> Dictionary:
 	var near_projectiles := {}
 	for p: SimProjectile in projectiles.values():
 		if sees(id, p.position):
-			near_projectiles[p.id] = Vector3(p.position.x, p.position.y, p.velocity.angle())
+			var z := Net.projectile_z(p.velocity.angle(), p.slow < 1.0)
+			near_projectiles[p.id] = Vector3(p.position.x, p.position.y, z)
 	var me: SimPlayer = players[id]
 	return {
 		players = near,

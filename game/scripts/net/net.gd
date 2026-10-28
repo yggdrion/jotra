@@ -74,10 +74,12 @@ enum Status { DRAUGHT, ABILITY, REGEN }
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 21
+const PROTOCOL_VERSION := 22
 ## Character looks: PlayerView.SHEETS times PlayerView.TINTS.
 const LOOKS := 12
 const ENTITY_BYTES := 10
+## Past any angle, so projectile_z can say frost bolt in the same half float.
+const FROST_Z := 8.0
 
 @rpc("any_peer", "reliable")
 func hello(version: int, player_name: String) -> void:
@@ -259,6 +261,19 @@ static func player_health(z: float) -> float:
 static func enemy_z(kind: int, health: float, slowed := false) -> float:
 	var z := kind + health * 0.99
 	return -z - 1.0 if slowed else z
+
+
+## A projectile's z in snapshots: its flight angle, moved up by FROST_Z for a frost bolt.
+static func projectile_z(angle: float, frost: bool) -> float:
+	return angle + FROST_Z if frost else angle
+
+
+static func projectile_frost(z: float) -> bool:
+	return z > FROST_Z / 2
+
+
+static func projectile_angle(z: float) -> float:
+	return z - FROST_Z if projectile_frost(z) else z
 
 
 static func enemy_kind(z: float) -> int:
