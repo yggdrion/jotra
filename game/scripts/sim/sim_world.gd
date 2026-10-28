@@ -149,6 +149,10 @@ class SimChunk:
 	var pieces := {}
 	## {id: SimGrave} lying in it.
 	var graves := {}
+	## Terrain.Level of each tile, row by row.
+	var levels: PackedByteArray
+	## Its cliff tiles that block (Terrain.solid_tiles).
+	var cliffs: Array[Vector2i] = []
 	var dirty := false
 
 
@@ -195,6 +199,8 @@ var pieces_version := 0
 var path_budget := PATH_BUDGET
 ## {id: SimGrave} of every loaded chunk.
 var graves := {}
+## {global tile: true} of the blocking cliff tiles of every loaded chunk.
+var cliffs := {}
 ## Map markers anyone placed, saved with the world meta: {id: [x, y, owner name, its look]}.
 var markers := {}
 ## Off in tests that place their own enemies.
@@ -234,6 +240,9 @@ var _next_grave_id := 1
 var _spawn_due := 0.0
 var _blocked := {}
 var _blocked_version := -1
+## Goes up when a chunk's cliffs come or go, so blocked_tiles() is built again.
+var _cliffs_version := 0
+var _blocked_cliffs := -1
 
 
 ## Loads the world in path, or creates it with a random seed. Null if it can't be read.
@@ -532,7 +541,8 @@ func _spawn(delta: float) -> void:
 			continue
 		var distance := rng.randf_range(t.spawn_ring_min, t.spawn_ring_max)
 		var at := player.position + Vector2.from_angle(rng.randf() * TAU) * distance
-		if Building.blocker(pieces, at) != null:
+		# Only on the player's own level, so it can walk over without a long way round.
+		if blocker(at) != null or level_at(at) != level_at(player.position):
 			continue
 		var kind := _pick_kind(Survival.is_night(time))
 		var members := rng.randi_range(kind.pack_min, kind.pack_max)
@@ -572,7 +582,8 @@ func _pick_kind(night: bool) -> EnemyDef:
 func explode(enemy: SimEnemy) -> void:
 	var radius := enemy.def.slam_radius
 	for player: SimPlayer in players.values():
-		if player.position.distance_to(enemy.position) <= radius:
+		var near := player.position.distance_to(enemy.position) <= radius
+		if near and reaches(enemy.position, player.position):
 			damage_player(player.id, enemy.damage, enemy)
 	for tile: Vector2i in pieces.keys():
 		if Building.tile_center(tile).distance_to(enemy.position) <= radius:
@@ -635,12 +646,21 @@ func _stream_chunks() -> void:
 			pieces_version += 1
 		for id: int in chunks[coord].graves:
 			graves.erase(id)
+		for tile in chunks[coord].cliffs:
+			cliffs.erase(tile)
+		_cliffs_version += 1
 		chunks.erase(coord)
 
 
 func _load_chunk(coord: Vector2i) -> void:
 	var chunk := SimChunk.new()
-	chunk.props = WorldGen.chunk(world_seed, coord).props
+	var data := WorldGen.chunk(world_seed, coord)
+	chunk.props = data.props
+	chunk.levels = data.levels
+	chunk.cliffs = Terrain.solid_tiles(coord, data.terrain)
+	for tile in chunk.cliffs:
+		cliffs[tile] = true
+	_cliffs_version += 1
 	chunks[coord] = chunk
 	if store == null:
 		return
@@ -841,11 +861,22 @@ func move_player(id: int, position: Vector2) -> bool:
 		# Nobody builds in a run: its obstacles and shut gates are all that blocks.
 		if not Building.can_walk_tiles(player.run.solid, player.position, position):
 			return false
-	elif not Building.can_walk(pieces, player.position, position):
+	elif not (
+		Building.can_walk(pieces, player.position, position)
+		and _can_climb(player.position, position)
+	):
 		return false
 	player.position = position
 	player.moved_at = time
 	return true
+
+
+## Whether a move stays off the cliffs, all the way: a long one (packets bunched up, a dash)
+## can't hop over one. Like Building.can_walk, one already in a cliff may walk out.
+func _can_climb(from: Vector2, to: Vector2) -> bool:
+	if Building.tile_blocker(cliffs, from) != null:
+		return true
+	return Building.tile_blocker(cliffs, to) == null and Terrain.line_clear(cliffs, from, to)
 
 
 ## E at one of its own graves, the dungeon entrance, a run's exit or its end chest. At a grave it
@@ -1056,7 +1087,8 @@ func build(id: int, tile: Vector2i, piece_id: StringName) -> bool:
 	if player == null or chunk == null or def == null or player.dead_until > 0 or player.run:
 		return false
 	var index := Building.index_in_chunk(tile)
-	var prop: bool = chunk.props.has(index) and not chunk.removed.has(index)
+	# A cliff takes no piece either.
+	var prop: bool = chunk.props.has(index) and not chunk.removed.has(index) or cliffs.has(tile)
 	var bodies := _enemy_positions()
 	for other: SimPlayer in players.values():
 		if other.dead_until == 0:
@@ -1172,21 +1204,38 @@ func damage_piece(tile: Vector2i, amount: float) -> void:
 	events.append(["piece", tile])
 
 
-## The tile of a piece blocking a body at at, null if none does; in a run the tile of an
-## obstacle or shut gate (nobody builds there).
+## The tile of a piece or cliff blocking a body at at, null if none does (a piece first, so
+## enemies siege it); in a run the tile of an obstacle or shut gate (nobody builds there).
 func blocker(at: Vector2) -> Variant:
 	var run := _run_at(at)
 	if run:
 		return Building.tile_blocker(run.solid, at)
-	return Building.blocker(pieces, at)
+	var piece: Variant = Building.blocker(pieces, at)
+	return piece if piece != null else Building.tile_blocker(cliffs, at)
 
 
-## Pathing.blocked_tiles of the loaded pieces, kept until pieces_version changes.
+## Pathing.blocked_tiles of the loaded pieces and the cliffs, kept until either changes.
 func blocked_tiles() -> Dictionary:
-	if _blocked_version != pieces_version:
+	if _blocked_version != pieces_version or _blocked_cliffs != _cliffs_version:
 		_blocked = Pathing.blocked_tiles(pieces)
+		_blocked.merge(cliffs)
 		_blocked_version = pieces_version
+		_blocked_cliffs = _cliffs_version
 	return _blocked
+
+
+## The Terrain.Level of the ground at at, GROUND where no chunk is loaded (or in a run).
+func level_at(at: Vector2) -> int:
+	var tile := Building.tile_of(at)
+	var chunk: SimChunk = chunks.get(Building.chunk_of_tile(tile))
+	if chunk == null:
+		return Terrain.Level.GROUND
+	return chunk.levels[Building.index_in_chunk(tile)]
+
+
+## Whether a hit from one position reaches another: no cliff lies between them.
+func reaches(from: Vector2, to: Vector2) -> bool:
+	return Terrain.line_clear(cliffs, from, to)
 
 
 ## What an enemy at at paths around: its run's walls, obstacles and shut gates in a dungeon
@@ -1246,6 +1295,8 @@ func attack(id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array) -> Packe
 	for enemy_id in hits:
 		var enemy: SimEnemy = enemies.get(enemy_id)
 		if enemy == null or not Combat.in_arc(player.position, aim, enemy.position, reach, arc):
+			continue
+		if not reaches(player.position, enemy.position):
 			continue
 		# Rolled only with a crit buff, so runs without buffs draw the same numbers.
 		var dealt := damage * (2.0 if crit > 0 and rng.randf() < crit else 1.0)

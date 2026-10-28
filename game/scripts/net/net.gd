@@ -82,9 +82,10 @@ enum EnemyEvent { STAGGER, STRIKE, DIED, GAVE_UP, BLOCK }
 ## regeneration from cooked food.
 enum Status { DRAUGHT, ABILITY, REGEN }
 
-## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
-## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 23
+## Bump on any change to the RPCs below or their payloads, or to what both sides generate from
+## the seed (WorldGen, Terrain). Keep hello's and reject's signatures from here on, so a client
+## with another version still gets the reason.
+const PROTOCOL_VERSION := 24
 ## Character looks: PlayerView.SHEETS times PlayerView.TINTS.
 const LOOKS := 12
 const ENTITY_BYTES := 10

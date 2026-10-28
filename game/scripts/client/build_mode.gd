@@ -74,7 +74,9 @@ func update(
 	_menu.refresh(inventory)
 	tile = Building.tile_of(mouse)
 	var chunk: ChunkView = chunks.get(Building.chunk_of_tile(tile))
-	var prop := chunk == null or chunk.has_prop(Building.index_in_chunk(tile))
+	var index := Building.index_in_chunk(tile)
+	# A cliff takes no piece either.
+	var prop := chunk == null or chunk.has_prop(index) or chunk.is_cliff(index)
 	status = Building.can_build(pieces, tile, piece_id(), inventory, at, prop, bodies)
 	_ghost.position = Building.tile_center(tile)
 	_ghost.ghost = GOOD if status in [Building.Status.OK, Building.Status.REPAIR] else BAD

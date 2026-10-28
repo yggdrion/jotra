@@ -124,8 +124,15 @@ func _add(coord: Vector2i) -> void:
 	var image := Image.create(WorldGen.CHUNK, WorldGen.CHUNK, false, Image.FORMAT_RGB8)
 	for id in WorldGen.CHUNK * WorldGen.CHUNK:
 		var color := WorldGen.BIOME_COLORS[chunk.tiles[id]]
+		match chunk.levels[id]:
+			Terrain.Level.SUNKEN:
+				color = color.darkened(0.3)
+			Terrain.Level.RAISED:
+				color = color.lightened(0.2)
 		if chunk.props.has(id) and WorldGen.is_node(chunk.props[id]):
 			color = color.darkened(0.35)
+		if Terrain.blocks(chunk.terrain[id]):
+			color = ChunkView.CLIFF_FACE
 		image.set_pixel(id % WorldGen.CHUNK, id / WorldGen.CHUNK, color)
 	_explored[coord] = ImageTexture.create_from_image(image)
 

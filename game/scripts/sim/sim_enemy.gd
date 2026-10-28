@@ -186,15 +186,17 @@ func tick(world: SimWorld, delta: float) -> void:
 
 
 ## Closes in on or keeps away from the player as the behavior wants. Returns whether it is
-## in place to attack (a blocking piece in the way, in siege, counts).
+## in place to attack (a blocking piece in the way, in siege, counts). With a cliff between them
+## it only looks for the way round.
 func _approach(world: SimWorld, player: SimWorld.SimPlayer, delta: float) -> bool:
 	var distance := position.distance_to(player.position)
 	var away := (position - player.position).normalized()
-	if def.behavior == EnemyDef.Behavior.ARCHER:
+	var across := not world.reaches(position, player.position)
+	if def.behavior == EnemyDef.Behavior.ARCHER and not across:
 		if distance < def.preferred_distance:
 			_step(world, position + away * 100.0, _speed(world) * delta)
 			return true
-	elif def.behavior == EnemyDef.Behavior.PACK:
+	elif def.behavior == EnemyDef.Behavior.PACK and not across:
 		if distance <= def.attack_range and (world.time < _ready_at or _pack_busy(world)):
 			# Circles at circle_distance, to the side picked by id, while a packmate lunges.
 			var side := 1.0 if id % 2 == 0 else -1.0
@@ -202,7 +204,7 @@ func _approach(world: SimWorld, player: SimWorld.SimPlayer, delta: float) -> boo
 			var nudge := away * clampf(def.circle_distance - distance, -1.0, 1.0)
 			_step(world, position + (around + nudge) * 100.0, _speed(world) * 0.7 * delta)
 			return false
-	if distance <= def.attack_range:
+	if distance <= def.attack_range and not across:
 		return true
 	var wall: Variant = _step(world, _waypoint(world, player.position), _speed(world) * delta)
 	if wall == null:
@@ -211,7 +213,11 @@ func _approach(world: SimWorld, player: SimWorld.SimPlayer, delta: float) -> boo
 		# The target moved behind a piece or a push took it off its route: look again first.
 		_stuck = true
 		return false
-	siege = wall
+	# Only a piece is sieged. Against a cliff it waits for a way round, searched when due
+	# rather than every tick.
+	siege = wall if world.pieces.has(wall) else null
+	if siege == null:
+		_stuck = false
 	return siege != null
 
 
@@ -261,14 +267,16 @@ func _strike(world: SimWorld, player: SimWorld.SimPlayer) -> void:
 		for other: SimWorld.SimPlayer in world.players.values():
 			var to := other.position - position
 			var inside := to.length() <= SWEEP_CORE or absf(_aim.angle_to(to)) <= half
-			if to.length() <= reach and inside:
+			if to.length() <= reach and inside and world.reaches(position, other.position):
 				world.damage_player(other.id, damage, self)
 	elif def.slam_radius > 0:
 		for other: SimWorld.SimPlayer in world.players.values():
-			if position.distance_to(other.position) <= def.slam_radius:
+			var near := position.distance_to(other.position) <= def.slam_radius
+			if near and world.reaches(position, other.position):
 				world.damage_player(other.id, damage, self)
 	elif player != null:
-		if position.distance_to(player.position) <= def.attack_range + def.attack_slack:
+		var near := position.distance_to(player.position) <= def.attack_range + def.attack_slack
+		if near and world.reaches(position, player.position):
 			world.damage_player(target, damage, self)
 
 
@@ -285,7 +293,8 @@ func _lunge(world: SimWorld, player: SimWorld.SimPlayer) -> void:
 		left -= stride
 		if player != null and position.distance_to(player.position) <= def.lunge_reach * 0.6:
 			break
-	if player != null and position.distance_to(player.position) <= def.lunge_reach:
+	var near := player != null and position.distance_to(player.position) <= def.lunge_reach
+	if near and world.reaches(position, player.position):
 		world.damage_player(target, damage, self)
 
 

@@ -172,6 +172,8 @@ var _obstacles: Array[Rect2i] = []
 var _obstacle_kinds := PackedByteArray()
 var _gates: Array[Rect2i] = []
 var _solid := {}
+## {tile: true} of the blocking cliffs of the loaded chunks (Terrain, as on the server).
+var _cliffs := {}
 var _chest_opened := false
 var _dungeon_view: DungeonView
 
@@ -547,6 +549,8 @@ func _on_chunk(coord: Vector2i, removed: PackedInt32Array, pieces: Array, graves
 		_chunks[coord].queue_free()
 		_forget_pieces(coord)
 	_chunks[coord] = ChunkView.new(_world_seed, coord, removed)
+	for tile: Vector2i in _chunks[coord].cliffs:
+		_cliffs[tile] = true
 	_map.explore(coord)
 	add_child(_chunks[coord])
 	for entry: Array in pieces:
@@ -600,8 +604,10 @@ func _refresh_joins(tile: Vector2i) -> void:
 			view.set_join_mask(Building.index_in_chunk(at), mask)
 
 
-## Also the graves lying in the chunk.
+## Also the graves lying in the chunk and its cliffs.
 func _forget_pieces(coord: Vector2i) -> void:
+	for tile: Vector2i in _chunks[coord].cliffs:
+		_cliffs.erase(tile)
 	for tile: Vector2i in _pieces.keys():
 		if Building.chunk_of_tile(tile) == coord:
 			_pieces.erase(tile)
@@ -616,8 +622,8 @@ func _drop_far_chunks() -> void:
 	for coord: Vector2i in _chunks.keys():
 		if not WorldGen.near(coord, center, KEEP_CHUNKS):
 			_chunks[coord].queue_free()
-			_chunks.erase(coord)
 			_forget_pieces(coord)
+			_chunks.erase(coord)
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -722,12 +728,16 @@ func _build_click(button: MouseButton) -> void:
 			_build.select(_build.selected + 1)
 
 
-## Moves our player by step unless a piece blocks it, sliding along the piece if only one axis
+## Moves our player by step unless a piece or cliff blocks it, sliding along it if only one axis
 ## is blocked.
 func _walk(step: Vector2) -> void:
 	var from := _me.position
 	for to: Vector2 in [from + step, from + Vector2(step.x, 0), from + Vector2(0, step.y)]:
-		if Building.can_walk(_pieces, from, to) and Building.can_walk_tiles(_solid, from, to):
+		if (
+			Building.can_walk(_pieces, from, to)
+			and Building.can_walk_tiles(_solid, from, to)
+			and Building.can_walk_tiles(_cliffs, from, to)
+		):
 			_me.position = to
 			return
 
@@ -743,7 +753,11 @@ func _attack(heavy: bool) -> void:
 	var aim := _aim()
 	var hits := PackedInt32Array()
 	for id: int in _enemy_views:
-		if Combat.in_arc(_me.position, aim, _enemy_views[id].position, move.reach, move.arc):
+		var at: Vector2 = _enemy_views[id].position
+		if (
+			Combat.in_arc(_me.position, aim, at, move.reach, move.arc)
+			and Terrain.line_clear(_cliffs, _me.position, at)
+		):
 			hits.append(id)
 	_me.swing(aim, move)
 	_last_move = move

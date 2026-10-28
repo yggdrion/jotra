@@ -70,6 +70,8 @@ const CORNERED := 40.0
 const WANDER_TIME := 20.0
 ## Wanders back toward the spawn when further than this.
 const WANDER_RANGE := 1500.0
+## Seconds before it searches its route again for a target that moved to another tile.
+const REPATH := 0.5
 
 var world: SimWorld
 var id: int
@@ -122,6 +124,10 @@ var _hit_this_tick := false
 var _grave_target := Vector2.ZERO
 var _grave_fails := {}
 var _grave_retry_at := 0.0
+## Its route around pieces and cliffs to the target tile it last searched for.
+var _route: Array[Vector2] = []
+var _route_tile := Vector2i.MAX
+var _route_at := -1.0
 
 
 func _init(sim: SimWorld, player_id: int, seed_value: int) -> void:
@@ -653,7 +659,9 @@ func _wander_step(delta: float) -> void:
 		_wander = Vector2.from_angle(_rng.randf() * TAU)
 		if me.position.length() > WANDER_RANGE:
 			_wander = -me.position.normalized()
-	_walk_to(me.position + _wander * 100, delta)
+	if not _walk_to(me.position + _wander * 100, delta):
+		# Up against a cliff: another way next tick.
+		_wander_until = 0.0
 
 
 func _nearest_enemy() -> SimEnemy:
@@ -668,10 +676,31 @@ func _nearest_enemy() -> SimEnemy:
 	return best
 
 
-## Walks toward target, sliding along a piece in the way like a player would.
-func _walk_to(target: Vector2, delta: float) -> void:
+## Walks toward target around pieces and cliffs, sliding along what is in the way like a player
+## would. Returns whether it moved.
+func _walk_to(target: Vector2, delta: float) -> bool:
 	var me := player()
-	var step := me.position.move_toward(target, Content.tuning.walk_speed * delta) - me.position
+	var aim := _waypoint(target)
+	var step := me.position.move_toward(aim, Content.tuning.walk_speed * delta) - me.position
 	for to: Vector2 in [step, Vector2(step.x, 0), Vector2(0, step.y)]:
 		if world.move_player(id, me.position + to):
-			return
+			return true
+	# Stuck: search again next tick.
+	_route_tile = Vector2i.MAX
+	_route_at = 0.0
+	return false
+
+
+## The next point on the way to target: the first waypoint of its route, searched again once
+## the target is on another tile and REPATH has passed.
+func _waypoint(target: Vector2) -> Vector2:
+	var me := player()
+	var tile := Building.tile_of(target)
+	if tile != _route_tile and world.time >= _route_at:
+		var blocked := world.blocked_at(me.position)
+		_route = Pathing.find(blocked, me.position, target, SimEnemy.PATH_NODES).points
+		_route_tile = tile
+		_route_at = world.time + REPATH
+	while not _route.is_empty() and me.position.distance_to(_route[0]) <= 2.0:
+		_route.pop_front()
+	return target if _route.is_empty() else _route[0]

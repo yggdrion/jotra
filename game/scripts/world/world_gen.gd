@@ -1,7 +1,7 @@
 class_name WorldGen
 ## Seeded world generation, shared by server and client: the same seed and chunk always give
-## the same tiles and props, so only deltas against it are stored and sent. Also the chunk
-## grid math both sides use.
+## the same tiles, heights (Terrain) and props, so only deltas against it are stored and sent.
+## Also the chunk grid math both sides use.
 
 enum Biome { MEADOW, FOREST, MARSH, BONE_HILLS }
 ## TREE and ROCK are nodes with health, swung at with a tool; STICK and PEBBLE are picked up
@@ -23,16 +23,21 @@ const BIOME_BOUNDS: Array[float] = [-0.3, 0.05, 0.35]
 const PROP_CHANCE: Array[Array] = [[0.02, 0.005], [0.12, 0.01], [0.03, 0.0], [0.0, 0.06]]
 ## Chance per tile without a tree or rock of [stick, pebble], by biome.
 const SMALL_CHANCE: Array[Array] = [[0.015, 0.01], [0.03, 0.005], [0.015, 0.0], [0.0, 0.03]]
-## Noise frequency per tile: biomes span a few hundred tiles.
-const BIOME_FREQUENCY := 0.004
+## Noise frequency per tile: biomes span a thousand tiles or so.
+const BIOME_FREQUENCY := 0.0013
 
 
-## {tiles: PackedByteArray of Biome, row by row; props: {id: Prop}}. A prop's id is its tile
-## index in the chunk, so it is stable and unique per chunk.
+## {tiles: PackedByteArray of Biome, levels: of Terrain.Level, terrain: of Terrain bits (cliffs
+## and ramps), all row by row; props: {id: Prop}}. A prop's id is its tile index in the chunk,
+## so it is stable and unique per chunk. No prop stands on a cliff or ramp.
 static func chunk(world_seed: int, coord: Vector2i) -> Dictionary:
-	var noise := FastNoiseLite.new()
-	noise.seed = world_seed
-	noise.frequency = BIOME_FREQUENCY
+	var noise := biome_noise(world_seed)
+	var field := Terrain.Field.new(world_seed)
+	# Wide enough for the neighbours of its edge tiles and the ramp windows reaching past it.
+	var margin := Terrain.RAMP_SIZE + 1
+	field.cover(Rect2i(coord * CHUNK - Vector2i.ONE * margin, Vector2i.ONE * (CHUNK + 2 * margin)))
+	var levels := field.levels_of(coord * CHUNK, CHUNK)
+	var terrain := field.bits_of(coord * CHUNK, CHUNK)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([world_seed, coord])
 	# Its own stream, so trees and rocks stand where they always did.
@@ -49,18 +54,28 @@ static func chunk(world_seed: int, coord: Vector2i) -> Dictionary:
 			tiles[id] = biome
 			var chance: Array = PROP_CHANCE[biome]
 			var roll := rng.randf()
+			var small_roll := small.randf()
+			if terrain[id] & Terrain.CLIFF:
+				continue
 			if roll < chance[0]:
 				props[id] = Prop.TREE
 			elif roll < chance[0] + chance[1]:
 				props[id] = Prop.ROCK
 			else:
-				var small_roll := small.randf()
 				var small_chance: Array = SMALL_CHANCE[biome]
 				if small_roll < small_chance[0]:
 					props[id] = Prop.STICK
 				elif small_roll < small_chance[0] + small_chance[1]:
 					props[id] = Prop.PEBBLE
-	return {tiles = tiles, props = props}
+	return {tiles = tiles, levels = levels, terrain = terrain, props = props}
+
+
+## The noise biomes are read from; Terrain also leans on it.
+static func biome_noise(world_seed: int) -> FastNoiseLite:
+	var noise := FastNoiseLite.new()
+	noise.seed = world_seed
+	noise.frequency = BIOME_FREQUENCY
+	return noise
 
 
 ## Whether a prop kind is a node with health (tree, rock) and not a pickup.
