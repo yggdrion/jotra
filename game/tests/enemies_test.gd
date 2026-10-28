@@ -70,6 +70,22 @@ func test_a_provoked_wolf_wakes_its_pack_and_lunges() -> void:
 	assert_float(lone.position.length()).is_less(def.attack_range - 5)
 
 
+func test_a_wolf_telegraphs_its_lane_and_a_side_step_dodges_it() -> void:
+	var world := _world()
+	var def: EnemyDef = Content.enemies[&"wolf"]
+	var wolf := world.add_enemy(Vector2(def.attack_range - 5, 0), 28, 14, def)
+	wolf.provoke(1)
+	world.events.clear()
+	var windup := _windup(world)
+	assert_vector(windup[5]).is_equal_approx(Vector2.LEFT, Vector2(0.01, 0.01))
+	assert_float(windup[4]).is_equal(def.lunge_distance + def.lunge_reach)
+	assert_float(windup[6]).is_equal(0.0)
+	# Out of the lane before the windup ends: the lunge runs past.
+	world.players[1].position = Vector2(0, def.lunge_reach * 2)
+	world.tick(def.windup + TICK)
+	assert_float(world.players[1].health).is_equal(Content.tuning.max_health)
+
+
 func test_shield_blocks_the_front_but_not_the_back_or_a_heavy() -> void:
 	var def: EnemyDef = Content.enemies[&"shield_draugr"]
 	var light := Content.tuning.fists_light.damage

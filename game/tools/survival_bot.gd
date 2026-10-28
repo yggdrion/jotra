@@ -247,8 +247,8 @@ func _targets_me(enemy_id: int) -> bool:
 
 ## Plans the dash for a windup event. A hit lands as the telegraph ends, so the i-frames are
 ## timed to cover it even on a long windup; an arrow line is sidestepped, and the dash is timed
-## to the arrow's arrival. Some of the dashes against a hit come late, inside the perfect
-## window, and through the hit.
+## to the arrow's arrival; a wolf's lunge lane is sidestepped too. Some of the dashes against a
+## hit come late, inside the perfect window, and through the hit.
 func _plan_dash(event: Array) -> void:
 	var t := Content.tuning
 	var late := _rng.randf() < perfect
@@ -257,10 +257,12 @@ func _plan_dash(event: Array) -> void:
 	)
 	var way := THROUGH if late else Vector2.ZERO
 	var line: Vector2 = event[5]
-	if line != Vector2.ZERO and event[6] == 0.0:
-		var enemy: SimEnemy = world.enemies[event[1]]
+	var enemy: SimEnemy = world.enemies[event[1]]
+	if line != Vector2.ZERO and enemy.def.behavior == EnemyDef.Behavior.ARCHER:
 		var flight := enemy.position.distance_to(player().position) / enemy.def.arrow_speed
 		at = world.time + event[3] + flight - Content.tuning.iframes / 2
+		way = line.orthogonal()
+	elif line != Vector2.ZERO and event[6] == 0.0 and not late:
 		way = line.orthogonal()
 	_dash_at.append(at)
 	_dash_way.append(way)

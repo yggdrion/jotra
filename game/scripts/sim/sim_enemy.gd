@@ -125,6 +125,10 @@ func tick(world: SimWorld, delta: float) -> void:
 			if def.behavior == EnemyDef.Behavior.ARCHER:
 				area = def.arrow_range
 				line = _aim
+			elif def.behavior == EnemyDef.Behavior.PACK:
+				# The lane the lunge runs along, as wide as what it reaches.
+				area = def.lunge_distance + def.lunge_reach
+				line = _aim
 			elif _sweeps():
 				line = _aim
 				arc = def.sweep_arc

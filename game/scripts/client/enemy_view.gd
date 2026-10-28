@@ -1,10 +1,10 @@
 class_name EnemyView
 extends PlayerView
 ## An enemy in its def's walk sheet at its def's size. While it winds up an attack the ground
-## shows the area it will hit, a disc filling to its edge as the hit lands, and it crouches back;
-## then it lunges forward. A hit recoils it away from the blow, a stagger shakes it, a give-up
-## dims it, a death topples and fades it before it is gone. A shield shows its blocking arc
-## along the server's facing, which also turns the sprite.
+## shows the area it will hit (a disc, a sweep cone, an arrow line or a lunge lane) filling as the
+## hit lands, and it crouches back; then it lunges forward. A hit recoils it away from the blow, a
+## stagger shakes it, a give-up dims it, a death topples and fades it before it is gone. A
+## shield shows its blocking arc along the server's facing, which also turns the sprite.
 
 const AREA := Color(0.9, 0.15, 0.1)
 const GAVE_UP := Color(0.65, 0.7, 0.9)
@@ -152,6 +152,8 @@ func _draw() -> void:
 		var p := float(now - _windup_start) / maxf(_windup_end - _windup_start, 1.0)
 		if _arc > 0.0:
 			_draw_cone(r, p)
+		elif _line != Vector2.ZERO and def.lunge_distance > 0:
+			_draw_lane(r, def.lunge_reach / scale.x, p)
 		elif _line != Vector2.ZERO:
 			draw_line(Vector2.ZERO, _line * r, Color(AREA, 0.3), 3.0)
 			draw_line(Vector2.ZERO, _line * r * p, Color(AREA, 0.85), 2.0)
@@ -165,6 +167,20 @@ func _draw() -> void:
 		var color := SHIELD.lerp(Color.WHITE, lit)
 		draw_arc(Vector2(0, -6), 12, heading - edge, heading + edge, 12, color, 2.0)
 	super()
+
+
+## The lunge telegraph: the lane it dashes along, half_width to each side, filling out from
+## the enemy as the windup runs.
+func _draw_lane(length: float, half_width: float, p: float) -> void:
+	var side := _line.orthogonal() * half_width
+	var lane := PackedVector2Array([side, _line * length + side, _line * length - side, -side])
+	if p > 0.05:
+		var fill := _line * length * p
+		draw_colored_polygon(
+			PackedVector2Array([side, fill + side, fill - side, -side]), Color(AREA, 0.35)
+		)
+	lane.append(side)
+	draw_polyline(lane, Color(AREA, 0.85), 1.0)
 
 
 ## The sweep telegraph: the cone filling out from the enemy as the windup runs, its edge drawn.
