@@ -79,4 +79,4 @@ func test_start_menu_opens_on_create_without_a_character() -> void:
 	add_child(menu)
 	var create: Control = menu._pages["create"]
 	assert_bool(create.visible).is_equal(menu.character.is_empty())
-	assert_bool(menu._pages["home"].visible).is_equal(not menu.character.is_empty())
+	assert_bool(menu._pages["characters"].visible).is_equal(not menu.character.is_empty())

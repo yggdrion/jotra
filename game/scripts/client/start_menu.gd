@@ -1,11 +1,11 @@
 class_name StartMenu
 extends CanvasLayer
 ## The first screen, in pages that each do one thing:
-## - home: the character to play as, Play, Join a friend, Characters, Settings, Quit;
-## - worlds: pick a solo world to play alone or host for friends, make one (name, seed) or
-##   delete one after a confirmation;
-## - join: the room code a friend's game shows;
-## - characters: pick, make or delete a character (CharacterList);
+## - characters: who plays, as cards (CharacterList) to pick, make or delete one, then
+##   Continue (or a double click); Settings and Quit;
+## - worlds: where to, for the picked character: a solo world to play alone (Solo) or open
+##   to friends (Host), make one (name, seed) or delete one after a confirmation, or join a
+##   friend's game by the room code it shows;
 ## - create: a new character's name, look (a sheet and a tint) and starting kit (KitDef).
 ## A first start with no character opens on create. A status line under the pages says what is
 ## under way (it stays while the game connects) and why the player came back from a game.
@@ -20,6 +20,8 @@ const FONT_SIZE := 8
 const HEADING := Color("feae34")
 const DIM := Color("c0cbdc")
 const WIDTH := 260
+## A character card on the first page, four to a row.
+const CARD := Vector2(61, 76)
 
 ## The character to play as: {name, look, kit}, {} until one exists.
 var character := {}
@@ -35,9 +37,10 @@ var _confirm := Control.new()
 var _confirm_text := Label.new()
 var _confirm_yes := Callable()
 var _settings := SettingsMenu.new()
-var _home_preview: TextureRect
-var _home_name := Label.new()
-var _character_rows := VBoxContainer.new()
+var _character_cards := GridContainer.new()
+var _card_scroll: ScrollContainer
+var _continue: Button
+var _worlds_back: Button
 var _create_name := LineEdit.new()
 var _create_look := 0
 var _create_kit := &""
@@ -69,10 +72,8 @@ func _ready() -> void:
 	title.add_theme_font_size_override("font_size", 24)
 	box.add_child(title)
 	for page: Array in [
-		["home", _home_page()],
-		["worlds", _worlds_page()],
-		["join", _join_page()],
 		["characters", _characters_page()],
+		["worlds", _worlds_page()],
 		["create", _create_page()],
 	]:
 		_pages[page[0]] = page[1]
@@ -87,7 +88,7 @@ func _ready() -> void:
 	add_child(_confirm)
 	_pick(CharacterList.last())
 	_refresh_worlds()
-	_show("home" if not character.is_empty() else "create")
+	_show("characters" if not character.is_empty() else "create")
 
 
 ## A line under the pages; busy greys the buttons out while something is under way.
@@ -123,13 +124,15 @@ func _show(page: String) -> void:
 		_pages[key].visible = key == page
 	if page == "characters":
 		_refresh_characters()
+	if page == "worlds":
+		_worlds_back.text = "< %s" % character.name
 	if page == "create":
 		_create_back.visible = not CharacterList.list().is_empty()
 		_create_name.text = ""
 		_create_look = randi() % Net.LOOKS
 		_choose_kit(Content.kit_ids[0])
 		_set_preview(_create_preview, _create_look)
-	if page != "home" or _status.text.begins_with("Created"):
+	if page != "characters" or _status.text.begins_with("Created"):
 		_status.text = ""
 
 
@@ -138,30 +141,8 @@ func _pick(picked: Dictionary) -> void:
 	if character.is_empty():
 		return
 	CharacterList.remember(character.name)
-	_set_preview(_home_preview, character.look)
-	var kit: KitDef = Content.kits.get(character.kit)
-	_home_name.text = "%s\n%s" % [character.name, kit.display_name if kit else "No kit"]
-
-
-# Home
-
-
-func _home_page() -> Control:
-	var page := VBoxContainer.new()
-	page.add_theme_constant_override("separation", 4)
-	var who := HBoxContainer.new()
-	who.alignment = BoxContainer.ALIGNMENT_CENTER
-	who.add_theme_constant_override("separation", 8)
-	_home_preview = preview(0, 48)
-	who.add_child(_home_preview)
-	who.add_child(_home_name)
-	page.add_child(who)
-	page.add_child(_button("Play", _show.bind("worlds")))
-	page.add_child(_button("Join a friend", _show.bind("join")))
-	page.add_child(_button("Characters", _show.bind("characters")))
-	page.add_child(_button("Settings", _settings.open))
-	page.add_child(_button("Quit", get_tree().quit))
-	return page
+	if _continue:
+		_continue.text = "Continue as %s" % character.name
 
 
 # Worlds
@@ -169,23 +150,23 @@ func _home_page() -> Control:
 
 func _worlds_page() -> Control:
 	var page := VBoxContainer.new()
+	_worlds_back = _button("<", _show.bind("characters"))
+	_worlds_back.flat = true
+	_worlds_back.size_flags_horizontal = Control.SIZE_SHRINK_BEGIN
+	page.add_child(_worlds_back)
 	page.add_child(_label("Your worlds", HEADING))
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 6)
-	page.add_child(row)
-	_worlds.custom_minimum_size = Vector2(150, 110)
-	_worlds.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_worlds.custom_minimum_size = Vector2(0, 90)
 	_worlds.item_activated.connect(func(_i: int) -> void: _play(solo_chosen))
-	row.add_child(_worlds)
-	var actions := VBoxContainer.new()
-	actions.custom_minimum_size.x = 100
-	actions.add_child(_button("Play solo", _play.bind(solo_chosen)))
-	actions.add_child(_button("Host for friends", _play.bind(host_chosen)))
-	var hint := _label("Friends join with the code your game shows", DIM)
-	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	actions.add_child(hint)
-	actions.add_child(_button("Delete world", _ask_delete_world))
-	row.add_child(actions)
+	page.add_child(_worlds)
+	var actions := HBoxContainer.new()
+	var solo := _button("Solo", _play.bind(solo_chosen))
+	solo.add_theme_color_override("font_color", HEADING)
+	for button: Button in [solo, _button("Host", _play.bind(host_chosen))]:
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		actions.add_child(button)
+	actions.add_child(_button("Delete", _ask_delete_world))
+	page.add_child(actions)
+	page.add_child(_label("Host: friends join with the code your game shows", DIM))
 	page.add_child(_label("New world", HEADING))
 	var create_row := HBoxContainer.new()
 	for field: LineEdit in [_new_name, _new_seed]:
@@ -197,7 +178,22 @@ func _worlds_page() -> Control:
 	_new_name.text_submitted.connect(func(_text: String) -> void: _create_world())
 	create_row.add_child(_button("Create", _create_world))
 	page.add_child(create_row)
-	page.add_child(_button("Back", _show.bind("home")))
+	page.add_child(_label("Friend's world", HEADING))
+	page.add_child(_label("Enter the %d-letter code their game shows" % CODE_LENGTH, DIM))
+	var join_row := HBoxContainer.new()
+	_code.placeholder_text = "Code"
+	_code.max_length = CODE_LENGTH
+	_code.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_code.text_changed.connect(
+		func(text: String) -> void:
+			var caret := _code.caret_column
+			_code.text = text.to_upper()
+			_code.caret_column = caret
+	)
+	_code.text_submitted.connect(func(_text: String) -> void: _join())
+	join_row.add_child(_code)
+	join_row.add_child(_button("Join", _join))
+	page.add_child(join_row)
 	return page
 
 
@@ -257,32 +253,6 @@ func _ask_delete_world() -> void:
 	)
 
 
-# Join
-
-
-func _join_page() -> Control:
-	var page := VBoxContainer.new()
-	page.add_child(_label("Join a friend", HEADING))
-	var hint := _label("Enter the %d-letter code their game shows" % CODE_LENGTH, DIM)
-	page.add_child(hint)
-	var row := HBoxContainer.new()
-	_code.placeholder_text = "Code"
-	_code.max_length = CODE_LENGTH
-	_code.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	_code.text_changed.connect(
-		func(text: String) -> void:
-			var caret := _code.caret_column
-			_code.text = text.to_upper()
-			_code.caret_column = caret
-	)
-	_code.text_submitted.connect(func(_text: String) -> void: _join())
-	row.add_child(_code)
-	row.add_child(_button("Join", _join))
-	page.add_child(row)
-	page.add_child(_button("Back", _show.bind("home")))
-	return page
-
-
 func _join() -> void:
 	var code := _code.text.strip_edges()
 	if code.length() != CODE_LENGTH:
@@ -296,43 +266,96 @@ func _join() -> void:
 
 func _characters_page() -> Control:
 	var page := VBoxContainer.new()
-	page.add_child(_label("Characters", HEADING))
-	page.add_child(_label("Each world keeps its own progress for a character", DIM))
+	page.add_child(_label("Who plays", HEADING))
 	var scroll := ScrollContainer.new()
-	scroll.custom_minimum_size.y = 150
+	_card_scroll = scroll
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	_character_rows.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_character_rows)
+	_character_cards.columns = 4
+	_character_cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_character_cards.add_theme_constant_override("h_separation", 4)
+	_character_cards.add_theme_constant_override("v_separation", 4)
+	scroll.add_child(_character_cards)
 	page.add_child(scroll)
-	page.add_child(_button("New character", _show.bind("create")))
-	page.add_child(_button("Back", _show.bind("home")))
+	var hint_row := HBoxContainer.new()
+	var hint := _label("Each world keeps its own progress for a character", DIM)
+	hint.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	hint_row.add_child(hint)
+	hint_row.add_child(_button("Delete", func() -> void: _ask_delete_character(character.name)))
+	page.add_child(hint_row)
+	_continue = _button("Continue", _show.bind("worlds"))
+	_continue.add_theme_color_override("font_color", HEADING)
+	page.add_child(_continue)
+	var row := HBoxContainer.new()
+	for button: Button in [_button("Settings", _settings.open), _button("Quit", get_tree().quit)]:
+		button.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		row.add_child(button)
+	page.add_child(row)
 	return page
 
 
+## A card per character (a click picks it, a double click goes on with it) and one to make a
+## new one.
 func _refresh_characters() -> void:
-	for child in _character_rows.get_children():
+	for child in _character_cards.get_children():
 		child.queue_free()
+	var group := ButtonGroup.new()
 	for c in CharacterList.list():
-		var row := HBoxContainer.new()
-		row.add_child(preview(c.look, 24))
-		var kit: KitDef = Content.kits.get(c.kit)
-		var pick := Button.new()
-		pick.text = "%s  (%s)" % [c.name, kit.display_name if kit else "no kit"]
-		pick.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		pick.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-		pick.toggle_mode = true
-		pick.button_pressed = not character.is_empty() and c.name == character.name
-		pick.pressed.connect(
-			func() -> void:
-				_pick(c)
-				_show("home")
+		var card := _card()
+		card.toggle_mode = true
+		card.button_group = group
+		var picked := StyleBoxFlat.new()
+		picked.bg_color = Color(HEADING, 0.15)
+		picked.border_color = HEADING
+		picked.set_border_width_all(1)
+		picked.set_corner_radius_all(2)
+		card.add_theme_stylebox_override("pressed", picked)
+		card.add_theme_stylebox_override("hover_pressed", picked)
+		card.button_pressed = not character.is_empty() and c.name == character.name
+		card.pressed.connect(_pick.bind(c))
+		card.gui_input.connect(
+			func(event: InputEvent) -> void:
+				if event is InputEventMouseButton and event.double_click:
+					_pick(c)
+					_show("worlds")
 		)
-		row.add_child(pick)
-		var delete := Button.new()
-		delete.text = "Delete"
-		delete.pressed.connect(_ask_delete_character.bind(c.name))
-		row.add_child(delete)
-		_character_rows.add_child(row)
+		var kit: KitDef = Content.kits.get(c.kit)
+		var box := card.get_child(0)
+		var look := preview(c.look, 44)
+		look.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		box.add_child(look)
+		box.add_child(_card_label(c.name, Color.WHITE))
+		box.add_child(_card_label(kit.display_name if kit else "No kit", DIM))
+		_character_cards.add_child(card)
+	var new := _card()
+	new.pressed.connect(_show.bind("create"))
+	new.get_child(0).add_child(_card_label("+\nNew", DIM))
+	_character_cards.add_child(new)
+	# One row of cards per four, up to two shown; more scroll.
+	var rows := mini(ceili((CharacterList.list().size() + 1) / 4.0), 2)
+	_card_scroll.custom_minimum_size.y = rows * (CARD.y + 4)
+
+
+## A button the size of a character card with a centered column to fill.
+func _card() -> Button:
+	var card := Button.new()
+	card.custom_minimum_size = CARD
+	var box := VBoxContainer.new()
+	box.set_anchors_preset(Control.PRESET_FULL_RECT)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 0)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	card.add_child(box)
+	return card
+
+
+func _card_label(text: String, color: Color) -> Label:
+	var label := _label(text, color)
+	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	label.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
+	label.custom_minimum_size.x = CARD.x - 4
+	label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	return label
 
 
 func _ask_delete_character(character_name: String) -> void:
@@ -428,7 +451,7 @@ func _create_character() -> void:
 		show_status(problem)
 		return
 	_pick(CharacterList.last())
-	_show("home")
+	_show("characters")
 	show_status("Created %s" % name_text)
 
 
