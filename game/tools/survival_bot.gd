@@ -72,6 +72,9 @@ const WANDER_TIME := 20.0
 const WANDER_RANGE := 1500.0
 ## Seconds before it searches its route again for a target that moved to another tile.
 const REPATH := 0.5
+## Seconds stuck on the way to a prop before it gives up on it, and for how long.
+const GIVE_UP := 1.5
+const AVOID := 120.0
 
 var world: SimWorld
 var id: int
@@ -128,6 +131,10 @@ var _grave_retry_at := 0.0
 var _route: Array[Vector2] = []
 var _route_tile := Vector2i.MAX
 var _route_at := -1.0
+## Seconds its last walks have been stuck in a row.
+var _stuck_for := 0.0
+## [chunk, prop id] -> sim time until which it leaves that prop alone (no way there).
+var _avoid := {}
 
 
 func _init(sim: SimWorld, player_id: int, seed_value: int) -> void:
@@ -623,10 +630,12 @@ func _needed_prop() -> int:
 	return -1
 
 
-## Walks to the nearest prop of a kind in view and picks it up, or swings at it if it is a tree
-## or rock. False if none is in view.
+## Walks to the nearest prop of a kind in view on its own level and picks it up, or swings at it
+## if it is a tree or rock; one it gets stuck on the way to is left alone for AVOID. False if none
+## is in view.
 func _gather(kind: int, delta: float) -> bool:
 	var me := player()
+	var level := world.level_at(me.position)
 	var best := []
 	var best_distance := INF
 	for coord in WorldGen.around(WorldGen.chunk_of(me.position), 1):
@@ -636,7 +645,12 @@ func _gather(kind: int, delta: float) -> bool:
 		for prop_id: int in chunk.props:
 			if chunk.props[prop_id] != kind or chunk.removed.has(prop_id):
 				continue
-			var distance := WorldGen.prop_position(coord, prop_id).distance_to(me.position)
+			if _avoid.get([coord, prop_id], 0.0) > world.time:
+				continue
+			var at := WorldGen.prop_position(coord, prop_id)
+			if world.level_at(at) != level:
+				continue
+			var distance := at.distance_to(me.position)
 			if distance < best_distance:
 				best = [coord, prop_id]
 				best_distance = distance
@@ -645,6 +659,9 @@ func _gather(kind: int, delta: float) -> bool:
 	var at := WorldGen.prop_position(best[0], best[1])
 	if best_distance > SimWorld.REACH * 0.8:
 		_walk_to(at, delta)
+		if _stuck_for > GIVE_UP:
+			_avoid[best] = world.time + AVOID
+			_stuck_for = 0.0
 	elif WorldGen.is_node(kind):
 		world.attack(id, false, at - me.position, PackedInt32Array())
 	else:
@@ -684,7 +701,9 @@ func _walk_to(target: Vector2, delta: float) -> bool:
 	var step := me.position.move_toward(aim, Content.tuning.walk_speed * delta) - me.position
 	for to: Vector2 in [step, Vector2(step.x, 0), Vector2(0, step.y)]:
 		if world.move_player(id, me.position + to):
+			_stuck_for = 0.0
 			return true
+	_stuck_for += delta
 	# Stuck: search again next tick.
 	_route_tile = Vector2i.MAX
 	_route_at = 0.0

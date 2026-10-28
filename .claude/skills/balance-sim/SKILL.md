@@ -144,3 +144,7 @@ Playtest: the warning before a hit was too short to react to. Solo, 6 seeds, 2 d
 
 The perfect dodge's stamina refund let experts chain dodges for free. Dungeon solo, 20 seeds, cleared (novice / average / expert), v0.28.2 → refund 15: fresh 0 / 0 / 30% → 0 / 0 / 5%, crafted 0 / 0 / 65% → 0 / 0 / 25%, best 30 / 55 / 100% → 30 / 50 / 100%. Also tried perfect_stagger 1.3 → 1.0 (fresh expert 20%, crafted 60%: barely moves it) and both (15% / 40%). Solo overworld with refund 15, 6 seeds, 2 days: 5.17 / 0.58 / 0.25 deaths a day (expert lowest health 18%). Off target: best-gear average dungeon clears ~50–55% (target 60–90%), unchanged by this; best-gear experts still 100% with ~50% health left.
 
+
+## M23 (2026-10-28, terrain: height levels, cliffs, ramps, biomes ~3× bigger)
+
+The first full run after terrain had bots starving and foraging 31–55% of play: they walked to the nearest tree or rock straight across a cliff and pushed against it. The bot now only picks props on its own level and leaves one alone for 2 minutes after 1.5 s stuck on the way (`SurvivalBot._gather`); it paths with `Pathing` around pieces and cliffs. Solo `--quick` (3 seeds, 2 days), deaths a day novice / average / expert: before terrain (`5471566`) 6.50 / 0.00 / 0.17, after 4.17 / 0.83 / 0.17; starving 0 either way, foraging 19–23% both, gear times alike (no bone gear in 2 days on either). Groups were not rerun.
