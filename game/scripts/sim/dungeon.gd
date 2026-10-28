@@ -140,8 +140,10 @@ static func solid_tiles(
 
 
 ## The center of the nearest tile inside the area that is not blocked, found in rings of tiles
-## around at; at itself if its tile is free.
+## around at; at itself if a body there touches nothing blocked.
 func open_spot(at: Vector2) -> Vector2:
+	if Building.tile_blocker(blocked, at) == null:
+		return at
 	var origin := Building.tile_of(at)
 	for ring in range(0, 40):
 		var best := Vector2.INF
@@ -156,7 +158,7 @@ func open_spot(at: Vector2) -> Vector2:
 				if best == Vector2.INF or center.distance_to(at) < best.distance_to(at):
 					best = center
 		if best != Vector2.INF:
-			return at if ring == 0 else best
+			return best
 	return at
 
 
