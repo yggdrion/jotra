@@ -210,8 +210,10 @@ var spawn_kind: EnemyDef
 ## dodged hit,
 ## ["respawn", player id, position], ["swing", player id, heavy, aim, position, weapon],
 ## ["loot", player id, item, count] for a pickup, ["full", player id] when loot didn't fit,
-## ["dungeon", player id, area, exit, chest, position] when a player entered a run or (area
-## empty) is back in the overworld, ["chest", player id] when one opened its run's end
+## ["dungeon", player id, area, exit, chest, position, obstacles, obstacle kinds, gates,
+## cleared] when a player entered a run or (area empty) is back in the overworld, ["gates",
+## player id, cleared] when a room of its run was cleared and the gates up to it opened,
+## ["chest", player id] when one opened its run's end
 ## chest, ["node", player id, position, note] when a swing hit a tree or rock (the damage, or
 ## what it needs), ["prop_removed", chunk, prop id], ["piece", tile] when a piece was built,
 ## changed (damage, door) or is gone,
@@ -835,7 +837,11 @@ func move_player(id: int, position: Vector2) -> bool:
 		return false
 	if player.run and Dungeon.clamp_to(player.run.area, position) != position:
 		return false
-	if not Building.can_walk(pieces, player.position, position):
+	if player.run:
+		# Nobody builds in a run: its obstacles and shut gates are all that blocks.
+		if not Building.can_walk_tiles(player.run.solid, player.position, position):
+			return false
+	elif not Building.can_walk(pieces, player.position, position):
 		return false
 	player.position = position
 	player.moved_at = time
@@ -890,7 +896,20 @@ func _use_portal(player: SimPlayer) -> bool:
 	player.position = run.spawn + Vector2(0, (run.players.size() - 1) * SPAWN_SPACING)
 	player.position = Dungeon.clamp_to(run.area, player.position)
 	player.moved_at = time
-	events.append(["dungeon", id, run.area, run.exit, run.chest, player.position])
+	events.append(
+		[
+			"dungeon",
+			id,
+			run.area,
+			run.exit,
+			run.chest,
+			player.position,
+			run.obstacles,
+			run.obstacle_kinds,
+			run.gates,
+			run.cleared
+		]
+	)
 	return true
 
 
@@ -940,8 +959,12 @@ func _wake_rooms(run: Dungeon) -> void:
 		run.cleared < run.reached
 		and not enemies.values().any(func(enemy: SimEnemy) -> bool: return run.owns(enemy.position))
 	):
-		run.cleared = run.reached
+		run.set_cleared(run.reached)
+		# Enemies cache their route against pieces_version; the opened gate changes the walls
+		# they path around, so ask them to search again.
+		pieces_version += 1
 		for id: int in run.players:
+			events.append(["gates", id, run.cleared])
 			if players[id].dead_until == 0:
 				players[id].heal(players[id].max_health() * Content.tuning.room_clear_heal)
 	var deepest := run.reached
@@ -961,7 +984,7 @@ func _wake_rooms(run: Dungeon) -> void:
 			var aside := floorf(float(i) / spawns.size()) * 16.0
 			var at := room.position + spawns[i % spawns.size()] + Vector2(aside, 0)
 			add_enemy(
-				Dungeon.clamp_to(run.area, at),
+				run.open_spot(Dungeon.clamp_to(run.area, at)),
 				kind.health * scale.health,
 				kind.damage * scale.damage,
 				kind
@@ -985,7 +1008,18 @@ func _leave_run(player: SimPlayer, restore: bool) -> void:
 	player.snapshot = {}
 	player.moved_at = time
 	events.append(
-		["dungeon", player.id, [] as Array[Rect2], Vector2.ZERO, Vector2.ZERO, player.position]
+		[
+			"dungeon",
+			player.id,
+			[] as Array[Rect2],
+			Vector2.ZERO,
+			Vector2.ZERO,
+			player.position,
+			[] as Array[Rect2i],
+			PackedByteArray(),
+			[] as Array[Rect2i],
+			0
+		]
 	)
 	if not run.players.is_empty():
 		return
@@ -1138,8 +1172,12 @@ func damage_piece(tile: Vector2i, amount: float) -> void:
 	events.append(["piece", tile])
 
 
-## The tile of a piece blocking a body at at, null if none does.
+## The tile of a piece blocking a body at at, null if none does; in a run the tile of an
+## obstacle or shut gate (nobody builds there).
 func blocker(at: Vector2) -> Variant:
+	var run := _run_at(at)
+	if run:
+		return Building.tile_blocker(run.solid, at)
 	return Building.blocker(pieces, at)
 
 
@@ -1151,11 +1189,11 @@ func blocked_tiles() -> Dictionary:
 	return _blocked
 
 
-## What an enemy at at paths around: its run's walls in a dungeon (nobody builds there), else
-## blocked_tiles().
+## What an enemy at at paths around: its run's walls, obstacles and shut gates in a dungeon
+## (nobody builds there), else blocked_tiles().
 func blocked_at(at: Vector2) -> Dictionary:
 	var run := _run_at(at)
-	return run.walls if run else blocked_tiles()
+	return run.blocked if run else blocked_tiles()
 
 
 func _remove_piece(tile: Vector2i) -> void:

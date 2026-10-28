@@ -71,6 +71,22 @@ static func blocker(pieces: Dictionary, at: Vector2) -> Variant:
 	return null
 
 
+## The first tile of tiles ({tile: true}) a body standing at at overlaps, null if none.
+static func tile_blocker(tiles: Dictionary, at: Vector2) -> Variant:
+	var low := tile_of(at - Vector2.ONE * BODY)
+	var high := tile_of(at + Vector2.ONE * BODY)
+	for y in range(low.y, high.y + 1):
+		for x in range(low.x, high.x + 1):
+			if tiles.has(Vector2i(x, y)):
+				return Vector2i(x, y)
+	return null
+
+
+## can_walk against a set of tiles.
+static func can_walk_tiles(tiles: Dictionary, from: Vector2, to: Vector2) -> bool:
+	return tile_blocker(tiles, to) == null or tile_blocker(tiles, from) != null
+
+
 ## Whether moving from one position to another is fine: not into a blocking piece, unless
 ## already inside one (so nobody gets stuck where a wall went up around them).
 static func can_walk(pieces: Dictionary, from: Vector2, to: Vector2) -> bool:

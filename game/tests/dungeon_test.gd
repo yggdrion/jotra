@@ -24,8 +24,20 @@ func test_entering_needs_the_entrance_and_leaving_the_exit() -> void:
 	assert_bool(world.interact(1)).is_true()
 	assert_object(player.run).is_not_null()
 	assert_vector(player.position).is_equal(player.run.spawn)
+	var run: Dungeon = player.run
 	assert_array(world.events.back()).is_equal(
-		["dungeon", 1, player.run.area, player.run.exit, player.run.chest, player.position]
+		[
+			"dungeon",
+			1,
+			run.area,
+			run.exit,
+			run.chest,
+			player.position,
+			run.obstacles,
+			run.obstacle_kinds,
+			run.gates,
+			run.cleared
+		]
 	)
 	assert_bool(world.interact(1)).is_false()  # the exit is across the room
 	player.position = player.run.exit
