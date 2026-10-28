@@ -16,7 +16,7 @@ const SHADOW := 4.0
 const IRON := Color("5a6270")
 const IRON_DARK := Color("262b33")
 ## Share of room floor tiles that get a bone: every BONE_EVERY-th by a hash of the tile.
-const BONE_EVERY := 30
+const BONE_EVERY := 60
 const BONES: Array[String] = [
 	"bone",
 	"bones_small",
