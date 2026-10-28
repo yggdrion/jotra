@@ -475,16 +475,17 @@ func _on_dungeon(
 	_hud.announce("Die in here and you lose what you found", Color("e43b44"))
 
 
-## A room of our run was cleared: its gates open.
+## A room of our run was cleared: its gates open. The end room has no gate after it.
 func _on_gates(cleared: int) -> void:
 	_solid = Dungeon.solid_tiles(_obstacles, _gates, cleared)
 	if _dungeon_view:
 		_dungeon_view.set_cleared(cleared)
-	_hud.announce("The way on opens", Color("feae34"))
-	_sfx.play(&"gate")
+	if cleared < _gates.size():
+		_hud.announce("The way on opens", Color("feae34"))
+		_sfx.play(&"gate")
 
 
-## A shut gate of our run within reach, null if none.
+## Whether a shut gate of our run is within reach.
 func _gate_near() -> bool:
 	for rect in _gates:
 		if not _solid.has(rect.position):
