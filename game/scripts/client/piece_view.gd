@@ -55,6 +55,11 @@ func _update_light() -> void:
 	_light.texture_scale = radius * 2 / 128.0
 
 
+## An icon's drawn size: wide ones (the workbench, the fire) scaled down to the tile's width.
+static func fitted_size(icon: Texture2D) -> Vector2:
+	return icon.get_size() * minf(1.0, float(WorldGen.TILE) / icon.get_width())
+
+
 func _draw() -> void:
 	if piece == null:
 		return
@@ -68,9 +73,8 @@ func _draw() -> void:
 		draw_set_transform(Vector2.ZERO)
 	else:
 		var icon := def.open_icon if def.door and piece.open else def.icon
-		# Standing on the tile's bottom edge, tall pieces rise above their tile; wide ones
-		# (the workbench, the fire) are scaled down to the tile's width.
-		var size := icon.get_size() * minf(1.0, WorldGen.TILE / icon.get_width())
+		# Standing on the tile's bottom edge, tall pieces rise above their tile.
+		var size := fitted_size(icon)
 		draw_texture_rect(icon, Rect2(Vector2(-size.x / 2, HALF - size.y), size), false, tint)
 	if ghost.a == 0 and piece.health < def.health:
 		var share := piece.health / def.health

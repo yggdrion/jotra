@@ -199,3 +199,11 @@ func test_pieces_have_a_category_and_whole_tile_parts() -> void:
 		assert_str(def.category).override_failure_message(str(id)).is_not_empty()
 		for part in def.parts:
 			assert_int(part.get_width()).is_equal(WorldGen.TILE)
+
+
+func test_wide_piece_icons_shrink_to_the_tile_instead_of_vanishing() -> void:
+	assert_vector(PieceView.fitted_size(Content.piece(&"workbench").icon)).is_equal(Vector2(16, 8))
+	assert_vector(PieceView.fitted_size(Content.piece(&"fire").icon)).is_equal(Vector2(16, 16))
+	assert_vector(PieceView.fitted_size(Content.piece(&"chest").icon)).is_equal(
+		Content.piece(&"chest").icon.get_size()
+	)
