@@ -1,9 +1,31 @@
-[gd_resource type="Resource" script_class="RoomDef" format=3]
+[gd_resource type="Resource" script_class="RoomDef" load_steps=7 format=3]
 
 [ext_resource type="Script" path="res://scripts/content/room_def.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/content/room_obstacle.gd" id="2"]
+
+[sub_resource type="Resource" id="o0"]
+script = ExtResource("2")
+kind = 0
+tiles = Rect2i(7, 4, 1, 1)
+
+[sub_resource type="Resource" id="o1"]
+script = ExtResource("2")
+kind = 0
+tiles = Rect2i(7, 10, 1, 1)
+
+[sub_resource type="Resource" id="o2"]
+script = ExtResource("2")
+kind = 0
+tiles = Rect2i(19, 4, 1, 1)
+
+[sub_resource type="Resource" id="o3"]
+script = ExtResource("2")
+kind = 0
+tiles = Rect2i(19, 10, 1, 1)
 
 [resource]
 script = ExtResource("1")
 kind = 1
-size = Vector2(420, 240)
+size = Vector2(416, 240)
 spawns = Array[Vector2]([Vector2(260, 80), Vector2(380, 160)])
+obstacles = Array[ExtResource("2")]([SubResource("o0"), SubResource("o1"), SubResource("o2"), SubResource("o3")])

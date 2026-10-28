@@ -55,18 +55,22 @@ func _init(run_slot: int, now: float, rng: RandomNumberGenerator) -> void:
 	var start := _origin() + Vector2(0, SLOT_SPACING / 2)
 	for def in defs:
 		if rooms.is_empty():
-			rooms.append(Rect2(start - Vector2(0, def.size.y / 2), def.size))
+			rooms.append(Rect2(_snap(start - Vector2(0, def.size.y / 2)), def.size))
 			continue
 		var last := rooms.back() as Rect2
-		# Keep at least a corridor's width of height in common with the last room.
-		var drift := (last.size.y + def.size.y) / 2 - t.corridor_width
+		# Keep at least a corridor's width of height in common with the last room, less the
+		# up to half a tile that snapping to the grid moves it.
+		var drift := (last.size.y + def.size.y) / 2 - t.corridor_width - WorldGen.TILE / 2.0
 		var center_y := last.get_center().y + rng.randf_range(-drift, drift)
 		var room := Rect2(
-			Vector2(last.end.x + t.corridor_length, center_y - def.size.y / 2), def.size
+			_snap(Vector2(last.end.x + t.corridor_length, center_y - def.size.y / 2)), def.size
 		)
 		var top := maxf(last.position.y, room.position.y)
 		var bottom := minf(last.end.y, room.end.y)
-		var y := rng.randf_range(top, bottom - t.corridor_width)
+		var rows := Vector2i(
+			roundi(top / WorldGen.TILE), roundi((bottom - t.corridor_width) / WorldGen.TILE)
+		)
+		var y := rng.randi_range(rows.x, maxi(rows.x, rows.y)) * float(WorldGen.TILE)
 		area.append(Rect2(Vector2(last.end.x, y), Vector2(t.corridor_length, t.corridor_width)))
 		rooms.append(room)
 	area.append_array(rooms)
@@ -102,6 +106,11 @@ static func _pick(kind: RoomDef.Kind, after: RoomDef, rng: RandomNumberGenerator
 	if choices.is_empty():
 		return after
 	return choices[rng.randi() % choices.size()]
+
+
+## A position moved to the nearest tile corner, so rooms and corridors cover whole tiles.
+static func _snap(at: Vector2) -> Vector2:
+	return at.snappedf(WorldGen.TILE)
 
 
 func _origin() -> Vector2:

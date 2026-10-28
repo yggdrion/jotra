@@ -129,6 +129,100 @@ func test_rooms_fit_the_layout() -> void:
 				. is_true()
 			)
 	assert_dict(kinds).contains_keys([RoomDef.Kind.START, RoomDef.Kind.MIDDLE, RoomDef.Kind.END])
+	for length: float in [Content.tuning.corridor_length, Content.tuning.corridor_width]:
+		assert_float(fmod(length, WorldGen.TILE)).is_equal(0.0)
+
+
+## The gap in tiles between two rects: the larger of the empty columns or rows between them,
+## negative when they overlap.
+func _gap(a: Rect2i, b: Rect2i) -> int:
+	var dx := maxi(a.position.x - b.end.x, b.position.x - a.end.x)
+	var dy := maxi(a.position.y - b.end.y, b.position.y - a.end.y)
+	return maxi(dx, dy)
+
+
+func test_rooms_are_sparse_and_open() -> void:
+	var tile := WorldGen.TILE
+	var gap := ceili(Content.tuning.corridor_width / tile)
+	for id: StringName in Content.rooms:
+		var room: RoomDef = Content.rooms[id]
+		var message := str(id)
+		var size := Vector2i(room.size / tile)
+		var all := Rect2i(Vector2i.ZERO, size)
+		assert_vector(room.size).override_failure_message(message).is_equal(Vector2(size * tile))
+		var covered := {}
+		var tiles: Array[Rect2i] = []
+		for obstacle in room.obstacles:
+			tiles.append(obstacle.tiles)
+			assert_bool(all.encloses(obstacle.tiles)).override_failure_message(message).is_true()
+			for y in range(obstacle.tiles.position.y, obstacle.tiles.end.y):
+				for x in range(obstacle.tiles.position.x, obstacle.tiles.end.x):
+					covered[Vector2i(x, y)] = true
+			# Corridor mouths can sit at any height.
+			(
+				assert_int(obstacle.tiles.position.x)
+				. override_failure_message(message)
+				. is_greater_equal(gap)
+			)
+			assert_int(obstacle.tiles.end.x).override_failure_message(message).is_less_equal(
+				size.x - gap
+			)
+			# Gap to each wall the obstacle does not touch.
+			var margins := [
+				obstacle.tiles.position.x,
+				obstacle.tiles.position.y,
+				size.x - obstacle.tiles.end.x,
+				size.y - obstacle.tiles.end.y
+			]
+			for margin: int in margins:
+				(
+					assert_bool(margin == 0 or margin >= gap)
+					. override_failure_message(message)
+					. is_true()
+				)
+		assert_int(room.obstacles.size()).override_failure_message(message).is_less_equal(6)
+		assert_float(float(covered.size())).override_failure_message(message).is_less_equal(
+			float(size.x * size.y) * 0.08
+		)
+		for i in tiles.size():
+			for j in range(i + 1, tiles.size()):
+				(
+					assert_int(_gap(tiles[i], tiles[j]))
+					. override_failure_message(message)
+					. is_greater_equal(gap)
+				)
+		for at in room.spawns:
+			var low := Building.tile_of(at - Vector2.ONE * Building.BODY)
+			var high := Building.tile_of(at + Vector2.ONE * Building.BODY)
+			for y in range(low.y, high.y + 1):
+				for x in range(low.x, high.x + 1):
+					(
+						assert_bool(covered.has(Vector2i(x, y)))
+						. override_failure_message(message + " spawn " + str(at))
+						. is_false()
+					)
+		if room.kind == RoomDef.Kind.START:
+			assert_int(room.obstacles.size()).override_failure_message(message).is_equal(0)
+		if room.kind == RoomDef.Kind.END:
+			var middle := Building.tile_of(room.size / 2.0)
+			var exit := Building.tile_of(
+				Vector2(room.size.x - Dungeon.DOOR_INSET, room.size.y / 2.0)
+			)
+			assert_bool(covered.has(middle)).override_failure_message(message).is_false()
+			assert_bool(covered.has(exit)).override_failure_message(message).is_false()
+		# Every open tile can be reached from any other.
+		var seen := {Vector2i.ZERO: true}
+		var todo: Array[Vector2i] = [Vector2i.ZERO]
+		while not todo.is_empty():
+			var at: Vector2i = todo.pop_back()
+			for step in [Vector2i.LEFT, Vector2i.RIGHT, Vector2i.UP, Vector2i.DOWN]:
+				var next: Vector2i = at + step
+				if all.has_point(next) and not covered.has(next) and not seen.has(next):
+					seen[next] = true
+					todo.append(next)
+		assert_int(seen.size()).override_failure_message(message).is_equal(
+			size.x * size.y - covered.size()
+		)
 
 
 func test_buffs_and_synergies_name_real_stats_and_buffs() -> void:

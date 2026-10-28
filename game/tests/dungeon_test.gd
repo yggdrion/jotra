@@ -68,6 +68,30 @@ func test_the_layout_chains_start_middle_and_end_rooms() -> void:
 				assert_vector(Dungeon.clamp_to(run.area, at)).is_equal(at)
 
 
+func test_layout_sits_on_the_tile_grid() -> void:
+	for seed_value in 20:
+		var rng := RandomNumberGenerator.new()
+		rng.seed = seed_value
+		var run := Dungeon.new(0, 0.0, rng)
+		for rect in run.area:
+			for value: float in [rect.position.x, rect.position.y, rect.size.x, rect.size.y]:
+				(
+					assert_float(fmod(value, WorldGen.TILE))
+					. override_failure_message(str(seed_value, " ", rect))
+					. is_equal(0.0)
+				)
+		for tile: Vector2i in run.walls:
+			(
+				assert_bool(
+					(
+						Dungeon.clamp_to(run.area, Building.tile_center(tile))
+						!= Building.tile_center(tile)
+					)
+				)
+				. is_true()
+			)
+
+
 func test_rooms_wake_when_walked_into_and_grow_stronger_deeper_and_later() -> void:
 	var world := _world()
 	world.interact(1)
@@ -127,7 +151,7 @@ func test_an_enemy_walks_home_around_a_corner() -> void:
 	var world := _world()
 	# A layout whose corridor leaves the lower-topped room well below its top; unseeded, some
 	# layouts have no such corner and the setup check below fails.
-	world.rng.seed = 3
+	world.rng.seed = 1
 	world.interact(1)
 	var run: Dungeon = world.players[1].run
 	var west := run.rooms[0]

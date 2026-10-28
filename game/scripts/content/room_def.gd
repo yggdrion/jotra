@@ -10,3 +10,6 @@ enum Kind { START, MIDDLE, END }
 @export var size := Vector2(320, 240)
 ## Where its enemies (Tuning.dungeon_enemy) wait, one each, spawned when a player walks in.
 @export var spawns: Array[Vector2] = []
+## Solid blocks players, enemies and projectiles cannot pass. The dungeon keeps the corridor
+## mouths (the first and last three tile columns) and the start room clear of them.
+@export var obstacles: Array[RoomObstacle] = []
