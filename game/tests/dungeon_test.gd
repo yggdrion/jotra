@@ -125,6 +125,9 @@ func test_moves_through_the_walls_are_dropped() -> void:
 
 func test_an_enemy_walks_home_around_a_corner() -> void:
 	var world := _world()
+	# A layout whose corridor leaves the lower-topped room well below its top; unseeded, some
+	# layouts have no such corner and the setup check below fails.
+	world.rng.seed = 3
 	world.interact(1)
 	var run: Dungeon = world.players[1].run
 	var west := run.rooms[0]
