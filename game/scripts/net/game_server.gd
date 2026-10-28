@@ -325,7 +325,20 @@ func _send_events() -> void:
 			"dungeon":
 				# Also sent for one who left the game inside a run, who is gone by now.
 				if world.players.has(event[1]):
-					net.dungeon.rpc_id(event[1], event[2], event[3], event[4], event[5])
+					net.dungeon.rpc_id(
+						event[1],
+						event[2],
+						event[3],
+						event[4],
+						event[5],
+						event[6],
+						event[7],
+						event[8],
+						event[9]
+					)
+			"gates":
+				if world.players.has(event[1]):
+					net.gates.rpc_id(event[1], event[2])
 			"chest":
 				net.chest_opened.rpc_id(event[1])
 			"piece":

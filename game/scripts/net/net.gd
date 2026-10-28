@@ -62,7 +62,17 @@ signal buffs_received(data: Dictionary)
 signal looted_received(item: StringName, count: int)
 signal inventory_full_received
 signal room_received(code: String)
-signal dungeon_received(area: Array, exit: Vector2, chest: Vector2, at: Vector2)
+signal dungeon_received(
+	area: Array,
+	exit: Vector2,
+	chest: Vector2,
+	at: Vector2,
+	obstacles: Array,
+	kinds: PackedByteArray,
+	gates: Array,
+	cleared: int
+)
+signal gates_received(cleared: int)
 signal chest_opened_received
 signal ponged(sent_ms: int)
 
@@ -74,7 +84,7 @@ enum Status { DRAUGHT, ABILITY, REGEN }
 
 ## Bump on any change to the RPCs below or their payloads. Keep hello's and reject's
 ## signatures from here on, so a client with another version still gets the reason.
-const PROTOCOL_VERSION := 22
+const PROTOCOL_VERSION := 23
 ## Character looks: PlayerView.SHEETS times PlayerView.TINTS.
 const LOOKS := 12
 const ENTITY_BYTES := 10
@@ -508,9 +518,26 @@ func room(code: String) -> void:
 
 ## The receiving player is now at at: inside a dungeon run whose rooms and corridors are area
 ## (Array of Rect2), with its exit and end chest, or back in the overworld when area is empty.
+## obstacles and gates are Rect2i of world tiles, kinds the RoomObstacle.Kind of each obstacle;
+## the first cleared gates are open.
 @rpc("authority", "reliable")
-func dungeon(area: Array, exit: Vector2, chest: Vector2, at: Vector2) -> void:
-	dungeon_received.emit(area, exit, chest, at)
+func dungeon(
+	area: Array,
+	exit: Vector2,
+	chest: Vector2,
+	at: Vector2,
+	obstacles: Array,
+	kinds: PackedByteArray,
+	gates: Array,
+	cleared: int
+) -> void:
+	dungeon_received.emit(area, exit, chest, at, obstacles, kinds, gates, cleared)
+
+
+## The receiving player's run cleared a room: the gates up to cleared are now open.
+@rpc("authority", "reliable")
+func gates(cleared: int) -> void:
+	gates_received.emit(cleared)
 
 
 ## The receiving player opened its run's end chest.

@@ -166,6 +166,12 @@ var _slow_motion := SlowMotion.new()
 var _area: Array[Rect2] = []
 var _exit := Vector2.ZERO
 var _chest := Vector2.ZERO
+## The run's obstacles and gates (world tiles), what its shut gates are, and {tile: true} of
+## everything solid now (Dungeon.solid_tiles, as on the server).
+var _obstacles: Array[Rect2i] = []
+var _obstacle_kinds := PackedByteArray()
+var _gates: Array[Rect2i] = []
+var _solid := {}
 var _chest_opened := false
 var _dungeon_view: DungeonView
 
@@ -245,6 +251,7 @@ func _ready() -> void:
 	)
 	net.looted_received.connect(_on_looted)
 	net.dungeon_received.connect(_on_dungeon)
+	net.gates_received.connect(_on_gates)
 	net.buffs_received.connect(_on_buffs)
 	net.chest_opened_received.connect(
 		func() -> void:
@@ -425,8 +432,21 @@ func _on_welcomed(spawn: Vector2, world_seed: int) -> void:
 
 ## area empty: back in the overworld, else in a run of these rooms and corridors with its way
 ## out.
-func _on_dungeon(area: Array, exit: Vector2, chest: Vector2, at: Vector2) -> void:
+func _on_dungeon(
+	area: Array,
+	exit: Vector2,
+	chest: Vector2,
+	at: Vector2,
+	obstacles: Array,
+	kinds: PackedByteArray,
+	gates: Array,
+	cleared: int
+) -> void:
 	_area.assign(area)
+	_obstacles.assign(obstacles)
+	_obstacle_kinds = kinds
+	_gates.assign(gates)
+	_solid = Dungeon.solid_tiles(_obstacles, _gates, cleared)
 	_build.visible = false
 	_exit = exit
 	_chest = chest
@@ -447,8 +467,32 @@ func _on_dungeon(area: Array, exit: Vector2, chest: Vector2, at: Vector2) -> voi
 	_dungeon_view.area = _area
 	_dungeon_view.exit = exit
 	_dungeon_view.chest = chest
+	_dungeon_view.obstacles = _obstacles
+	_dungeon_view.kinds = _obstacle_kinds
+	_dungeon_view.gates = _gates
+	_dungeon_view.cleared = cleared
 	add_child(_dungeon_view)
 	_hud.announce("Die in here and you lose what you found", Color("e43b44"))
+
+
+## A room of our run was cleared: its gates open.
+func _on_gates(cleared: int) -> void:
+	_solid = Dungeon.solid_tiles(_obstacles, _gates, cleared)
+	if _dungeon_view:
+		_dungeon_view.set_cleared(cleared)
+	_hud.announce("The way on opens", Color("feae34"))
+	_sfx.play(&"gate")
+
+
+## A shut gate of our run within reach, null if none.
+func _gate_near() -> bool:
+	for rect in _gates:
+		if not _solid.has(rect.position):
+			continue
+		var box := Rect2(Vector2(rect.position * WorldGen.TILE), Vector2(rect.size * WorldGen.TILE))
+		if box.grow(Content.tuning.portal_reach).has_point(_me.position):
+			return true
+	return false
 
 
 ## Floats the buffs just gained, announces synergies just completed and lists them all.
@@ -682,7 +726,7 @@ func _build_click(button: MouseButton) -> void:
 func _walk(step: Vector2) -> void:
 	var from := _me.position
 	for to: Vector2 in [from + step, from + Vector2(step.x, 0), from + Vector2(0, step.y)]:
-		if Building.can_walk(_pieces, from, to):
+		if Building.can_walk(_pieces, from, to) and Building.can_walk_tiles(_solid, from, to):
 			_me.position = to
 			return
 
@@ -833,6 +877,8 @@ func _update_target() -> void:
 	elif _interaction()[0] != "":
 		var here: Array = _interaction()
 		prompt = "%s %s" % [use, here[0]] if here[1] else here[0]
+	elif _gate_near():
+		prompt = "Sealed until the room is cleared"
 	elif not _inventory_ui.stations.is_empty():
 		var station: StringName = _inventory_ui.stations.keys()[0]
 		prompt = "%s Craft at the %s" % [use, Content.piece(station).display_name.to_lower()]
