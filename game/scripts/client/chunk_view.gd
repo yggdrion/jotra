@@ -8,7 +8,7 @@ const GROUND := preload("res://assets/craftpix/tiles/ground.png")
 ## Per biome, the top-left of a row of five ground tiles: plain, then four with tufts.
 const GROUND_ROWS: Array[Vector2] = [Vector2(0, 0), Vector2(0, 16), Vector2(0, 32), Vector2(0, 48)]
 ## One tile in this many gets tufts.
-const TUFT_EVERY := 5
+const TUFT_EVERY := 10
 
 
 ## Tree or rock, standing on its tile's center at its own size, maybe mirrored; brighter while
@@ -18,9 +18,9 @@ class PropView:
 
 	## Trees per biome (meadow, forest, marsh, bone hills), one picked per tile by variant.
 	const TREES := [
-		["tree_meadow", "tree_meadow", "tree_big", "tree_drip"],
-		["tree_forest", "tree_forest", "tree_forest", "tree_drip_small"],
-		["tree_marsh", "tree_marsh", "tree_forest", "tree_drip_small"],
+		["tree_meadow", "tree_meadow", "tree_big"],
+		["tree_forest"],
+		["tree_drip", "tree_drip_small", "tree_drip_small", "tree_marsh"],
 		["tree_bone", "tree_bone", "tree_pale"],
 	]
 	const ROCK := preload("res://assets/craftpix/props/rock.png")

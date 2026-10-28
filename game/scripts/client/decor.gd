@@ -4,59 +4,16 @@ extends RefCounted
 ## totem. The sim knows nothing of it; it never blocks and is hidden under built pieces.
 ## Also loads the props' sprites, animating the strips in ANIMATED.
 
-## About one tile in this many without a prop gets a piece.
-const EVERY := 9
-## Per biome (meadow, forest, marsh, bone hills), the pieces picked from; repeats weigh more.
+## Per biome (meadow, forest, marsh, bone hills), about one tile in this many without a prop
+## gets a piece: sparse where the trees already crowd.
+const EVERY: Array[int] = [26, 40, 22, 18]
+## Per biome, the pieces picked from (repeats weigh more), none shared: the meadow is dry grass
+## and old graves, the forest deadwood, the marsh green growth and grasping hands, the bone hills
+## bones, ruins and glowing totems.
 const BIOME := [
-	[
-		"dry_bush",
-		"dry_tuft",
-		"dry_tuft",
-		"dry_sprig",
-		"leaves",
-		"sprout",
-		"thorn_sprig",
-		"bones_small",
-		"bone",
-		"skull",
-		"grave_a",
-		"grave_e",
-		"stump_cut",
-		"stump_broken",
-		"rubble",
-		"dead_hand",
-	],
-	[
-		"stump",
-		"stump_cut",
-		"log",
-		"thorns",
-		"thorns_wide",
-		"thorn_sprig",
-		"dry_tuft",
-		"leaves_big",
-		"leaves",
-		"sprout",
-		"bone_arm",
-		"horn",
-		"dead_arm",
-		"dry_sprig",
-	],
-	[
-		"leaves_big",
-		"leaves",
-		"leaves",
-		"sprout",
-		"sprout",
-		"dead_arm",
-		"dead_hand",
-		"thorns",
-		"thorn_sprig",
-		"bones_small",
-		"ribs",
-		"beak_skull",
-		"totem",
-	],
+	["dry_tuft", "dry_tuft", "dry_sprig", "dry_sprig", "dry_bush", "grave_a", "grave_e"],
+	["stump", "stump_cut", "stump_broken", "log", "thorns", "thorns_wide", "thorn_sprig"],
+	["leaves_big", "leaves", "leaves", "sprout", "sprout", "dead_arm", "dead_hand"],
 	[
 		"bones_small",
 		"skull",
@@ -68,15 +25,13 @@ const BIOME := [
 		"beak_skull",
 		"bone",
 		"long_bone",
-		"bone_heap",
 		"horn",
+		"bone_heap",
 		"grave_b",
 		"grave_c",
-		"grave_d",
-		"grave_f",
-		"skull_pile",
-		"ruin",
 		"rubble",
+		"ruin",
+		"skull_pile",
 		"totem",
 		"skull_altar",
 	],
@@ -122,10 +77,11 @@ static func sprite(path: String) -> Texture2D:
 
 ## The piece for a tile, "" for none; roll is any hash of the tile.
 static func pick(biome: int, roll: int) -> String:
-	if roll % EVERY != 0:
+	var every := EVERY[biome]
+	if roll % every != 0:
 		return ""
 	var pieces: Array = BIOME[biome]
-	return pieces[(roll / EVERY) % pieces.size()]
+	return pieces[(roll / every) % pieces.size()]
 
 
 static func _animate(strip: Texture2D) -> AnimatedTexture:
