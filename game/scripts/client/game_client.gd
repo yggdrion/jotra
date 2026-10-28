@@ -95,6 +95,7 @@ var _gone := false
 var _ping_due := 0.0
 var _me: PlayerView
 var _views := {}  # peer id -> PlayerView
+var _names := {}  # peer id -> player name (Net.names)
 var _snapshots: Array[Dictionary] = []
 var _send_due := 0.0
 var _bot_start := {}  # peer id -> first seen position
@@ -230,6 +231,12 @@ func _ready() -> void:
 	net.status_received.connect(_on_status)
 	net.effect_received.connect(_on_effect)
 	net.markers_received.connect(func(list: Array) -> void: _map.markers = list)
+	net.names_received.connect(
+		func(list: Dictionary) -> void:
+			_names = list
+			for id: int in _views:
+				_views[id].display_name = _names.get(id, "")
+	)
 	net.respawned_received.connect(
 		func(at: Vector2) -> void:
 			_me.position = at
@@ -421,6 +428,7 @@ func _on_welcomed(spawn: Vector2, world_seed: int) -> void:
 	_me = PlayerView.new()
 	_me.own = true
 	_me.look = look
+	_me.display_name = player_name
 	_me.position = spawn
 	_me.holding = true
 	_me.weapon = _weapon
@@ -1288,6 +1296,7 @@ func _show_remote_players(players: Dictionary) -> void:
 			continue
 		if not _views.has(id):
 			_views[id] = PlayerView.new()
+			_views[id].display_name = _names.get(id, "")
 			add_child(_views[id])
 		_views[id].position = positions[id]
 		_views[id].look = Net.player_look(players[id].z)

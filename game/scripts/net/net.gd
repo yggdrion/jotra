@@ -11,6 +11,7 @@ signal character_received(peer_id: int, look: int, kit: StringName)
 signal marker_place_requested(peer_id: int, at: Vector2)
 signal marker_remove_requested(peer_id: int, marker_id: int)
 signal markers_received(markers: Array)
+signal names_received(names: Dictionary)
 signal moved(peer_id: int, position: Vector2)
 signal prop_remove_requested(peer_id: int, coord: Vector2i, prop_id: int)
 signal attacked(peer_id: int, heavy: bool, aim: Vector2, hits: PackedInt32Array)
@@ -85,7 +86,7 @@ enum Status { DRAUGHT, ABILITY, REGEN }
 ## Bump on any change to the RPCs below or their payloads, or to what both sides generate from
 ## the seed (WorldGen, Terrain). Keep hello's and reject's signatures from here on, so a client
 ## with another version still gets the reason.
-const PROTOCOL_VERSION := 24
+const PROTOCOL_VERSION := 25
 ## Character looks: PlayerView.SHEETS times PlayerView.TINTS.
 const LOOKS := 12
 const ENTITY_BYTES := 10
@@ -415,6 +416,12 @@ func remove_marker(marker_id: int) -> void:
 @rpc("authority", "reliable")
 func markers(list: Array) -> void:
 	markers_received.emit(list)
+
+
+## The name of every player online by peer id, on every join and leave.
+@rpc("authority", "reliable")
+func names(list: Dictionary) -> void:
+	names_received.emit(list)
 
 
 ## The receiving player's open chest (Inventory.to_data) whenever it changes, {} once closed.

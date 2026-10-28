@@ -368,6 +368,14 @@ func _send_events() -> void:
 	world.events.clear()
 
 
+func _send_names() -> void:
+	var list := {}
+	for id: int in world.players:
+		list[id] = world.players[id].name
+	for id: int in world.players:
+		net.names.rpc_id(id, list)
+
+
 func _send_own_graves(id: int) -> void:
 	net.own_graves.rpc_id(id, PackedVector2Array(world.players[id].graves))
 
@@ -444,6 +452,7 @@ func _on_hello(id: int, version: int, player_name: String) -> void:
 	net.welcome.rpc_id(id, player.position, world.world_seed)
 	_send_own_graves(id)
 	net.markers.rpc_id(id, world.marker_list())
+	_send_names()
 	if room != "":
 		net.room.rpc_id(id, room)
 	print("server: %s joined as %d (%d online)" % [player_name, id, world.players.size()])
@@ -459,6 +468,7 @@ func _on_peer_disconnected(id: int) -> void:
 	var was_owner: bool = owner_name != "" and world.players[id].name == owner_name
 	world.remove_player(id)
 	_sent_chunks.erase(id)
+	_send_names()
 	print("server: player %d left (%d online)" % [id, world.players.size()])
 	if world.players.is_empty():
 		_save()

@@ -47,10 +47,18 @@ const HAND := 9.0
 const PULL_BACK_ANGLE := 0.6
 ## The share of a swing the smear trails behind the blade.
 const SMEAR := 0.4
+const NAME_SIZE := 8
+const NAME_COLOR := Color("c0cbdc")
 
 var own := false
 ## Its character's look (Net.player_z): which sheet, in which tint.
 var look := 0
+## The player's name, drawn small above the head.
+var display_name := "":
+	set(value):
+		if value != display_name:
+			display_name = value
+			queue_redraw()
 ## 0..1 of a bow drawn, shown as a ring that fills; 0: not drawing.
 var draw_share := 0.0
 ## Held and drawn all the time for the own player; others show it only while swinging.
@@ -229,6 +237,18 @@ func _draw() -> void:
 		var ring := Color.WHITE if draw_share >= 1.0 else Color(1, 1, 1, 0.6)
 		draw_arc(Vector2(0, -RADIUS), 10.0, -PI / 2, -PI / 2 + TAU * draw_share, 24, ring, 2)
 	_draw_weapon()
+	_draw_name()
+
+
+## The name above the head, over the health bar.
+func _draw_name() -> void:
+	if display_name == "":
+		return
+	var font := ThemeDB.fallback_font
+	var at := Vector2(-40, -BODY - 7)
+	var center := HORIZONTAL_ALIGNMENT_CENTER
+	draw_string_outline(font, at, display_name, center, 80, NAME_SIZE, 2, Color.BLACK)
+	draw_string(font, at, display_name, center, 80, NAME_SIZE, NAME_COLOR)
 
 
 ## The weapon in hand, and while swinging the smear behind it.
