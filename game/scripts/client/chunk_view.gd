@@ -9,16 +9,16 @@ const GROUND := preload("res://assets/craftpix/tiles/ground.png")
 const GROUND_ROWS: Array[Vector2] = [Vector2(0, 0), Vector2(0, 16), Vector2(0, 32), Vector2(0, 48)]
 ## One tile in this many gets tufts.
 const TUFT_EVERY := 10
-## Over the ground of each Terrain.Level: sunken ground darker, plateaus lighter.
-const LEVEL_TINTS: Array[Color] = [Color(0, 0, 0, 0.3), Color(0, 0, 0, 0), Color(1, 1, 1, 0.1)]
-const CLIFF_ROCK := Color("5d584d")
-## The rim along the higher side of a cliff, and the shade of its face toward lower ground.
-const CLIFF_RIM := Color("8f887a")
+## Cliff pieces from the undead tileset, 16 px each, the pack's ground colour cut out so the
+## biome's ground shows through. Row 0: plateau rims (top-left, top, top-right, left, right, two
+## more tops); rows 1-3: the south face from its top row down (left end, middle, right end, two
+## more middles, unused: their foot sits higher); column 7 of rows 1-3: stone stairs, the ramp
+## down a face.
+const CLIFFS := preload("res://assets/craftpix/tiles/cliffs.png")
+const TOPS := [1, 5, 6]
+const STAIRS := Rect2(112, 16, 16, 48)
+## The map draws cliffs in this.
 const CLIFF_FACE := Color("24211d")
-## Px of the face a cliff shows on the side lower ground lies; south faces show the most.
-const FACE := 6
-const FACE_SOUTH := 11
-const RAMP_STEP := Color(0, 0, 0, 0.28)
 
 
 ## Tree or rock, standing on its tile's center at its own size, maybe mirrored; brighter while
@@ -72,8 +72,8 @@ var coord: Vector2i
 ## The blocking cliff tiles (global), for GameClient's collision.
 var cliffs: Array[Vector2i] = []
 var _tiles: PackedByteArray
-var _levels: PackedByteArray
 var _terrain: PackedByteArray
+var _faces: PackedByteArray
 var _props := {}  # id -> PropView
 var _pieces := {}  # index in chunk -> PieceView
 var _decor := {}  # index in chunk -> Decor.View
@@ -87,8 +87,8 @@ func _init(world_seed: int, chunk_coord: Vector2i, removed: PackedInt32Array) ->
 	z_index = -1
 	var data := WorldGen.chunk(world_seed, coord)
 	_tiles = data.tiles
-	_levels = data.levels
 	_terrain = data.terrain
+	_faces = data.faces
 	cliffs = Terrain.solid_tiles(coord, _terrain)
 	for id: int in data.props:
 		if id in removed:
@@ -127,7 +127,7 @@ func set_piece(index: int, piece: Building.Piece) -> void:
 ## Scenery on the tiles without a prop (felled ones included), from the seed.
 func _scatter(world_seed: int, props: Dictionary) -> void:
 	for id in WorldGen.CHUNK * WorldGen.CHUNK:
-		if props.has(id) or _terrain[id] & Terrain.CLIFF:
+		if props.has(id) or _terrain[id] & Terrain.CLIFF or _faces[id]:
 			continue
 		var roll := _roll(world_seed, id)
 		var piece := Decor.pick(_tiles[id], roll)
@@ -208,46 +208,45 @@ func _draw() -> void:
 			var region := Rect2(GROUND_ROWS[biome] + Vector2(column * WorldGen.TILE, 0), size)
 			var rect := Rect2(Vector2(x, y) * size, size)
 			draw_texture_rect_region(GROUND, rect, region)
-			var id := y * WorldGen.CHUNK + x
-			draw_rect(rect, LEVEL_TINTS[_levels[id]])
-			var bits := _terrain[id]
-			if Terrain.blocks(bits):
-				_draw_cliff(rect, bits)
-			elif bits & Terrain.RAMP:
-				_draw_ramp(rect, bits)
+	# Cliffs over all the ground, as stairs reach up past their own tile.
+	for y in WorldGen.CHUNK:
+		for x in WorldGen.CHUNK:
+			_draw_cliff(Vector2(x, y) * size, y * WorldGen.CHUNK + x)
 
 
-## Rock with a light rim where the plateau goes on and a dark face where the ground drops.
-func _draw_cliff(rect: Rect2, bits: int) -> void:
+## The piece of cliff on a tile, if any: a row of south face, a rim, or stairs at the foot of a
+## ramp down a face.
+func _draw_cliff(at: Vector2, id: int) -> void:
+	var bits := _terrain[id]
+	var face := _faces[id]
 	var t := WorldGen.TILE
-	draw_rect(rect, CLIFF_ROCK)
-	if bits & Terrain.LOWER_S:
-		draw_rect(
-			Rect2(rect.position + Vector2(0, t - FACE_SOUTH), Vector2(t, FACE_SOUTH)), CLIFF_FACE
-		)
-	if bits & Terrain.LOWER_N:
-		draw_rect(Rect2(rect.position, Vector2(t, FACE)), CLIFF_FACE)
-	if bits & Terrain.LOWER_W:
-		draw_rect(Rect2(rect.position, Vector2(FACE, t)), CLIFF_FACE)
-	if bits & Terrain.LOWER_E:
-		draw_rect(Rect2(rect.position + Vector2(t - FACE, 0), Vector2(FACE, t)), CLIFF_FACE)
-	if not bits & Terrain.LOWER_N:
-		draw_line(rect.position + Vector2(0, 0.5), rect.position + Vector2(t, 0.5), CLIFF_RIM)
-	if not bits & Terrain.LOWER_W:
-		draw_line(rect.position + Vector2(0.5, 0), rect.position + Vector2(0.5, t), CLIFF_RIM)
-	if not bits & Terrain.LOWER_E:
-		draw_line(
-			rect.position + Vector2(t - 0.5, 0), rect.position + Vector2(t - 0.5, t), CLIFF_RIM
-		)
-
-
-## Steps across the way down: lines across the ramp, square to the side the ground drops.
-func _draw_ramp(rect: Rect2, bits: int) -> void:
-	var t := WorldGen.TILE
-	var sideways := bits & (Terrain.LOWER_E | Terrain.LOWER_W) != 0
-	var across := sideways and bits & (Terrain.LOWER_N | Terrain.LOWER_S) == 0
-	for i in range(2, t, 5):
-		if across:
-			draw_line(rect.position + Vector2(i, 0), rect.position + Vector2(i, t), RAMP_STEP, 2)
-		else:
-			draw_line(rect.position + Vector2(0, i), rect.position + Vector2(t, i), RAMP_STEP, 2)
+	# Varies the middles, stable per world tile.
+	var pick := absi(hash([coord, id]))
+	var piece := Vector2i(-1, -1)
+	if bits & Terrain.RAMP:
+		if bits & Terrain.LOWER_S:
+			draw_texture_rect_region(
+				CLIFFS, Rect2(at + Vector2(0, t - STAIRS.size.y), STAIRS.size), STAIRS
+			)
+		return
+	if face & Terrain.FACE_ROW:
+		var column := 1
+		if face & Terrain.END_W:
+			column = 0
+		elif face & Terrain.END_E:
+			column = 2
+		piece = Vector2i(column, Terrain.FACE_ROWS + 1 - (face & Terrain.FACE_ROW))
+	elif bits & Terrain.LOWER_N:
+		var column: int = TOPS[pick % TOPS.size()]
+		if bits & Terrain.LOWER_W:
+			column = 0
+		elif bits & Terrain.LOWER_E:
+			column = 2
+		piece = Vector2i(column, 0)
+	elif bits & Terrain.LOWER_W:
+		piece = Vector2i(3, 0)
+	elif bits & Terrain.LOWER_E:
+		piece = Vector2i(4, 0)
+	if piece.x >= 0:
+		var region := Rect2(Vector2(piece * t), Vector2(t, t))
+		draw_texture_rect_region(CLIFFS, Rect2(at, Vector2(t, t)), region)

@@ -2,21 +2,33 @@ class_name Terrain
 ## Height levels of the overworld (PLAN §5.1, M23), from the seed on both sides like the biomes:
 ## sunken ground, plain ground and raised plateaus. Heights are sampled on a lattice every
 ## LATTICE tiles, a lattice point keeps its level only inside a 3×3 block of its level (others
-## take their neighbours' level), and tiles read the lattice bilinearly, so every level is broad
-## and no tiny patch or pit is left. A tile with a lower tile among its eight neighbours is a cliff:
-## it blocks bodies and projectiles, unless the edge crosses one of the ramp windows scattered
-## over the grid, where it is walkable.
+## take their neighbours' level), and BLOCK² squares of tiles read the lattice bilinearly, so
+## every level is broad, no tiny patch or pit is left and edges run straight like the art's. A tile
+## with a lower tile among its eight neighbours is a cliff, and so are the FACE_SOLID rows of rock
+## face above lower ground to the south (seen from above, a south edge shows its face): cliffs
+## block bodies and projectiles, unless they lie in one of the ramp windows scattered over the
+## grid, where they are walkable.
 
 enum Level { SUNKEN, GROUND, RAISED }
 
 ## Bits of a tile's terrain byte: which of its four neighbours lie lower (N, E, S, W), whether it
-## is a cliff (any of its eight neighbours lower) and whether that cliff is a ramp.
+## is a cliff (any of its eight neighbours lower, or a solid face row) and whether that cliff is a
+## ramp.
 const LOWER_N := 1
 const LOWER_E := 2
 const LOWER_S := 4
 const LOWER_W := 8
 const CLIFF := 16
 const RAMP := 32
+## A tile's face byte (faces_of): its row of a south face in the low two bits (1 just above the
+## lower ground, up to FACE_ROWS, 0 off a face), and whether that row of face ends on its west
+## or east side.
+const FACE_ROW := 3
+const END_W := 4
+const END_E := 8
+## Rows of rock face a south edge shows, and how many of them (from the bottom) block.
+const FACE_ROWS := 3
+const FACE_SOLID := 2
 const DIRS: Array[Vector2i] = [Vector2i(0, -1), Vector2i(1, 0), Vector2i(0, 1), Vector2i(-1, 0)]
 const AROUND: Array[Vector2i] = [
 	Vector2i(-1, -1),
@@ -38,14 +50,18 @@ const SUNKEN_BELOW := -0.4
 const RAISED_ABOVE := 0.4
 ## Tiles between two lattice points.
 const LATTICE := 8
+## Side of the squares of tiles that share a level; LATTICE is a multiple of it.
+const BLOCK := 4
 ## Within this many tiles of the spawn everything is ground: the workbench, the barrow and the
 ## first fights stand on open, even ground.
 const FLAT_RADIUS := 48
 ## One ramp window of RAMP_SIZE² tiles per RAMP_CELL² cell, at a spot hashed from the seed; the
 ## cliff tiles inside it are a ramp if there are at least RAMP_MIN of them (not a clipped corner).
-const RAMP_CELL := 12
-const RAMP_SIZE := 4
+const RAMP_CELL := 10
+const RAMP_SIZE := 3
 const RAMP_MIN := 3
+## Tiles past a chunk the covered area must reach: the ramp windows and face rows next to it.
+const MARGIN := RAMP_SIZE + FACE_ROWS + 1
 
 
 ## The heights of one world, cached while it is asked: one per chunk generated (or per tool).
@@ -58,7 +74,8 @@ class Field:
 	var _levels := {}  # tile -> Level, outside the covered area
 	var _covered := Rect2i()
 	var _grid := PackedByteArray()  # Level of each tile of _covered, row by row
-	var _ramps := {}  # ramp cell -> whether its window holds a ramp
+	var _rows := PackedByteArray()  # face row (_face_row) of each tile of _covered
+	var _ramps := {}  # ramp cell -> its window if it holds a ramp, else an empty rect
 
 	func _init(world_seed: int) -> void:
 		_seed = world_seed
@@ -81,14 +98,29 @@ class Field:
 				var b := _cleaned(base + Vector2i(1, 0))
 				var c := _cleaned(base + Vector2i(0, 1))
 				var d := _cleaned(base + Vector2i(1, 1))
-				var cell := Rect2i(base * LATTICE, Vector2i.ONE * LATTICE).intersection(area)
-				for y in range(cell.position.y, cell.end.y):
-					var fy := float(y - base.y * LATTICE) / LATTICE
-					var row := (y - area.position.y) * area.size.x - area.position.x
-					for x in range(cell.position.x, cell.end.x):
-						var fx := float(x - base.x * LATTICE) / LATTICE
-						var height := lerpf(lerpf(a, b, fx), lerpf(c, d, fx), fy)
-						_grid[row + x] = Terrain.level_of(height)
+				# One level per BLOCK, read at its middle.
+				for by in range(0, LATTICE, BLOCK):
+					var fy := (by + BLOCK / 2.0) / LATTICE
+					for bx in range(0, LATTICE, BLOCK):
+						var fx := (bx + BLOCK / 2.0) / LATTICE
+						var level := Terrain.level_of(lerpf(lerpf(a, b, fx), lerpf(c, d, fx), fy))
+						var block := Rect2i(base * LATTICE + Vector2i(bx, by), Vector2i.ONE * BLOCK)
+						block = block.intersection(area)
+						for y in range(block.position.y, block.end.y):
+							var row := (y - area.position.y) * area.size.x - area.position.x
+							for x in range(block.position.x, block.end.x):
+								_grid[row + x] = level
+		# Face rows from the bottom up, each from the one below it (the last row has none).
+		var w := area.size.x
+		_rows.resize(_grid.size())
+		_rows.fill(0)
+		for i in range(_grid.size() - w - 1, -1, -1):
+			var level := _grid[i]
+			var below := _grid[i + w]
+			if below < level:
+				_rows[i] = 1
+			elif below == level and _rows[i + w] > 0 and _rows[i + w] < FACE_ROWS:
+				_rows[i] = _rows[i + w] + 1
 
 	func level_at(tile: Vector2i) -> Level:
 		if _covered.has_point(tile):
@@ -96,7 +128,7 @@ class Field:
 			return _grid[at.y * _covered.size.x + at.x] as Level
 		if _levels.has(tile):
 			return _levels[tile]
-		var at := Vector2(tile) / LATTICE
+		var at := Vector2(Terrain.block_center(tile.x), Terrain.block_center(tile.y)) / LATTICE
 		var base := Vector2i(at.floor())
 		var f := at - Vector2(base)
 		var top := lerpf(_cleaned(base), _cleaned(base + Vector2i(1, 0)), f.x)
@@ -115,7 +147,7 @@ class Field:
 		return out
 
 	## The terrain bytes (LOWER_*, CLIFF, RAMP) of the side² tiles from origin, row by row; the
-	## covered area must reach RAMP_SIZE + 1 tiles past them.
+	## covered area must reach MARGIN tiles past them.
 	func bits_of(origin: Vector2i, side: int) -> PackedByteArray:
 		var out := PackedByteArray()
 		out.resize(side * side)
@@ -137,11 +169,37 @@ class Field:
 						or _grid[i - w + 1] < level
 						or _grid[i + w - 1] < level
 						or _grid[i + w + 1] < level
+						or _rows[i] > 0 and _rows[i] <= FACE_SOLID
 					):
 						bits |= CLIFF
-						if _ramp_at(origin + Vector2i(x, y)):
+						var tile := origin + Vector2i(x, y)
+						var row := _face_row(i)
+						# A face is a ramp all the way up where its foot is.
+						var foot := tile + Vector2i(0, row - 1) if row > 0 else tile
+						if _ramp_at(foot):
 							bits |= RAMP
 				out[y * side + x] = bits
+				i += 1
+		return out
+
+	## The face bytes (FACE_ROW, END_W, END_E) of the side² tiles from origin, for drawing; a ramp
+	## is no face, so the faces beside it end there.
+	func faces_of(origin: Vector2i, side: int) -> PackedByteArray:
+		var out := PackedByteArray()
+		out.resize(side * side)
+		var w := _covered.size.x
+		for y in side:
+			var i := (origin.y + y - _covered.position.y) * w + origin.x - _covered.position.x
+			for x in side:
+				var tile := origin + Vector2i(x, y)
+				var row := _face_row(i)
+				if row > 0 and not _ramp_at(tile + Vector2i(0, row - 1)):
+					var face := row
+					if not _same_face(i - 1, row, tile + Vector2i(-1, 0)):
+						face |= END_W
+					if not _same_face(i + 1, row, tile + Vector2i(1, 0)):
+						face |= END_E
+					out[y * side + x] = face
 				i += 1
 		return out
 
@@ -150,7 +208,20 @@ class Field:
 		for dir in AROUND:
 			if level_at(tile + dir) < level:
 				return true
+		for k in range(1, FACE_SOLID + 1):
+			var below := level_at(tile + Vector2i(0, k))
+			if below != level:
+				return below < level
 		return false
+
+	## Which row of a south face the tile at grid index i is, 0 if none: lower ground lies that
+	## many tiles south of it, with only its own level between.
+	func _face_row(i: int) -> int:
+		return _rows[i]
+
+	## Whether the tile at grid index i (tile) carries on a face row: the same row, no ramp.
+	func _same_face(i: int, row: int, tile: Vector2i) -> bool:
+		return _face_row(i) == row and not _ramp_at(tile + Vector2i(0, row - 1))
 
 	func _raw_height(point: Vector2i) -> float:
 		var tile := point * LATTICE
@@ -207,24 +278,27 @@ class Field:
 		return 0.0
 
 	func _ramp_at(tile: Vector2i) -> bool:
-		var cell := Vector2i((Vector2(tile) / RAMP_CELL).floor())
-		var window := _window(cell)
-		if not window.has_point(tile):
-			return false
+		var cell := Vector2i(floori(float(tile.x) / RAMP_CELL), floori(float(tile.y) / RAMP_CELL))
 		if not _ramps.has(cell):
+			var window := _window(cell)
 			var count := 0
 			for y in range(window.position.y, window.end.y):
 				for x in range(window.position.x, window.end.x):
 					if is_cliff(Vector2i(x, y)):
 						count += 1
-			_ramps[cell] = count >= RAMP_MIN
-		return _ramps[cell]
+			_ramps[cell] = window if count >= RAMP_MIN else Rect2i()
+		return (_ramps[cell] as Rect2i).has_point(tile)
 
 	func _window(cell: Vector2i) -> Rect2i:
 		var roll := absi(hash([_seed, cell.x, cell.y, "ramp"]))
 		var spread := RAMP_CELL - RAMP_SIZE + 1
 		var offset := Vector2i(roll % spread, (roll / spread) % spread)
 		return Rect2i(cell * RAMP_CELL + offset, Vector2i.ONE * RAMP_SIZE)
+
+
+## The middle tile of the BLOCK a tile coordinate lies in, where its level is read.
+static func block_center(at: int) -> int:
+	return floori(float(at) / BLOCK) * BLOCK + BLOCK / 2
 
 
 static func level_of(height: float) -> Level:

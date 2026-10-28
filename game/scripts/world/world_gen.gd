@@ -28,16 +28,17 @@ const BIOME_FREQUENCY := 0.0013
 
 
 ## {tiles: PackedByteArray of Biome, levels: of Terrain.Level, terrain: of Terrain bits (cliffs
-## and ramps), all row by row; props: {id: Prop}}. A prop's id is its tile index in the chunk,
-## so it is stable and unique per chunk. No prop stands on a cliff or ramp.
+## and ramps), faces: of Terrain face bytes, all row by row; props: {id: Prop}}. A prop's id is
+## its tile index in the chunk, so it is stable and unique per chunk. No prop stands on a cliff,
+## ramp or face, or in front of a ramp.
 static func chunk(world_seed: int, coord: Vector2i) -> Dictionary:
 	var noise := biome_noise(world_seed)
 	var field := Terrain.Field.new(world_seed)
-	# Wide enough for the neighbours of its edge tiles and the ramp windows reaching past it.
-	var margin := Terrain.RAMP_SIZE + 1
+	var margin := Terrain.MARGIN
 	field.cover(Rect2i(coord * CHUNK - Vector2i.ONE * margin, Vector2i.ONE * (CHUNK + 2 * margin)))
 	var levels := field.levels_of(coord * CHUNK, CHUNK)
 	var terrain := field.bits_of(coord * CHUNK, CHUNK)
+	var faces := field.faces_of(coord * CHUNK, CHUNK)
 	var rng := RandomNumberGenerator.new()
 	rng.seed = hash([world_seed, coord])
 	# Its own stream, so trees and rocks stand where they always did.
@@ -55,7 +56,7 @@ static func chunk(world_seed: int, coord: Vector2i) -> Dictionary:
 			var chance: Array = PROP_CHANCE[biome]
 			var roll := rng.randf()
 			var small_roll := small.randf()
-			if terrain[id] & Terrain.CLIFF:
+			if terrain[id] & Terrain.CLIFF or faces[id] or _below_ramp(terrain, id):
 				continue
 			if roll < chance[0]:
 				props[id] = Prop.TREE
@@ -67,7 +68,15 @@ static func chunk(world_seed: int, coord: Vector2i) -> Dictionary:
 					props[id] = Prop.STICK
 				elif small_roll < small_chance[0] + small_chance[1]:
 					props[id] = Prop.PEBBLE
-	return {tiles = tiles, levels = levels, terrain = terrain, props = props}
+	return {tiles = tiles, levels = levels, terrain = terrain, faces = faces, props = props}
+
+
+## Whether one of the two tiles north of a tile (in its chunk) is a ramp: its foot stays clear.
+static func _below_ramp(terrain: PackedByteArray, id: int) -> bool:
+	for k in [1, 2]:
+		if id - k * CHUNK >= 0 and terrain[id - k * CHUNK] & Terrain.RAMP:
+			return true
+	return false
 
 
 ## The noise biomes are read from; Terrain also leans on it.

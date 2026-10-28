@@ -38,11 +38,16 @@ func test_a_lower_neighbour_makes_a_cliff() -> void:
 				var lower := false
 				for dir in Terrain.AROUND:
 					lower = lower or levels[i + dir.y * AREA.size.x + dir.x] < levels[i]
-				assert_bool(bits[i] & Terrain.CLIFF != 0).is_equal(lower)
+				# Or lower ground under the solid rows of a south face.
+				var two := i + 2 * AREA.size.x
+				if y < AREA.size.y - 2 and levels[i + AREA.size.x] == levels[i]:
+					lower = lower or levels[two] < levels[i]
+				if y < AREA.size.y - 2:
+					assert_bool(bits[i] & Terrain.CLIFF != 0).is_equal(lower)
 				cliffs += 1 if lower else 0
 				if bits[i] & Terrain.RAMP:
 					ramps += 1
-					assert_bool(lower).is_true()
+					assert_int(bits[i] & Terrain.CLIFF).is_equal(Terrain.CLIFF)
 		assert_int(cliffs).is_greater(100)
 		assert_int(ramps).is_greater(Terrain.RAMP_MIN * 3)
 
@@ -94,7 +99,7 @@ func test_no_prop_stands_on_a_cliff() -> void:
 
 
 func test_a_cliff_blocks_walking_hits_arrows_and_building() -> void:
-	var cliff := _south_cliff(0)
+	var cliff := _north_cliff(0)
 	var above := Building.tile_center(cliff + Vector2i(0, -1))
 	var below := Building.tile_center(cliff + Vector2i(0, 1))
 	var world := SimWorld.new()
@@ -166,14 +171,15 @@ func _field(world_seed: int) -> Terrain.Field:
 	return field
 
 
-## A cliff tile with lower ground south of it, open ground two tiles each way, near the spawn.
-func _south_cliff(world_seed: int) -> Vector2i:
+## A one tile thick cliff with lower ground north of it (a south edge has a thicker face), open
+## ground two tiles each way, near the spawn.
+func _north_cliff(world_seed: int) -> Vector2i:
 	for radius in range(2, 8):
 		for coord in WorldGen.around(Vector2i.ZERO, radius):
 			var data := WorldGen.chunk(world_seed, coord)
 			for id in data.terrain.size():
 				var bits: int = data.terrain[id]
-				if not Terrain.blocks(bits) or bits != Terrain.CLIFF | Terrain.LOWER_S:
+				if not Terrain.blocks(bits) or bits != Terrain.CLIFF | Terrain.LOWER_N:
 					continue
 				var tile := Building.tile_at(coord, id)
 				var field := Terrain.Field.new(world_seed)
