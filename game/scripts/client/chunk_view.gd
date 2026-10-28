@@ -14,11 +14,6 @@ const TUFT_EVERY := 10
 ## a face, in column 5 of rows 3-5.
 const CLIFFS := preload("res://assets/craftpix/tiles/cliffs.png")
 const STAIRS := Rect2(80, 48, 16, 48)
-## Over the ground of each Terrain.Level, so a plateau reads as higher than the ground around it.
-const LEVEL_TINTS: Array[Color] = [Color(0, 0, 0, 0.12), Color(0, 0, 0, 0), Color(1, 1, 1, 0.05)]
-## The shadow under a south face and east of a plateau's east side, px and darkness.
-const SHADOW := 6
-const SHADOW_COLOR := Color(0, 0, 0, 0.3)
 ## The map draws cliffs in this.
 const CLIFF_FACE := Color("24211d")
 
@@ -75,7 +70,6 @@ var coord: Vector2i
 var cliffs: Array[Vector2i] = []
 var _tiles: PackedByteArray
 var _terrain: PackedByteArray
-var _levels: PackedByteArray
 var _faces: PackedByteArray
 var _looks: PackedInt32Array
 var _props := {}  # id -> PropView
@@ -92,7 +86,6 @@ func _init(world_seed: int, chunk_coord: Vector2i, removed: PackedInt32Array) ->
 	var data := WorldGen.chunk(world_seed, coord, true)
 	_tiles = data.tiles
 	_terrain = data.terrain
-	_levels = data.levels
 	_faces = data.faces
 	_looks = data.looks
 	cliffs = Terrain.solid_tiles(coord, _terrain)
@@ -214,7 +207,6 @@ func _draw() -> void:
 			var region := Rect2(GROUND_ROWS[biome] + Vector2(column * WorldGen.TILE, 0), size)
 			var rect := Rect2(Vector2(x, y) * size, size)
 			draw_texture_rect_region(GROUND, rect, region)
-			draw_rect(rect, LEVEL_TINTS[_levels[y * WorldGen.CHUNK + x]])
 	# Cliffs over all the ground, as stairs reach up past their own tile.
 	for y in WorldGen.CHUNK:
 		for x in WorldGen.CHUNK:
@@ -226,10 +218,6 @@ func _draw() -> void:
 func _draw_cliff(at: Vector2, id: int) -> void:
 	var look := _looks[id]
 	var t := WorldGen.TILE
-	if look & Terrain.SHADOW_N:
-		_draw_shadow(Rect2(at, Vector2(t, SHADOW)), Vector2.DOWN)
-	if look & Terrain.SHADOW_W:
-		_draw_shadow(Rect2(at, Vector2(SHADOW, t)), Vector2.RIGHT)
 	if look & Terrain.STAIRS:
 		var rect := Rect2(at + Vector2(0, t - STAIRS.size.y), STAIRS.size)
 		draw_texture_rect_region(CLIFFS, rect, STAIRS)
@@ -239,12 +227,3 @@ func _draw_cliff(at: Vector2, id: int) -> void:
 		if piece >= 0:
 			var region := Rect2(Vector2(piece % 5, piece / 5) * t, Vector2(t, t))
 			draw_texture_rect_region(CLIFFS, Rect2(at, Vector2(t, t)), region)
-
-
-## A shadow fading out along fade across rect.
-func _draw_shadow(rect: Rect2, fade: Vector2) -> void:
-	for i in SHADOW:
-		var step := Rect2(
-			rect.position + fade * i, rect.size * (Vector2.ONE - fade.abs()) + fade.abs()
-		)
-		draw_rect(step, SHADOW_COLOR * Color(1, 1, 1, 1.0 - float(i) / SHADOW))

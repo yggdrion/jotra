@@ -24,12 +24,9 @@ const RAMP := 32
 ## into the ground north of it, row 1 the top edge, row 2 the sides, rows 3-5 the south face from
 ## its top down; column 0 and 4 the rock a left or right edge throws onto the lower ground beside
 ## it, 1 and 3 the edges themselves, 2 the middle. A look packs the tile's own piece and up to
-## three such overhangs (row * 5 + column, plus one; 0 for none) in LOOK_BITS each, STAIRS, and
-## the shadow a face south of a tile's north neighbour or a plateau's east side casts on it.
+## three such overhangs (row * 5 + column, plus one; 0 for none) in LOOK_BITS each, and STAIRS.
 const LOOK_BITS := 6
 const STAIRS := 1 << 24
-const SHADOW_N := 1 << 25
-const SHADOW_W := 1 << 26
 ## Rows of rock face a south edge shows, and how many of them (from the bottom) block.
 const FACE_ROWS := 3
 const FACE_SOLID := 2
@@ -218,10 +215,6 @@ class Field:
 				var tile := origin + Vector2i(x, y)
 				if _rows[_index(tile)] == 1 and _ramp_at(tile):
 					look |= STAIRS
-				if own[k] < 0 and own[k - outer] >= 25:
-					look |= SHADOW_N
-				if own[k] < 0 and own[k - 1] >= 0 and own[k - 1] % 5 == 3:
-					look |= SHADOW_W
 				out[y * side + x] = look
 		return out
 
