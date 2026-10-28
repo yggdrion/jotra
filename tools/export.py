@@ -1,6 +1,6 @@
 """Exports a release build with the pinned Godot version and export templates.
 
-Usage: python tools/export.py <linux|windows> [output dir, default build/<platform>]
+Usage: python tools/export.py <linux|windows|macos> [output dir, default build/<platform>]
 """
 
 import subprocess
@@ -13,10 +13,12 @@ from _common import GAME, ROOT, fail, godot, godot_import, run
 PRESETS = {
     "linux": ("Linux", "jotra.x86_64"),
     "windows": ("Windows Desktop", "jotra.exe"),
+    # A universal (x86_64 + arm64) app bundle, ad-hoc signed, zipped by Godot.
+    "macos": ("macOS", "jotra.zip"),
 }
 
 if len(sys.argv) not in (2, 3) or sys.argv[1] not in PRESETS:
-    fail("Usage: python tools/export.py <linux|windows> [output dir]")
+    fail("Usage: python tools/export.py <linux|windows|macos> [output dir]")
 preset, file = PRESETS[sys.argv[1]]
 out = Path(sys.argv[2] if len(sys.argv) == 3 else ROOT / "build" / sys.argv[1]).resolve()
 

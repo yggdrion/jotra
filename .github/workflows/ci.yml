@@ -3,8 +3,8 @@ name: CI
 # Every job runs the same tools/*.py scripts as the local check (python tools/check.py):
 #   1. Lint GDScript   2. Lobby tests + container build   3. gdUnit4 tests (Linux + Windows)
 #   4. Headless network test (ENet, and WebRTC through a local lobby)
-#   5. Linux + Windows exports, uploaded as artifacts on every push
-#   6. GitHub Release with both zips on `v*` tags
+#   5. Linux, Windows and macOS (universal: x86_64 + arm64) exports, uploaded as artifacts on every push
+#   6. GitHub Release with all three zips on `v*` tags
 
 on:
   push:
@@ -69,7 +69,8 @@ jobs:
       - name: Run network test
         run: python tools/run_network_test.py
 
-  # Every push gets a downloadable playtest build. Each platform exports on its own OS.
+  # Every push gets a downloadable playtest build. Linux and Windows export on their own OS; macOS
+  # exports from Linux (ad-hoc signed, not notarized).
   export:
     name: export (${{ matrix.platform }})
     needs: [lint, lobby, test]
@@ -83,6 +84,9 @@ jobs:
           - platform: windows
             os: windows-latest
             templates: ~\AppData\Roaming\Godot\export_templates
+          - platform: macos
+            os: ubuntu-latest
+            templates: ~/.local/share/godot/export_templates
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -109,7 +113,7 @@ jobs:
           path: build/${{ matrix.platform }}/
           if-no-files-found: error
 
-  # A pushed `v*` tag runs the whole pipeline above, then publishes both builds.
+  # A pushed `v*` tag runs the whole pipeline above, then publishes all builds.
   release:
     needs: export
     if: startsWith(github.ref, 'refs/tags/v')
@@ -129,6 +133,8 @@ jobs:
             mv "jotra-$p-${{ github.sha }}" "jotra-$p"
             zip -r "jotra-$p-$tag.zip" "jotra-$p"
           done
+          # Godot already zips the app bundle, exec bits included.
+          mv "jotra-macos-${{ github.sha }}/jotra.zip" "jotra-macos-$tag.zip"
       - run: >-
           gh release create "${{ github.ref_name }}" jotra-*-"${{ github.ref_name }}".zip
           --repo "${{ github.repository }}" --generate-notes

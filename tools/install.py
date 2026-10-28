@@ -8,7 +8,7 @@ Usage: python tools/install.py [godot|gdunit4|webrtc|bun|templates]   (default: 
   webrtc     the webrtc-native GDExtension (player host) into game/addons/webrtc_native
              (gitignored); exports ship its library next to the game.
   bun        Bun (the lobby in lobby/) into <TOOLS>/bun/<version>/. Prints the path.
-  templates  the Linux and Windows release export templates into the directory Godot
+  templates  the Linux, Windows and macOS release export templates into the directory Godot
              reads them from; only the ones we ship are extracted from the ~1.3 GB .tpz. Prints it.
 
 <TOOLS> is $JOTRA_TOOLS, else %LOCALAPPDATA%/jotra/tools (Windows) or ~/.cache/jotra/tools:
@@ -43,7 +43,7 @@ BUN_SHA256 = {
 TOOLS = ROOT / (os.environ.get("JOTRA_TOOLS") or (
     Path(os.environ["LOCALAPPDATA"]) if platform.system() == "Windows"
     else Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache")) / "jotra" / "tools")
-TEMPLATES = ["version.txt", "linux_release.x86_64", "windows_release_x86_64.exe"]
+TEMPLATES = ["version.txt", "linux_release.x86_64", "windows_release_x86_64.exe", "macos.zip"]
 
 
 def godot():

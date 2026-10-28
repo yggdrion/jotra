@@ -4,7 +4,7 @@
 
 Usage: python tools/check.py [--quick] [--export]
   --quick   only step 1 (no Godot), a few seconds
-  --export  also export the Linux and Windows builds to build/<platform>/
+  --export  also export the Linux, Windows and macOS builds to build/<platform>/
 Needs: python tools/setup.py once (Python packages, Godot, webrtc-native, gdUnit4, Bun, hooks). setup.py also
 installs it as a git pre-push hook (skip once with: git push --no-verify).
 """
@@ -53,5 +53,6 @@ if "--export" in args:
     step("Export")
     tool("export", "linux")
     tool("export", "windows")
+    tool("export", "macos")
 
 print("\nAll checks passed.")
