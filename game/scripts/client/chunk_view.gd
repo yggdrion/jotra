@@ -10,13 +10,15 @@ const GROUND_ROWS: Array[Vector2] = [Vector2(0, 0), Vector2(0, 16), Vector2(0, 3
 ## One tile in this many gets tufts.
 const TUFT_EVERY := 10
 ## Cliff pieces from the undead tileset, 16 px each, the pack's ground colour cut out so the
-## biome's ground shows through. Row 0: plateau rims (top-left, top, top-right, left, right, two
-## more tops); rows 1-3: the south face from its top row down (left end, middle, right end, two
-## more middles, unused: their foot sits higher); column 7 of rows 1-3: stone stairs, the ramp
-## down a face.
+## biome's ground shows through. Row 0: plateau rims (top-left, top, top-right, left and right
+## (unused: sides draw as face, SIDE_ROW), two more tops); rows 1-3: the south face from its top
+## row down (left end, middle, right end, two more middles, unused: their foot sits higher);
+## column 7 of rows 1-3: stone stairs, the ramp down a face.
 const CLIFFS := preload("res://assets/craftpix/tiles/cliffs.png")
 const TOPS := [1, 5, 6]
 const STAIRS := Rect2(112, 16, 16, 48)
+## The face row sides and corners are drawn with.
+const SIDE_ROW := 2
 ## The map draws cliffs in this.
 const CLIFF_FACE := Color("24211d")
 
@@ -244,9 +246,13 @@ func _draw_cliff(at: Vector2, id: int) -> void:
 			column = 2
 		piece = Vector2i(column, 0)
 	elif bits & Terrain.LOWER_W:
-		piece = Vector2i(3, 0)
+		# A side of a plateau shows rock all the way, joining the faces it runs between.
+		piece = Vector2i(0, SIDE_ROW)
 	elif bits & Terrain.LOWER_E:
-		piece = Vector2i(4, 0)
+		piece = Vector2i(2, SIDE_ROW)
+	elif bits & Terrain.CLIFF:
+		# Lower ground only across a corner: the joint between a side and a face.
+		piece = Vector2i(1, SIDE_ROW)
 	if piece.x >= 0:
 		var region := Rect2(Vector2(piece * t), Vector2(t, t))
 		draw_texture_rect_region(CLIFFS, Rect2(at, Vector2(t, t)), region)
