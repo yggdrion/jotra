@@ -28,6 +28,9 @@ func test_killed_enemy_drops_and_walking_over_picks_up() -> void:
 	world.players[1].position = drop.position
 	world.events.clear()
 	world.tick(TICK)
+	# It lies still a moment first.
+	assert_dict(world.drops).is_not_empty()
+	world.tick(Content.tuning.pickup_delay)
 	assert_dict(world.drops).is_empty()
 	assert_int(world.players[1].inventory.count_of(&"bone")).is_equal(3)
 	assert_array(world.events).contains([["loot", 1, &"bone", 3]])
@@ -51,7 +54,7 @@ func test_full_inventory_leaves_the_rest_lying() -> void:
 	for i in inventory.slots.size():
 		inventory.slots[i] = {item = &"club", count = 1}
 	world.add_drop(&"bone", 2, Vector2.ZERO)
-	world.tick(TICK)
+	world.tick(Content.tuning.pickup_delay)
 	assert_int(world.drops.size()).is_equal(1)
 	inventory.slots[0] = {item = &"bone", count = Content.item(&"bone").max_stack - 1}
 	world.tick(TICK)
@@ -65,6 +68,7 @@ func test_full_inventory_gets_a_notice_now_and_then() -> void:
 		inventory.slots[i] = {item = &"club", count = 1}
 	world.add_drop(&"bone", 1, Vector2.ZERO)
 	world.events.clear()
+	world.tick(Content.tuning.pickup_delay)
 	for i in 5:
 		world.tick(TICK)
 	assert_array(world.events).is_equal([["full", 1]])
@@ -78,13 +82,36 @@ func test_drops_slide_to_a_player_walking_near() -> void:
 	var t := Content.tuning
 	var near := world.add_drop(&"bone", 1, Vector2(t.magnet_radius - 2, 0))
 	var far := world.add_drop(&"stone", 1, Vector2(t.magnet_radius + 30, 0))
-	world.tick(TICK)
+	world.tick(t.pickup_delay - TICK)
+	assert_float(near.position.x).is_equal(t.magnet_radius - 2)
+	world.tick(TICK * 2)
 	assert_float(near.position.x).is_less(t.magnet_radius - 2)
 	assert_float(far.position.x).is_equal(t.magnet_radius + 30)
 	for i in 10:
 		world.tick(TICK)
 	assert_int(world.players[1].inventory.count_of(&"bone")).is_equal(1)
 	assert_bool(world.drops.has(far.id)).is_true()
+
+
+func test_drops_spread_out_on_walkable_ground() -> void:
+	var world := _world()
+	var t := Content.tuning
+	var at := Vector2(200, 0)
+	var spots: Array[Vector2] = []
+	for i in 6:
+		spots.append(world.add_drop(&"bone", 1, at).position)
+	for i in spots.size():
+		for j in range(i + 1, spots.size()):
+			assert_float(spots[i].distance_to(spots[j])).is_greater_equal(t.drop_spacing - 0.01)
+	# Not on a wall, nor past one: a wall right of at keeps the drops on its left.
+	world.drops.clear()
+	var wall := Building.tile_of(at) + Vector2i(1, 0)
+	for y in range(-4, 5):
+		world.pieces[wall + Vector2i(0, y)] = Building.Piece.new(&"wall")
+	world.pieces_version += 1
+	for i in 10:
+		var spot := world.add_drop(&"bone", 1, at).position
+		assert_int(Building.tile_of(spot).x).is_less(wall.x)
 
 
 func test_craft_status_says_why_not() -> void:

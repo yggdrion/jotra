@@ -129,6 +129,10 @@ extends Resource
 @export var drop_lifetime := 300.0
 ## Spread of a drop's items around where it fell.
 @export var drop_scatter := 10.0
+## Drops keep at least this far apart, moving out in rings to walkable ground if need be.
+@export var drop_spacing := 12.0
+## Seconds a new drop lies still before it slides to or is picked up by anyone.
+@export var pickup_delay := 0.6
 ## What removing a tree or a rock gives, see Loot.roll.
 @export var tree_drops: Array
 @export var rock_drops: Array

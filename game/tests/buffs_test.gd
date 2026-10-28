@@ -75,7 +75,7 @@ func test_orbs_are_picked_up_until_the_max_stacks() -> void:
 		player.buffs.add(&"wraith_step")
 	var orb := world._add_orb(&"wraith_step", player.position)
 	var other := world._add_orb(&"grave_strength", player.position)
-	world.tick(TICK)
+	world.tick(Content.tuning.pickup_delay + TICK)
 	assert_bool(world.drops.has(orb.id)).is_true()
 	assert_bool(world.drops.has(other.id)).is_false()
 	assert_int(player.buffs.stacks[&"grave_strength"]).is_equal(1)

@@ -124,6 +124,8 @@ class SimDrop:
 	var position: Vector2
 	## Sim time it vanishes.
 	var until: float
+	## Sim time it can first be picked up (Tuning.pickup_delay).
+	var ready_at: float
 
 
 ## The inventory slots of a player who died in the overworld, lying where it died until that
@@ -162,6 +164,8 @@ const REACH := 32.0
 const REACH_SLACK := 16.0
 ## Seconds between two "inventory full" notices to one player.
 const FULL_NOTICE_INTERVAL := 3.0
+## Rings of drop_spacing free_spot searches out from where a drop fell.
+const DROP_RINGS := 4
 ## Pack members spawn this far (px) around the first.
 const PACK_SPREAD := 28.0
 ## Tiles all enemies' path searches may expand in one tick (Pathing.find); those left over
@@ -280,10 +284,10 @@ func tick(delta: float) -> void:
 	_tick_drops(delta)
 
 
-## Drops slide toward the closest living player within magnet_radius, who picks them up
-## within pickup_radius, as much as fits (a buff orb: unless at its max stacks); a full
-## inventory gets a notice every FULL_NOTICE_INTERVAL. Drops vanish when their time is up or
-## their chunk unloads.
+## Drops lie still for pickup_delay, then slide toward the closest living player within
+## magnet_radius, who picks them up within pickup_radius, as much as fits (a buff orb: unless
+## at its max stacks); a full inventory gets a notice every FULL_NOTICE_INTERVAL. Drops vanish
+## when their time is up or their chunk unloads.
 # ponytail: drops are not saved; a restart or an unloaded chunk loses them.
 func _tick_drops(delta: float) -> void:
 	var t := Content.tuning
@@ -292,6 +296,8 @@ func _tick_drops(delta: float) -> void:
 		var loaded := chunks.has(WorldGen.chunk_of(drop.position)) or _run_at(drop.position)
 		if time >= drop.until or not loaded:
 			drops.erase(id)
+			continue
+		if time < drop.ready_at:
 			continue
 		var player: SimPlayer = players.get(nearest_player(drop.position, t.magnet_radius))
 		if player == null:
@@ -325,16 +331,50 @@ func _drop_loot(table: Array, at: Vector2) -> void:
 		add_drop(got[0], got[1], at + offset)
 
 
+## A drop on the walkable ground nearest at that keeps drop_spacing from the others.
 func add_drop(item: StringName, count: int, at: Vector2) -> SimDrop:
 	var drop := SimDrop.new()
 	drop.id = _next_drop_id
 	drop.item = item
 	drop.count = count
-	drop.position = at
+	drop.position = free_spot(at)
 	drop.until = time + Content.tuning.drop_lifetime
+	drop.ready_at = time + Content.tuning.pickup_delay
 	drops[drop.id] = drop
 	_next_drop_id += 1
 	return drop
+
+
+## The first spot, from at outward in rings drop_spacing apart, that is walkable and seen from
+## at (no blocking piece or dungeon wall on the way, so nothing lands behind a wall) and
+## drop_spacing from every drop; at if none is within DROP_RINGS.
+func free_spot(at: Vector2) -> Vector2:
+	var spacing := Content.tuning.drop_spacing
+	var blocked := blocked_at(at)
+	var near := drops.values().filter(
+		func(d: SimDrop) -> bool: return d.position.distance_to(at) < (DROP_RINGS + 1) * spacing
+	)
+	for ring in DROP_RINGS + 1:
+		var count := maxi(1, ring * 6)
+		for i in count:
+			var spot := at + Vector2.from_angle(TAU * i / count) * ring * spacing
+			if blocked.has(Building.tile_of(spot)) or not _seen_from(blocked, at, spot):
+				continue
+			if near.all(func(d: SimDrop) -> bool: return d.position.distance_to(spot) >= spacing):
+				return spot
+	return at
+
+
+## Whether the line from one spot to another crosses no blocked tile but the one it starts on
+## (a chest's spill starts on its own tile).
+static func _seen_from(blocked: Dictionary, from: Vector2, to: Vector2) -> bool:
+	var start := Building.tile_of(from)
+	var steps := ceili(from.distance_to(to) / 4.0)
+	for step in steps:
+		var tile := Building.tile_of(from.lerp(to, (step + 1.0) / steps))
+		if tile != start and blocked.has(tile):
+			return false
+	return true
 
 
 func _tick_player(player: SimPlayer, delta: float) -> void:
