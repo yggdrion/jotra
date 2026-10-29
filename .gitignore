@@ -21,3 +21,4 @@ build/
 
 # Commit baked into exports, removed after export (tools/export.py)
 game/build_id.txt
+.superpowers/
