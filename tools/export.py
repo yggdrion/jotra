@@ -14,6 +14,9 @@ PRESETS = {
     "linux": ("Linux", "jotra.x86_64"),
     "windows": ("Windows Desktop", "jotra.exe"),
     # A universal (x86_64 + arm64) app bundle, ad-hoc signed, zipped by Godot.
+    # Its Info.plist sets NSAppSleepDisabled (preset option additional_plist_content): the solo
+    # and host server is a windowless child process, and App Nap throttled it to a tick every
+    # few seconds.
     "macos": ("macOS", "jotra.zip"),
 }
 
