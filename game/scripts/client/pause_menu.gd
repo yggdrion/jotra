@@ -7,6 +7,9 @@ signal menu_chosen
 signal quit_chosen
 
 var _settings := SettingsMenu.new()
+var _room_code := ""
+var _room_label := Label.new()
+var _copy_room := Button.new()
 
 
 func _ready() -> void:
@@ -23,6 +26,15 @@ func _ready() -> void:
 	box.custom_minimum_size.x = 100
 	box.add_theme_constant_override("separation", 4)
 	center.add_child(box)
+	_room_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_room_label.add_theme_font_size_override("font_size", 8)
+	_room_label.visible = false
+	box.add_child(_room_label)
+	_copy_room.text = "Copy room code"
+	_copy_room.add_theme_font_size_override("font_size", 8)
+	_copy_room.visible = false
+	_copy_room.pressed.connect(_copy_room_code)
+	box.add_child(_copy_room)
 	for row: Array in [
 		["Resume", hide],
 		["Settings", _settings.open],
@@ -35,6 +47,19 @@ func _ready() -> void:
 		button.pressed.connect(row[1])
 		box.add_child(button)
 	add_child(_settings)
+
+
+func show_room(code: String) -> void:
+	_room_code = code
+	_room_label.text = "Room code: %s" % code if code != "" else ""
+	_copy_room.text = "Copy room code"
+	_room_label.visible = code != ""
+	_copy_room.visible = code != ""
+
+
+func _copy_room_code() -> void:
+	DisplayServer.clipboard_set(_room_code)
+	_copy_room.text = "Copied!"
 
 
 ## Escape: closes settings, else the menu, else opens it.

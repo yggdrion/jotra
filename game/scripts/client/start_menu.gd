@@ -15,7 +15,7 @@ signal solo_chosen(world: String)
 signal host_chosen(world: String)
 signal join_chosen(code: String)
 
-const CODE_LENGTH := 4
+const CODE_LENGTH := 8
 const FONT_SIZE := 8
 const HEADING := Color("feae34")
 const DIM := Color("c0cbdc")

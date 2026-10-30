@@ -195,6 +195,7 @@ func _ready() -> void:
 		func(code: String) -> void:
 			_room = code
 			_hud.show_room(code)
+			_pause.show_room(code)
 	)
 	net.ponged.connect(func(sent: int) -> void: _ping_ms = Time.get_ticks_msec() - sent)
 	net.rejected.connect(_on_rejected)

@@ -38,9 +38,9 @@ function setup(now = () => 1_000_000) {
 }
 
 describe("rooms", () => {
-  test("host gives a 4-letter code and ICE servers", () => {
+  test("host gives an 8-letter code and ICE servers", () => {
     const { lobby, host, code } = setup();
-    expect(code).toMatch(/^[A-HJKMNP-Z]{4}$/);
+    expect(code).toMatch(/^[A-HJKMNP-Z]{8}$/);
     expect(host.last().type).toBe("hosted");
     expect(host.last().ice).toHaveLength(2);
     expect(lobby.rooms.size).toBe(1);
@@ -81,6 +81,17 @@ describe("rooms", () => {
     expect(old.last().type).toBe("error");
     lobby.handle(old, "not json");
     expect(old.last()).toMatchObject({ type: "error", reason: "bad message" });
+  });
+
+  test("repeated join guesses on one connection are throttled", () => {
+    const { lobby, code } = setup();
+    const guest = new FakePeer();
+    for (let i = 0; i < 5; i++) {
+      lobby.handle(guest, JSON.stringify({ type: "join", code: "ZZZZZZZZ", protocol: 1 }));
+      expect(guest.last()).toMatchObject({ type: "error", reason: "no room with that code" });
+    }
+    lobby.handle(guest, JSON.stringify({ type: "join", code, protocol: 1 }));
+    expect(guest.last()).toMatchObject({ type: "error", reason: "too many join attempts; try again shortly" });
   });
 
   test("a guest leaving tells the host and frees its place; ids are not reused", () => {

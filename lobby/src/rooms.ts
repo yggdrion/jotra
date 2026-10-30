@@ -20,7 +20,7 @@
 // The lobby never looks inside "signal" data and never sees gameplay. Guests close their socket
 // once connected; the host keeps its socket for as long as the room is open.
 
-import { createHmac } from "node:crypto";
+import { createHmac, randomInt } from "node:crypto";
 
 export interface Peer {
   send(message: string): void;
@@ -64,9 +64,16 @@ interface Room {
   guests: Map<number, Guest>;
 }
 
+interface JoinAttempts {
+  count: number;
+  resetAt: number;
+}
+
 // No 0/O, 1/I/L, so codes survive being read out loud.
 const ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ";
-const CODE_LENGTH = 4;
+const CODE_LENGTH = 8;
+const JOIN_ATTEMPT_LIMIT = 5;
+const JOIN_ATTEMPT_WINDOW_MS = 10_000;
 // Peer id 1 is the game server.
 const FIRST_GUEST_ID = 2;
 
@@ -75,11 +82,11 @@ export class Lobby {
   readonly stats = { roomsCreated: 0, joins: 0, messages: 0 };
   // Which room a socket is in, and as which guest (0 for the host).
   private readonly byPeer = new Map<Peer, { room: Room; id: number }>();
+  private readonly joinAttempts = new Map<Peer, JoinAttempts>();
 
   constructor(
     private readonly config: Config,
     private readonly now: () => number = Date.now,
-    private readonly random: () => number = Math.random,
   ) {}
 
   guestCount(): number {
@@ -118,6 +125,7 @@ export class Lobby {
 
   // The peer's socket closed. A host's room closes with it; a guest just leaves its room.
   leave(peer: Peer): void {
+    this.joinAttempts.delete(peer);
     const entry = this.byPeer.get(peer);
     if (!entry) return;
     if (entry.id === 0) {
@@ -167,7 +175,7 @@ export class Lobby {
     if (!this.checkProtocol(peer, protocol)) return;
     if (this.byPeer.has(peer)) return send(peer, { type: "error", reason: "already in a room" });
     let code = this.newCode();
-    // Retries on collision; fine while rooms are far fewer than 23^4 = 279841.
+    // Retries on collision; fine while rooms are far fewer than 23^8.
     while (this.rooms.has(code)) code = this.newCode();
     const room: Room = {
       code,
@@ -185,6 +193,9 @@ export class Lobby {
   private join(peer: Peer, code: string, protocol: unknown): void {
     if (!this.checkProtocol(peer, protocol)) return;
     if (this.byPeer.has(peer)) return send(peer, { type: "error", reason: "already in a room" });
+    if (!this.allowJoinAttempt(peer)) {
+      return send(peer, { type: "error", reason: "too many join attempts; try again shortly" });
+    }
     const room = this.rooms.get(code);
     if (!room) return send(peer, { type: "error", reason: "no room with that code" });
     if (room.guests.size >= this.config.maxGuests) {
@@ -196,6 +207,17 @@ export class Lobby {
     this.stats.joins++;
     send(peer, { type: "joined", code, id, ice: this.iceServers(code) });
     send(room.host, { type: "guest", id });
+  }
+
+  private allowJoinAttempt(peer: Peer): boolean {
+    const now = this.now();
+    let attempts = this.joinAttempts.get(peer);
+    if (!attempts || attempts.resetAt <= now) {
+      attempts = { count: 0, resetAt: now + JOIN_ATTEMPT_WINDOW_MS };
+      this.joinAttempts.set(peer, attempts);
+    }
+    attempts.count++;
+    return attempts.count <= JOIN_ATTEMPT_LIMIT;
   }
 
   private signal(peer: Peer, to: unknown, data: unknown): void {
@@ -234,7 +256,7 @@ export class Lobby {
   private newCode(): string {
     let code = "";
     for (let i = 0; i < CODE_LENGTH; i++) {
-      code += ALPHABET[Math.floor(this.random() * ALPHABET.length)];
+      code += ALPHABET[randomInt(ALPHABET.length)];
     }
     return code;
   }

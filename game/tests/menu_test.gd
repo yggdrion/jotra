@@ -32,3 +32,12 @@ func test_character_screen_lists_gear_and_buffs() -> void:
 	buffs.add(Content.buff_ids[0])
 	var text := CharacterUi.describe(inventory, buffs, "ann")
 	assert_str(text).contains(Content.buffs[Content.buff_ids[0]].display_name)
+
+
+func test_host_room_code_can_be_copied_from_pause_menu() -> void:
+	var menu: PauseMenu = auto_free(PauseMenu.new())
+	add_child(menu)
+	menu.show_room("ABCDEFGH")
+	menu._copy_room.pressed.emit()
+	assert_str(menu._room_label.text).is_equal("Room code: ABCDEFGH")
+	assert_str(menu._copy_room.text).is_equal("Copied!")

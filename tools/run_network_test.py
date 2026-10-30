@@ -134,7 +134,7 @@ try:
         )
     )
     code = wait_for("a room code", lambda: room_file.exists() and room_file.read_text().strip())
-    if not re.fullmatch("[A-Z]{4}", code):
+    if not re.fullmatch("[A-HJKMNP-Z]{8}", code):
         dump()
         fail(f"the server could not open a room: {code}")
     rtc_bots = [
