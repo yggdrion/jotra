@@ -29,7 +29,7 @@ func test_build_menu_describes_pieces_and_lists_all() -> void:
 func test_server_build_rejection_turns_a_green_preview_red_with_its_reason() -> void:
 	var tile := Vector2i(2, 0)
 	var index := Building.index_in_chunk(tile)
-	var chunk := ChunkView.new(1, Vector2i.ZERO, PackedInt32Array([index]))
+	var chunk: ChunkView = auto_free(ChunkView.new(1, Vector2i.ZERO, PackedInt32Array([index])))
 	var mode: BuildMode = auto_free(BuildMode.new())
 	add_child(mode)
 	mode.select(Content.piece_ids.find(&"wall"))
