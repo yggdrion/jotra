@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "assets": [
+    {
+      "id": "player_knight_walk",
+      "path": "assets/dark_knight/knight_walk.png",
+      "source": "jfranciPX Free Knight Character; see assets/dark_knight/README.md",
+      "prompt": null,
+      "references": [],
+      "status": "approved",
+      "kind": "character_animation",
+      "animation": "walk",
+      "directions": ["down", "up", "left", "right"],
+      "width": 192,
+      "height": 384,
+      "frame_width": 48,
+      "frame_height": 48,
+      "fps": 9.09,
+      "ground_anchor": [24, 45],
+      "alpha": true
+    },
+    {
+      "id": "player_knight_blue_walk",
+      "path": "assets/dark_knight/knight_blue_walk.png",
+      "source": "Blue-cape variant of player_knight_walk; see assets/dark_knight/README.md",
+      "prompt": null,
+      "references": ["assets/dark_knight/knight_walk.png"],
+      "status": "approved",
+      "kind": "character_animation",
+      "animation": "walk",
+      "directions": ["down", "up", "left", "right"],
+      "width": 192,
+      "height": 384,
+      "frame_width": 48,
+      "frame_height": 48,
+      "fps": 9.09,
+      "ground_anchor": [24, 45],
+      "alpha": true
+    }
+  ]
+}
