@@ -9,8 +9,8 @@ Needs Python 3.12+ and git. Safe to re-run:
 
     python tools/setup.py
 
-Installs gdtoolkit and pre-commit, the pinned Godot (`.godot-version`, checked against
-`tools/godot-<version>.sha512`, into a per-user dir shared by all checkouts, see `tools/install.py`), the webrtc-native GDExtension, gdUnit4, the
+Installs gdtoolkit and pre-commit (a venv), the pinned Godot (`.godot-version`, checked against
+`tools/godot-<version>.sha512`, all into a per-user dir shared by all checkouts and worktrees, see `tools/install.py`), the webrtc-native GDExtension, gdUnit4, the
 pinned Bun (for the lobby) and the pre-push hook.
 
 ## Run

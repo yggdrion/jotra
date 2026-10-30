@@ -5,13 +5,13 @@
 Usage: python tools/check.py [--quick] [--export]
   --quick   only step 1 (no Godot), a few seconds
   --export  also export the Linux, Windows and macOS builds to build/<platform>/
-Needs: python tools/setup.py once (Python packages, Godot, webrtc-native, gdUnit4, Bun, hooks). setup.py also
-installs it as a git pre-push hook (skip once with: git push --no-verify).
+Any Python 3.12+ runs it: the pinned tools (gdtoolkit in a shared venv, Godot, Bun, ...) install on first use.
+python tools/setup.py installs it as a git pre-push hook (skip once with: git push --no-verify).
 """
 
-import importlib.util
 import sys
 
+import install
 from _common import ROOT, fail, run
 
 args = set(sys.argv[1:])
@@ -30,11 +30,10 @@ def tool(name, *tool_args):
 
 
 step("Lint and format")
-# Through python -m, so a user-site pip install works without its Scripts dir on PATH.
-if not importlib.util.find_spec("gdtoolkit"):
-    fail("gdtoolkit not installed: run python tools/setup.py")
-run(py, "-m", "gdtoolkit.linter", *dirs, cwd=ROOT)
-run(py, "-m", "gdtoolkit.formatter", "--check", *dirs, cwd=ROOT)
+# From the shared venv, so it works from any Python and checkout (worktrees too) without activating one.
+venv_py = install.venv()
+run(venv_py, "-m", "gdtoolkit.linter", *dirs, cwd=ROOT)
+run(venv_py, "-m", "gdtoolkit.formatter", "--check", *dirs, cwd=ROOT)
 
 if "--quick" in args:
     print("\nQuick checks passed (Godot tests skipped).")

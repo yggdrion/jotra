@@ -1,6 +1,6 @@
 """Installs the pinned tools; re-running is a no-op once installed.
 
-Usage: python tools/install.py [godot|gdunit4|webrtc|bun|templates]   (default: godot)
+Usage: python tools/install.py [godot|gdunit4|webrtc|bun|venv|templates]   (default: godot)
 
   godot      Godot from .godot-version into <TOOLS>/godot/<version>/, checked
              against tools/godot-<version>.sha512, plus webrtc. Prints the binary path.
@@ -8,6 +8,8 @@ Usage: python tools/install.py [godot|gdunit4|webrtc|bun|templates]   (default: 
   webrtc     the webrtc-native GDExtension (player host) into game/addons/webrtc_native
              (gitignored); exports ship its library next to the game.
   bun        Bun (the lobby in lobby/) into <TOOLS>/bun/<version>/. Prints the path.
+  venv       a venv with tools/requirements.txt (gdtoolkit, pre-commit) into
+             <TOOLS>/venv/<hash of the requirements>/. Prints its Python.
   templates  the Linux, Windows and macOS release export templates into the directory Godot
              reads them from; only the ones we ship are extracted from the ~1.3 GB .tpz. Prints it.
 
@@ -17,6 +19,7 @@ one install shared by all checkouts, so the firewall allows each binary once per
 Logs go to stderr.
 """
 
+import hashlib
 import os
 import platform
 import shutil
@@ -142,6 +145,21 @@ def bun():
     return path
 
 
+def venv():
+    reqs = ROOT / "tools" / "requirements.txt"
+    dest = TOOLS / "venv" / hashlib.sha256(reqs.read_bytes()).hexdigest()[:12]
+    path = dest / ("Scripts/python.exe" if platform.system() == "Windows" else "bin/python")
+    marker = dest / ".installed"
+    if marker.exists():
+        return path
+    log(f"Installing {', '.join(reqs.read_text().split())} into {dest}...")
+    subprocess.run([sys.executable, "-m", "venv", "--clear", str(dest)], check=True)
+    subprocess.run([str(path), "-m", "pip", "install", "--quiet", "--disable-pip-version-check", "-r", str(reqs)],
+                   check=True)
+    marker.touch()
+    return path
+
+
 def templates():
     system = platform.system()
     if system == "Windows":
@@ -169,7 +187,7 @@ def templates():
 
 
 if __name__ == "__main__":
-    tools = {"godot": godot, "gdunit4": gdunit4, "webrtc": webrtc, "bun": bun, "templates": templates}
+    tools = {"godot": godot, "gdunit4": gdunit4, "webrtc": webrtc, "bun": bun, "venv": venv, "templates": templates}
     which = sys.argv[1] if len(sys.argv) > 1 else "godot"
     if which not in tools or len(sys.argv) > 2:
         fail(f"Usage: python tools/install.py [{'|'.join(tools)}]")
