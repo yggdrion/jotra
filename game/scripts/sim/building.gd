@@ -4,7 +4,7 @@ class_name Building
 ## they have and ask the same questions of it, so the client predicts what the server decides.
 
 ## Why a piece can or can't be built on a tile; the client colors its ghost by it.
-enum Status { OK, REPAIR, FAR, PROP, TAKEN, IN_THE_WAY, MISSING_ITEMS }
+enum Status { OK, REPAIR, FAR, PROP, CLIFF, TAKEN, IN_THE_WAY, MISSING_ITEMS, UNAVAILABLE }
 
 ## Indexes into PieceDef.parts.
 enum JoinPart { POST, CAP, MID }
@@ -21,6 +21,8 @@ class Piece:
 	var id: StringName
 	var health: float
 	var open := false
+	## A flat floor under this piece, retained when a station is built on it.
+	var has_floor := false
 	## A chest's contents; on the server only.
 	var items: Inventory
 
@@ -111,18 +113,22 @@ static func can_build(
 	at: Vector2,
 	prop: bool,
 	bodies: Array[Vector2],
-	slack := 0.0
+	slack := 0.0,
+	cliff := false
 ) -> Status:
 	var def := Content.piece(piece_id)
 	if at.distance_to(tile_center(tile)) > Content.tuning.build_reach + slack:
 		return Status.FAR
+	if cliff:
+		return Status.CLIFF
 	if prop:
 		return Status.PROP
 	var there: Piece = pieces.get(tile)
 	if there:
 		if there.id == piece_id and there.health < def.health:
 			return Status.REPAIR
-		return Status.TAKEN
+		if there.id != &"floor" or piece_id == &"floor":
+			return Status.TAKEN
 	if def.blocks and bodies.any(func(body: Vector2) -> bool: return overlaps(tile, body)):
 		return Status.IN_THE_WAY
 	if not inventory.has_all(def.cost):
@@ -191,9 +197,14 @@ static func nearest_usable(pieces: Dictionary, at: Vector2, reach: float) -> Arr
 	return best
 
 
-## What the client is sent of a piece: [Content.piece_ids index, health 0..1, open].
+## What the client is sent of a piece: [Content.piece_ids index, health 0..1, open, has_floor].
 static func to_net(piece: Piece) -> Array:
-	return [Content.piece_ids.find(piece.id), piece.health / piece.def().health, piece.open]
+	return [
+		Content.piece_ids.find(piece.id),
+		piece.health / piece.def().health,
+		piece.open,
+		piece.has_floor
+	]
 
 
 ## The reverse of to_net, for the client's copy (health as a share of the max).
@@ -201,4 +212,15 @@ static func from_net(data: Array) -> Piece:
 	var piece := Piece.new(Content.piece_ids[data[0]])
 	piece.health = data[1] * piece.def().health
 	piece.open = data[2]
+	piece.has_floor = data.size() > 3 and data[3]
 	return piece
+
+
+## The barrow occupies its tile just like a solid world prop.
+static func can_walk_portal(from: Vector2, to: Vector2) -> bool:
+	var portals := {portal_tile(): true}
+	return tile_blocker(portals, to) == null or tile_blocker(portals, from) != null
+
+
+static func portal_tile() -> Vector2i:
+	return tile_of(Content.tuning.dungeon_entrance)

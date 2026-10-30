@@ -26,6 +26,7 @@ signal draught_requested(peer_id: int)
 signal ability_requested(peer_id: int, aim: Vector2)
 signal interact_requested(peer_id: int)
 signal build_requested(peer_id: int, tile: Vector2i, piece: StringName)
+signal build_rejected_received(tile: Vector2i, piece: StringName, reason: int)
 signal unbuild_requested(peer_id: int, tile: Vector2i)
 signal use_requested(peer_id: int, tile: Vector2i)
 signal chest_move_requested(peer_id: int, from_chest: bool, index: int)
@@ -86,7 +87,7 @@ enum Status { DRAUGHT, ABILITY, REGEN }
 ## Bump on any change to the RPCs below or their payloads, or to what both sides generate from
 ## the seed (WorldGen, Terrain). Keep hello's and reject's signatures from here on, so a client
 ## with another version still gets the reason.
-const PROTOCOL_VERSION := 25
+const PROTOCOL_VERSION := 26
 ## Character looks: PlayerView.SHEETS times PlayerView.TINTS.
 const LOOKS := 12
 const ENTITY_BYTES := 10
@@ -182,6 +183,12 @@ func interact() -> void:
 @rpc("any_peer", "reliable")
 func build(tile: Vector2i, piece: StringName) -> void:
 	build_requested.emit(multiplayer.get_remote_sender_id(), tile, piece)
+
+
+## The server refused a placement the client predicted would work.
+@rpc("authority", "reliable")
+func build_rejected(tile: Vector2i, piece: StringName, reason: int) -> void:
+	build_rejected_received.emit(tile, piece, reason)
 
 
 @rpc("any_peer", "reliable")

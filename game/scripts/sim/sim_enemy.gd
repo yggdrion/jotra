@@ -135,7 +135,7 @@ func tick(world: SimWorld, delta: float) -> void:
 			world.events.append(["windup", id, position, def.windup, area, line, arc])
 		State.WINDUP:
 			var player: SimWorld.SimPlayer = world.players.get(target)
-			if player != null:
+			if player != null and def.behavior != EnemyDef.Behavior.ARCHER:
 				_turn(player.position, delta)
 			if player != null and siege == null:
 				var close := maxf(position.distance_to(player.position) - def.attack_range, 0.0)

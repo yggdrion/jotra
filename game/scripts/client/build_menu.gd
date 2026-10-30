@@ -24,6 +24,7 @@ var _panel := PanelContainer.new()
 var _hotbar := HBoxContainer.new()
 ## {piece id: {item id: Label}} of the cost labels.
 var _costs := {}
+var _buttons := {}
 
 
 ## Puts id at the front of a hotbar unless it is on it already (so digits don't shuffle), the
@@ -110,6 +111,7 @@ func hotbar_piece(slot: int) -> StringName:
 func refresh(inventory: Inventory) -> void:
 	for id: StringName in _costs:
 		var cost: Dictionary = Content.piece(id).cost
+		_buttons[id].disabled = not inventory.has_all(cost)
 		for item: StringName in cost:
 			var have := inventory.count_of(item)
 			var label: Label = _costs[id][item]
@@ -131,6 +133,7 @@ func _row(id: StringName) -> Control:
 	button.pressed.connect(func() -> void: picked.emit(id))
 	button.mouse_entered.connect(func() -> void: _info.text = describe(def))
 	row.add_child(button)
+	_buttons[id] = button
 	_costs[id] = {}
 	for item: StringName in def.cost:
 		_costs[id][item] = _label("")

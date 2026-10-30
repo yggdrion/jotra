@@ -18,6 +18,31 @@ func test_build_menu_describes_pieces_and_lists_all() -> void:
 	assert_str(menu.selected).is_equal(str(Content.piece_ids[-1]))
 	assert_array(menu.recent).contains([Content.piece_ids[-1]])
 	assert_str(menu.hotbar_piece(99)).is_equal("")
+	var inventory := Inventory.new(Content.tuning.inventory_size)
+	menu.refresh(inventory)
+	assert_bool(menu._buttons[&"wall"].disabled).is_true()
+	inventory.add(&"wood", Content.piece(&"wall").cost[&"wood"])
+	menu.refresh(inventory)
+	assert_bool(menu._buttons[&"wall"].disabled).is_false()
+
+
+func test_server_build_rejection_turns_a_green_preview_red_with_its_reason() -> void:
+	var tile := Vector2i(2, 0)
+	var index := Building.index_in_chunk(tile)
+	var chunk := ChunkView.new(1, Vector2i.ZERO, PackedInt32Array([index]))
+	var mode: BuildMode = auto_free(BuildMode.new())
+	add_child(mode)
+	mode.select(Content.piece_ids.find(&"wall"))
+	var inventory := Inventory.new(Content.tuning.inventory_size)
+	inventory.add(&"wood", Content.piece(&"wall").cost[&"wood"])
+	var chunks := {Vector2i.ZERO: chunk}
+	var bodies: Array[Vector2] = []
+	mode.update(Building.tile_center(tile), {}, chunks, inventory, Vector2.ZERO, bodies)
+	assert_int(mode.status).is_equal(Building.Status.OK)
+	mode.reject(tile, &"wall", Building.Status.CLIFF)
+	mode.update(Building.tile_center(tile), {}, chunks, inventory, Vector2.ZERO, bodies)
+	assert_int(mode.status).is_equal(Building.Status.CLIFF)
+	assert_bool(mode._ghost.ghost == BuildMode.BAD).is_true()
 
 
 func test_craft_menu_search_and_x5() -> void:

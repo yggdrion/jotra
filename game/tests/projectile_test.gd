@@ -127,6 +127,10 @@ func test_projectiles_are_in_snapshots_near_the_player() -> void:
 	assert_dict(world.snapshot_for(1).projectiles).is_empty()
 
 
+func test_arrow_hit_diameter_covers_its_drawn_length() -> void:
+	assert_bool(Content.tuning.projectile_radius * 2 >= ProjectileView.ICON.get_width()).is_true()
+
+
 func _world() -> SimWorld:
 	var world := SimWorld.new()
 	world.spawn_enemies = false

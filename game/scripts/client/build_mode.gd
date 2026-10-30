@@ -12,11 +12,13 @@ const RING := Color(1, 1, 1, 0.25)
 const REASONS := {
 	Building.Status.OK: "",
 	Building.Status.REPAIR: "Repair",
-	Building.Status.FAR: "Too far, stay inside the ring",
-	Building.Status.PROP: "Something stands there",
-	Building.Status.TAKEN: "Already built on",
-	Building.Status.IN_THE_WAY: "Someone is in the way",
+	Building.Status.FAR: "Out of reach",
+	Building.Status.PROP: "Blocked by a prop",
+	Building.Status.CLIFF: "Blocked by a cliff",
+	Building.Status.TAKEN: "Blocked by another piece",
+	Building.Status.IN_THE_WAY: "Blocked by a player or enemy",
 	Building.Status.MISSING_ITEMS: "Missing items",
+	Building.Status.UNAVAILABLE: "Can't build here",
 }
 
 var selected := 0
@@ -27,6 +29,10 @@ var status := Building.Status.OK
 var _at := Vector2.ZERO
 var _ghost := PieceView.new()
 var _menu := BuildMenu.new()
+var _rejected_tile := Vector2i.ZERO
+var _rejected_piece: StringName = &""
+var _rejected_status := Building.Status.UNAVAILABLE
+var _rejected_until := 0
 
 
 func _ready() -> void:
@@ -75,9 +81,15 @@ func update(
 	tile = Building.tile_of(mouse)
 	var chunk: ChunkView = chunks.get(Building.chunk_of_tile(tile))
 	var index := Building.index_in_chunk(tile)
-	# A cliff takes no piece either.
-	var prop := chunk == null or chunk.has_prop(index) or chunk.is_cliff(index)
-	status = Building.can_build(pieces, tile, piece_id(), inventory, at, prop, bodies)
+	var prop := chunk == null or chunk.has_prop(index) or tile == Building.portal_tile()
+	var cliff := chunk != null and chunk.is_cliff(index)
+	status = Building.can_build(pieces, tile, piece_id(), inventory, at, prop, bodies, 0.0, cliff)
+	if (
+		tile == _rejected_tile
+		and piece_id() == _rejected_piece
+		and Time.get_ticks_msec() < _rejected_until
+	):
+		status = _rejected_status
 	_ghost.position = Building.tile_center(tile)
 	_ghost.ghost = GOOD if status in [Building.Status.OK, Building.Status.REPAIR] else BAD
 	if _ghost.piece == null or _ghost.piece.id != piece_id():
@@ -87,6 +99,14 @@ func update(
 	if at != _at:
 		_at = at
 		queue_redraw()
+
+
+## Shows an authoritative server rejection briefly, even if the client's preview was green.
+func reject(tile_at: Vector2i, piece: StringName, reason: int) -> void:
+	_rejected_tile = tile_at
+	_rejected_piece = piece
+	_rejected_status = reason
+	_rejected_until = Time.get_ticks_msec() + 900
 
 
 func _draw() -> void:

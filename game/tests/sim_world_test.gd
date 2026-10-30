@@ -17,6 +17,13 @@ func test_move_within_speed_is_accepted() -> void:
 	assert_vector(world.players[1].position).is_equal(Vector2(Content.tuning.walk_speed, 0))
 
 
+func test_barrow_tile_blocks_walking_but_allows_leaving_it() -> void:
+	var tile := Building.portal_tile()
+	var center := Building.tile_center(tile)
+	assert_bool(Building.can_walk_portal(center + Vector2(-16, 0), center)).is_false()
+	assert_bool(Building.can_walk_portal(center, center + Vector2(-16, 0))).is_true()
+
+
 func test_teleport_is_dropped() -> void:
 	var world := SimWorld.new()
 	world.add_player(1, "p1")

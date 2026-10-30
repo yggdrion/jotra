@@ -155,8 +155,9 @@ func _draw() -> void:
 		elif _line != Vector2.ZERO and def.lunge_distance > 0:
 			_draw_lane(r, def.lunge_reach / scale.x, p)
 		elif _line != Vector2.ZERO:
-			draw_line(Vector2.ZERO, _line * r, Color(AREA, 0.3), 3.0)
-			draw_line(Vector2.ZERO, _line * r * p, Color(AREA, 0.85), 2.0)
+			var width := 2.0 * Content.tuning.projectile_radius / scale.x
+			draw_line(Vector2.ZERO, _line * r, Color(AREA, 0.3), width)
+			draw_line(Vector2.ZERO, _line * r * p, Color(AREA, 0.85), width)
 		else:
 			draw_circle(Vector2.ZERO, r * p, Color(AREA, 0.35))
 			draw_arc(Vector2.ZERO, r, 0, TAU, 32, Color(AREA, 0.85), 1.0)

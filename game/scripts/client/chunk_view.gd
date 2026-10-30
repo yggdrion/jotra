@@ -74,6 +74,7 @@ var _faces: PackedByteArray
 var _looks: PackedInt32Array
 var _props := {}  # id -> PropView
 var _pieces := {}  # index in chunk -> PieceView
+var _underfloors := {}  # index in chunk -> PieceView for a floor beneath a station
 var _decor := {}  # index in chunk -> Decor.View
 
 
@@ -108,11 +109,22 @@ func set_piece(index: int, piece: Building.Piece) -> void:
 	var view: PieceView = _pieces.get(index)
 	if _decor.has(index):
 		_decor[index].visible = piece == null
+	if piece == null or not piece.has_floor:
+		if _underfloors.has(index):
+			_underfloors[index].queue_free()
+			_underfloors.erase(index)
 	if piece == null:
 		if view:
 			view.queue_free()
 			_pieces.erase(index)
 		return
+	if piece.has_floor and not _underfloors.has(index):
+		var floor_view := PieceView.new()
+		floor_view.position = WorldGen.prop_offset(index)
+		floor_view.z_index = 0
+		floor_view.piece = Building.Piece.new(&"floor")
+		add_child(floor_view)
+		_underfloors[index] = floor_view
 	if view == null:
 		view = PieceView.new()
 		view.position = WorldGen.prop_offset(index)

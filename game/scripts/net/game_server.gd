@@ -120,7 +120,12 @@ func start(port: int, world_path: String, metrics_port := 0) -> void:
 	net.ability_requested.connect(func(id: int, aim: Vector2) -> void: world.use_ability(id, aim))
 	net.interact_requested.connect(func(id: int) -> void: world.interact(id))
 	net.build_requested.connect(
-		func(id: int, tile: Vector2i, piece: StringName) -> void: world.build(id, tile, piece)
+		func(id: int, tile: Vector2i, piece: StringName) -> void:
+			if not world.build(id, tile, piece):
+				var reason := world.build_status(id, tile, piece)
+				if reason in [Building.Status.OK, Building.Status.REPAIR]:
+					reason = Building.Status.UNAVAILABLE
+				net.build_rejected.rpc_id(id, tile, piece, reason)
 	)
 	net.unbuild_requested.connect(func(id: int, tile: Vector2i) -> void: world.unbuild(id, tile))
 	net.use_requested.connect(func(id: int, tile: Vector2i) -> void: world.use_piece(id, tile))

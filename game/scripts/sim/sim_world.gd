@@ -674,6 +674,7 @@ func _load_chunk(coord: Vector2i) -> void:
 		var piece := Building.Piece.new(id)
 		piece.health = minf(float(entry.get("hp", piece.health)), piece.health)
 		piece.open = bool(entry.get("open", false))
+		piece.has_floor = bool(entry.get("floor", false))
 		if piece.items:
 			piece.items.load_data(entry.get("items", {}))
 		var tile := Building.tile_at(coord, int(entry.get("t", 0)))
@@ -698,6 +699,8 @@ func _save_chunk(coord: Vector2i) -> void:
 		var entry := {t = Building.index_in_chunk(tile), id = str(piece.id), hp = piece.health}
 		if piece.open:
 			entry.open = true
+		if piece.has_floor:
+			entry.floor = true
 		if piece.items:
 			entry.items = piece.items.to_data()
 		saved.append(entry)
@@ -863,6 +866,7 @@ func move_player(id: int, position: Vector2) -> bool:
 			return false
 	elif not (
 		Building.can_walk(pieces, player.position, position)
+		and Building.can_walk_portal(player.position, position)
 		and _can_climb(player.position, position)
 	):
 		return false
@@ -1080,30 +1084,53 @@ func craft(id: int, recipe: StringName) -> bool:
 ## Builds a piece on a tile in a loaded chunk, paid from the player's inventory (see
 ## Building.can_build), or repairs the same piece there if it is damaged and no enemy is within
 ## repair_lock_radius. Nothing is built inside a run. Returns whether it did either.
-func build(id: int, tile: Vector2i, piece_id: StringName) -> bool:
+func build_status(id: int, tile: Vector2i, piece_id: StringName) -> Building.Status:
 	var player: SimPlayer = players.get(id)
 	var chunk: SimChunk = chunks.get(Building.chunk_of_tile(tile))
 	var def := Content.piece(piece_id)
 	if player == null or chunk == null or def == null or player.dead_until > 0 or player.run:
-		return false
+		return Building.Status.UNAVAILABLE
 	var index := Building.index_in_chunk(tile)
-	# A cliff takes no piece either.
-	var prop: bool = chunk.props.has(index) and not chunk.removed.has(index) or cliffs.has(tile)
+	var prop: bool = (
+		chunk.props.has(index) and not chunk.removed.has(index) or tile == Building.portal_tile()
+	)
 	var bodies := _enemy_positions()
 	for other: SimPlayer in players.values():
 		if other.dead_until == 0:
 			bodies.append(other.position)
-	match Building.can_build(
-		pieces, tile, piece_id, player.inventory, player.position, prop, bodies, REACH_SLACK
+	var status := Building.can_build(
+		pieces,
+		tile,
+		piece_id,
+		player.inventory,
+		player.position,
+		prop,
+		bodies,
+		REACH_SLACK,
+		cliffs.has(tile)
+	)
+	if (
+		status == Building.Status.REPAIR
+		and nearest_enemy(Building.tile_center(tile), Content.tuning.repair_lock_radius) != null
 	):
+		return Building.Status.IN_THE_WAY
+	return status
+
+
+## Builds a piece or repairs a damaged one after returning its authoritative placement reason.
+func build(id: int, tile: Vector2i, piece_id: StringName) -> bool:
+	var status := build_status(id, tile, piece_id)
+	var player: SimPlayer = players.get(id)
+	var chunk: SimChunk = chunks.get(Building.chunk_of_tile(tile))
+	var def: PieceDef = Content.piece(piece_id)
+	match status:
 		Building.Status.REPAIR:
-			var radius := Content.tuning.repair_lock_radius
-			if nearest_enemy(Building.tile_center(tile), radius) != null:
-				return false
 			pieces[tile].health = def.health
 		Building.Status.OK:
+			var existing: Building.Piece = pieces.get(tile)
 			player.inventory.take(def.cost)
 			var piece := Building.Piece.new(piece_id)
+			piece.has_floor = piece_id != &"floor" and existing != null and existing.id == &"floor"
 			chunk.pieces[tile] = piece
 			pieces[tile] = piece
 			pieces_version += 1
@@ -1211,7 +1238,13 @@ func blocker(at: Vector2) -> Variant:
 	if run:
 		return Building.tile_blocker(run.solid, at)
 	var piece: Variant = Building.blocker(pieces, at)
-	return piece if piece != null else Building.tile_blocker(cliffs, at)
+	if piece != null:
+		return piece
+	var cliff: Variant = Building.tile_blocker(cliffs, at)
+	if cliff != null:
+		return cliff
+	var portal := Building.portal_tile()
+	return portal if Building.overlaps(portal, at) else null
 
 
 ## Pathing.blocked_tiles of the loaded pieces and the cliffs, kept until either changes.
@@ -1219,6 +1252,7 @@ func blocked_tiles() -> Dictionary:
 	if _blocked_version != pieces_version or _blocked_cliffs != _cliffs_version:
 		_blocked = Pathing.blocked_tiles(pieces)
 		_blocked.merge(cliffs)
+		_blocked[Building.portal_tile()] = true
 		_blocked_version = pieces_version
 		_blocked_cliffs = _cliffs_version
 	return _blocked
@@ -1255,6 +1289,14 @@ func _remove_piece(tile: Vector2i) -> void:
 			if player.open_chest == tile:
 				_close_chest(player)
 	var chunk: SimChunk = chunks[Building.chunk_of_tile(tile)]
+	if piece.has_floor:
+		var floor_piece := Building.Piece.new(&"floor")
+		chunk.pieces[tile] = floor_piece
+		pieces[tile] = floor_piece
+		chunk.dirty = true
+		pieces_version += 1
+		events.append(["piece", tile])
+		return
 	chunk.pieces.erase(tile)
 	chunk.dirty = true
 	pieces.erase(tile)

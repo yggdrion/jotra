@@ -199,6 +199,7 @@ func _ready() -> void:
 	)
 	net.ponged.connect(func(sent: int) -> void: _ping_ms = Time.get_ticks_msec() - sent)
 	net.rejected.connect(_on_rejected)
+	net.build_rejected_received.connect(_build.reject)
 	net.snapshot_received.connect(_on_snapshot)
 	net.chunk_received.connect(_on_chunk)
 	net.piece_received.connect(_on_piece)
@@ -744,6 +745,7 @@ func _walk(step: Vector2) -> void:
 	for to: Vector2 in [from + step, from + Vector2(step.x, 0), from + Vector2(0, step.y)]:
 		if (
 			Building.can_walk(_pieces, from, to)
+			and Building.can_walk_portal(from, to)
 			and Building.can_walk_tiles(_solid, from, to)
 			and Building.can_walk_tiles(_cliffs, from, to)
 		):

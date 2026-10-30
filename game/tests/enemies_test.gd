@@ -31,6 +31,28 @@ func test_archer_keeps_its_distance_and_shoots_along_the_telegraphed_line() -> v
 	assert_float(world.players[1].health).is_less(Content.tuning.max_health)
 
 
+func test_archer_arrow_keeps_the_telegraphed_aim_when_target_moves() -> void:
+	var world := _world()
+	var def: EnemyDef = Content.enemies[&"draugr_archer"]
+	var archer := world.add_enemy(Vector2(def.preferred_distance + 20, 0), 45, 10, def)
+	var windup: Array = []
+	for i in 5:
+		world.tick(TICK)
+		windup = _windup(world)
+		if not windup.is_empty():
+			break
+	assert_array(windup).is_not_empty()
+	var telegraphed: Vector2 = windup[5]
+	world.players[1].position += Vector2(0, 100)
+	for i in 20:
+		if not world.projectiles.is_empty():
+			break
+		world.tick(TICK)
+	var arrow: SimProjectile = world.projectiles.values()[0]
+	assert_vector(arrow.velocity.normalized()).is_equal_approx(telegraphed, Vector2(0.01, 0.01))
+	assert_bool(world.enemies.has(archer.id)).is_true()
+
+
 func test_dashing_sideways_dodges_the_arrow() -> void:
 	var world := _world()
 	var def: EnemyDef = Content.enemies[&"draugr_archer"]

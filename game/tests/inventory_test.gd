@@ -89,6 +89,15 @@ func test_worn_sums_armor_stats() -> void:
 	assert_float(inventory.worn("health")).is_equal(Content.item(&"bone_armor").health)
 
 
+func test_grave_cloth_tunic_equips_as_armor() -> void:
+	var inventory := Inventory.new(1)
+	var tunic: ItemDef = Content.item(&"cloth_tunic")
+	assert_int(tunic.slot).is_equal(ItemDef.Slot.ARMOR)
+	inventory.add(&"cloth_tunic", 1)
+	assert_bool(inventory.equip(0)).is_true()
+	assert_str(inventory.equipment[ItemDef.Slot.ARMOR]).is_equal("cloth_tunic")
+
+
 func test_data_round_trip_drops_unknown_items() -> void:
 	var inventory := Inventory.new(3)
 	inventory.add(&"wood", 7)

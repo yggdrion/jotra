@@ -32,10 +32,46 @@ func test_build_refuses_props_and_bodies_in_the_way() -> void:
 	var prop_tile := Building.tile_at(coord, prop_id)
 	world.players[1].position = Building.tile_center(prop_tile)
 	assert_bool(world.build(1, prop_tile, &"floor")).is_false()
+	assert_int(world.build_status(1, prop_tile, &"wall")).is_equal(Building.Status.PROP)
 	chunk.removed[prop_id] = true
 	# A wall can't go up on someone, a floor can.
 	assert_bool(world.build(1, prop_tile, &"wall")).is_false()
 	assert_bool(world.build(1, prop_tile, &"floor")).is_true()
+
+
+func test_build_status_explains_cliffs_and_missing_materials() -> void:
+	var world := _world()
+	var cliff: Vector2i = world.cliffs.keys()[0]
+	world.players[1].position = Building.tile_center(cliff)
+	assert_int(world.build_status(1, cliff, &"wall")).is_equal(Building.Status.CLIFF)
+	var empty := _clear(world, Vector2i(2, 0))
+	world.players[1].position = Vector2.ZERO
+	assert_int(world.build_status(1, empty, &"wall")).is_equal(Building.Status.MISSING_ITEMS)
+
+
+func test_workbench_can_be_placed_on_floor_and_removing_it_keeps_the_floor() -> void:
+	var path := create_temp_dir("floor_station_%d" % Time.get_ticks_usec())
+	var world := SimWorld.open(path)
+	var player := world.add_player(1, "ann")
+	player.position = Vector2.ZERO
+	world.tick(TICK)
+	player.inventory.add(&"wood", 20)
+	var tile := _clear(world, Vector2i(2, 0))
+	assert_bool(world.build(1, tile, &"floor")).is_true()
+	assert_int(world.build_status(1, tile, &"workbench")).is_equal(Building.Status.OK)
+	assert_bool(world.build(1, tile, &"workbench")).is_true()
+	assert_bool(world.pieces[tile].has_floor).is_true()
+	assert_bool(Building.from_net(Building.to_net(world.pieces[tile])).has_floor).is_true()
+	world.save()
+	world.remove_player(1)
+
+	var again := SimWorld.open(path)
+	again.add_player(2, "ann")
+	again.tick(TICK)
+	assert_str(again.pieces[tile].id).is_equal("workbench")
+	assert_bool(again.pieces[tile].has_floor).is_true()
+	assert_bool(again.unbuild(2, tile)).is_true()
+	assert_str(again.pieces[tile].id).is_equal("floor")
 
 
 func test_unbuild_refunds_and_spills_the_chest() -> void:
