@@ -110,3 +110,5 @@ The macOS app is ad-hoc signed, not notarized: on first launch, right-click it a
 ## Credits
 
 Interim art: [Ninja Adventure Asset Pack](https://pixel-boy.itch.io/ninja-adventure-asset-pack) by Pixel-boy and AAA, CC0 (`game/assets/ninja_adventure/LICENSE.txt`).
+
+See [docs/RESOURCES.md](docs/RESOURCES.md) for the character-art resource and the other asset sources currently used by the project.

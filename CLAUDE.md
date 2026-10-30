@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `docs/PLAN.md` is the source of truth for scope, design, architecture and milestones; read it before starting work. Setup, run and check commands are in `README.md`.
 
+Keep [`docs/RESOURCES.md`](docs/RESOURCES.md) and the per-pack asset READMEs current when adding, replacing or generating art: record useful resources, source links, licenses, attribution requirements and redistribution limits.
+
 ## Where we are
 
 Keep this section current: update it in the same push that finishes a milestone or changes what's next, so a new session can pick up from here.
