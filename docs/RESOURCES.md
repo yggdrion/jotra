@@ -9,5 +9,6 @@ Useful references for the game's pixel-art workflow and currently used interim a
 - [CraftPix free packs](https://craftpix.net/file-licenses/) — current grim-world tiles, props, characters and item icons; sources and redistribution limits are recorded in [`game/assets/craftpix/README.md`](../game/assets/craftpix/README.md).
 - [Free Knight Player Character](https://jfranci-px.itch.io/free-knight-character) — current player walk cycle; see [`game/assets/dark_knight/README.md`](../game/assets/dark_knight/README.md).
 - [The Wolf Pack](https://finalbossblues.itch.io/wolf-pack) — current wolf walk cycle; see [`game/assets/wolf_pack/README.md`](../game/assets/wolf_pack/README.md).
+- [Lospec Palette List](https://lospec.com/palette-list) — browse curated pixel-art color palettes for visual direction and asset work.
 
 When adding or replacing art, record the source, license, attribution requirements and any redistribution limits in the relevant asset README, then update this page if the resource is useful beyond that one asset.
